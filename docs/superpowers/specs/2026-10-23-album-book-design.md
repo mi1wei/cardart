@@ -1,7 +1,8 @@
 # 3D 卡册翻页查看器（复刻 cardart.cc「Flip through in 3D」）设计文档
 
 - 日期：2026-10-23
-- 状态：待评审
+- 状态：已确认
+- 实现计划：`docs/superpowers/plans/2026-10-23-album-book.md`
 - 依据：REA 对原站的抓取与静态分析（证据见附录）。采用方案 B：外观与原站一致，用弹簧动画代替物理求解。
 
 ## 1. 目标
@@ -12,7 +13,7 @@
 - 点卡片看详情；
 - 合上、打开封面。
 
-外观和手感尽量接近原站。代码保持简单：约 1000 行，不用框架。
+外观和手感尽量接近原站。代码保持简单：JS 约 1100 行、CSS 约 360 行，不用框架。
 
 ## 2. 共识
 
@@ -27,7 +28,7 @@
 - 「一样」指结构、布局、光影和交互流程一致，不追求像素级或物理级一致。
 - 不复用原站的代码和卡面图片。默认使用程序绘制的占位卡，用户可以放入自己的图片。
 - 界面用中文；桌面优先，触摸也能用。
-- 不写单元测试（用户偏好），用构建、REA 截图对比和手动清单来验证。
+- 不写单元测试（用户偏好），仓库里不放测试文件。用构建、仓库外的一次性检查脚本（node 断言和无头 Chrome）、与原站截图对比和手动清单来验证。
 
 ## 3. 范围
 
@@ -64,12 +65,12 @@
 
 - Vite 8 + three 0.186，原生 JS ES 模块；不用 TypeScript，不用 UI 框架。
 - 尽量使用 three 自带能力：
-  - 环境与色调：`RoomEnvironment` + `PMREMGenerator`、`NeutralToneMapping`；
-  - 阴影：`VSMShadowMap`（与原站相同），用 `shadow.radius` + `blurSamples` 做软阴影；地面用 `ShadowMaterial`；书下方另加两块 alphaMap 平面做接触阴影；
+  - 环境与色调：用 `PMREMGenerator` 把仿原站的小「摄影棚」（渐变穹顶 + 3 块柔光板，§11）烘成环境图；`NeutralToneMapping`；
+  - 阴影：`VSMShadowMap`（与原站相同），用 `shadow.radius` + `blurSamples` 做软阴影；地面用 `ShadowMaterial`，边缘淡出；书下方另加两块 alphaMap 平面做接触阴影；
   - 材质：`MeshPhysicalMaterial`，PVC 用 clearcoat，磨砂板用 `transmission` + `roughness` 做模糊透射；
   - 其他：`CanvasTexture`、`Raycaster`；
   - 几何：`ExtrudeGeometry`（圆角板）、`BoxGeometry`（铰链）、`TorusGeometry`（环）、`RoundedBoxGeometry`（环座，来自 `three/addons`）。
-- 不写自定义 shader，活页弯曲在 CPU 上改写顶点。
+- 不写自定义 shader，活页弯曲在 CPU 上改写顶点。唯一的例外是地面阴影：用 `onBeforeCompile` 给 `ShadowMaterial` 加一行边缘淡出。
 
 ## 5. 文件结构与接口
 
@@ -105,10 +106,13 @@ src/book/book.js         createBook：组装、叶状态与弹簧、拖拽/点�
   - `cardAt(face, x, y, n)`：按卡袋矩形判断，返回卡号或 −1。
 - `textures.js`：`createFaceTexture(face, cards, onRedraw)`，返回 `CanvasTexture`；图片到达后重绘，并调用 `onRedraw`。
 - `sheet.js`：
+  - `arc(φ, Δ, L)`：圆弧位移函数（§8），binder 也用它；
   - `restHoleAngle(cy, R, y)`：静止孔角（§9）；
   - `restEdgeX(C, R, y)`：活页平铺在高度 y 时的外边 x，binder 用它计算 B；
   - `createSheet(frontTex, backTex)`，返回 `{ group, front, back, update(C, R, ψ, θ, b), dispose() }`。
-- `binder.js`：`createBinder({ sheets, title })`，返回 `{ group, R, B, xb, closedCenter, pose(c) → { C }, dispose() }`。
+- `binder.js`：
+  - 纯计算：`binderPose(c, D, xb)` 返回 §8 的各关键点与环心 `{ p0, p1, p2, p3, phiS, phiF, n, sink, m, C }`；`binderSize(S)` 返回 `{ R, D, xb, B, closedCenter }`。
+  - `createBinder({ sheets, title })`，返回 `{ group, R, B, xb, closedCenter, pose(c) → { C }, dispose() }`。
   - `pose(c)` 按封面进度摆放各部件，更新左侧接触阴影，返回环心 C。
   - `closedCenter`：合上时书的水平中心，用于镜头取景（§8）。
 - `scene.js`：`createStage(container, halfWidth, insets)`，halfWidth = xb + B，用于取景宽度和阴影相机范围。返回 `{ scene, camera, renderer, frame(x, zoom), render(), resize(), dispose() }`。
@@ -207,7 +211,11 @@ arc(φ, Δ, L) 表示从方向 φ 出发、转过 Δ（逆时针为正）、走�
 **封面标题**
 
 - 放在封面外侧面上的一块透明平面，宽 min(B − 44, 150)，高 30；距书脊侧边 24，距下边 22。合上时它位于左下角。
-- 用 Canvas 绘制白色标题、标题上方 10 mm 的短横线，以及 1 px 的深色偏移阴影（压印感）；不透明度 0.7。
+- Canvas 按 8 px/mm 绘制，下面的坐标以 mm 计、原点在平面左上角：
+  - 字体 600、7.2 mm，基线 y = 25；
+  - 标题上方一条 9 × 0.7 的短横线，位于 y = 15；
+  - 先用 rgba(20,30,40,0.35) 向右下偏移 0.2 画一遍作压印阴影，再用白色画一遍。
+- 平面不透明度 0.7，不写深度。
 
 ## 9. 活页模型
 
@@ -250,7 +258,7 @@ s ∈ [0, W]，从内边量起。
 
 - 正面网格（FrontSide，正面贴图）和背面网格（BackSide，背面贴图设 `repeat.x = −1, offset.x = 1`）共享一个 `PlaneGeometry(1, 1, 39, 1)`。
 - 40 列顶点对应非均匀站点：0、13.5，然后缝线铰链 8 等分、内列 12 等分、列间 6 等分、外列 12 等分。
-- uv.x = s/W。每次 update 写入顶点：第一行 (P(s).x, P(s).y, −H/2)，第二行 z = +H/2；然后调用 `computeVertexNormals()`。这样平铺在右侧时正面朝上。
+- uv.x = s/W。每次 update 写入顶点：第一行 (P(s).x, P(s).y, −H/2)，第二行 z = +H/2；然后调用 `computeVertexNormals()` 和 `computeBoundingSphere()`（点击检测要用）。这样平铺在右侧时正面朝上。
 - 环孔：贴图透明像素 + `alphaTest: 0.5`。three 的阴影深度材质会沿用 map 和 alphaTest，所以孔在阴影里也是透的。
 - 只有正面网格投影（`shadowSide = DoubleSide`），两面都接收阴影。
 
@@ -274,11 +282,12 @@ s ∈ [0, W]，从内边量起。
   - 没有可抓的叶时，只当作点击处理。
 - 指针移动超过 5 px（鼠标）或 9 px（触摸）才进入拖拽，否则当作点击。
 - 拖拽中：
-  - θe = acos(clamp(cos θe0 + Δx/W, −1, 1))，其中 θe0 是起拖时的 θ + b，Δx 是平面交点的位移；封面同样使用 W。
+  - θe = acos(clamp(cos θe0 + Δx/W, −1, 1))，其中 θe0 是起拖时的 θ + b；封面同样使用 W。
+  - Δx（mm）= 指针的屏幕横向位移（px）÷ 起拖时测得的每毫米像素数。后者取 (0,0,0) 到 (W,0,0) 投影到屏幕上的长度 ÷ W。
   - θ 以弹簧追随 θe。活页的 b = θe − θ（夹在允许范围内）；封面没有 b。
 - 松手：
   - 进度 p：从右起拖时 p = θe/π，从左起拖时 p = 1 − θe/π；
-  - v：朝翻页方向的指针速度，单位 W/s，取最近 100 ms；
+  - v：朝翻页方向的指针速度，单位 W/s，取最近 100 ms，用起拖时的同一比例换算；
   - v > 0.9，或者 p > 0.22 且 v ≥ −0.05 时翻过去（k ± 1），否则回弹。
 
 **点击**
@@ -305,14 +314,21 @@ ResizeObserver 触发 resize，然后重绘。
 
 - WebGLRenderer：开启 antialias，pixelRatio ≤ 2，输出 sRGB，`NeutralToneMapping`，exposure 1.22，`VSMShadowMap`。
 - `scene.background` 设为 #f7f9fb（与覆盖层同色、不透明），这样磨砂透射能采样到正确的底色。
-- 环境：`pmrem.fromScene(new RoomEnvironment(), 0.02)` 作为 `scene.environment`，`environmentIntensity` 0.6。
+- 环境：仿原站的小摄影棚，`pmrem.fromScene(棚, 0.02)` 作为 `scene.environment`，`environmentIntensity` 0.6。烘焙后释放棚的几何与材质。
+  - 穹顶：`SphereGeometry(10, 48, 24)`，BackSide，顶点色。设 t 为顶点高度 / 10：t > 0 时 v = 0.16 + 0.1t，否则 v = 0.16(1 + t) + 0.03；颜色 (v, 1.01v, 1.04v)。
+  - 三块柔光板（`MeshBasicMaterial`，DoubleSide，颜色 (v, v, 0.98v)），都放在距原点 8 处并朝向原点：
+    - 5.2 × 3.6，方向 (−0.5, 0.45, 0.74)，v = 7；
+    - 1.2 × 6，方向 (0.85, −0.15, 0.5)，v = 2.2；
+    - 7 × 1.2，方向 (0.1, −0.9, 0.42)，v = 0.9。
+  - 以上按原站的 z 轴向上给出：整个棚放进一个组，lookAt 之后再把组绕 x 轴转 −π/2。
 - 灯光（参数取自原站）：
   - 主光 DirectionalLight(#ffffff, 1.35)，位于左侧上方、略偏远端，坐标 (−290, 420, −75)，目标在原点，投影。
   - 主光阴影：mapSize 2048，radius 14，blurSamples 16，intensity 0.7，bias −8e-4，normalBias 1.5。
-  - 主光阴影相机：x ∈ ±(halfWidth + 50)，z ∈ ±220，near 100，far 1000。
+  - 主光阴影相机：x ∈ ±(halfWidth + 50)，z ∈ ±220，near 100，far 1000；up 设为 (0, 0, −1)，让左右范围对应书宽。
   - 小屏（min(screen.width, screen.height) < 600）时，阴影改为 mapSize 1024、radius 8、blurSamples 10。
   - 补光 HemisphereLight(#ffffff, #d9dee2, 0.18)。
 - 地面：1600 × 1000 的平面，`ShadowMaterial`，opacity 0.16，位于 y = −(CT + drop + 0.02) ≈ −3.82，也就是打开时下沉书脊的底面（−3.8）之下。
+  - 和原站一样，阴影在打开的书的范围外 16 mm 内淡出：设 d 为地面点 (x, z) 超出 |x| ≤ halfWidth、|z| ≤ H/2 矩形的距离，alpha 再乘以 1 − smoothstep(0, 16, d)。
 - 接触阴影（binder.js）：板不靠投影产生落地阴影，所以左、右半本下方各放一块平面。
   - 材质：黑色 `MeshBasicMaterial`，transparent，depthWrite 关闭，opacity 0.32，renderOrder −1。
   - alphaMap 是一张 256² 的 Canvas：先铺黑底；再画白色圆角矩形 (22, 18, 212, 220, r14)，blur 12px、alpha 0.45；最后画圆角矩形 (19, 16, 218, 224, r6)，blur 2.5px、alpha 1。
@@ -321,7 +337,7 @@ ResizeObserver 触发 resize，然后重绘。
 
 **材质**
 
-- PVC 活页：`MeshPhysicalMaterial`，roughness 0.48，clearcoat 1，clearcoatRoughness 0.1，ior 1.54。
+- PVC 活页：`MeshPhysicalMaterial`，roughness 0.48，clearcoat 1，clearcoatRoughness 0.14，ior 1.54，specularIntensity 0.6。
 - 磨砂板（封底、书脊、封面、铰链）：
   - `MeshPhysicalMaterial`，颜色 #e9eef2；
   - transmission 1，roughness 0.6，thickness 1.6，ior 1.5；
@@ -331,12 +347,17 @@ ResizeObserver 触发 resize，然后重绘。
 
 **贴图**
 
-每面一张 840 × 770 的 Canvas（4 px/mm），sRGB，使用最大各向异性。内容依次为：
+每面一张 839 × 770 的 Canvas（W、H 各乘 4 px/mm 后取整），sRGB，使用最大各向异性。下面的尺寸以 mm 计，颜色取自原站。内容依次为：
 
-- 浅灰 PVC 膜底（#e6e9ec）；
-- 每个卡袋一个略亮的圆角框；
-- 卡：图片按 cover 方式裁切到圆角 3.18，或画占位卡，带轻微阴影；
-- 4 个孔，用 `destination-out` 挖空。
+- PVC 膜底 #eef1f3；
+- 焊缝区：把 6 个卡袋的外包矩形四边各扩 1.6，填 #f5f6f8，描 0.22 宽的 rgba(24,31,40,0.16) 边；
+- 每个卡袋：
+  - 先用膜底色填满卡袋矩形，再画卡；
+  - 卡：图片按 cover 方式裁切到圆角 3.18，或画占位卡；卡下有阴影（模糊 1.2、下移 0.25，rgba(0,0,0,0.28)）；
+  - 袋口：y + 2.38 处一条 0.5 高的阴影色细条（alpha 0.5），y + 2.08 处一条 0.3 高的白边 rgba(255,255,255,0.9)；
+  - 描 0.22 宽的阴影色边框；
+- 4 个孔：先在半径 holeR + 0.35 处描 0.5 宽的白边，再用 `destination-out` 挖空半径 holeR 的圆；
+- 最后沿整面描一圈 0.6 宽的白边。
 
 **镜头**
 
@@ -358,14 +379,14 @@ ResizeObserver 触发 resize，然后重绘。
 - **覆盖层**：`role="dialog"`、`aria-modal="true"`、`aria-label` 为相册标题，背景 #f7f9fb。
 - **顶栏**：
   - 左上角显示标题。
-  - 右上角书本图标按钮：打开时 aria-label 为「合上卡册」；合上时为「打开卡册」，同时设置 `aria-pressed="true"` 并显示浅色圆底。
+  - 右上角书本图标按钮：打开时显示合着的书，aria-label 为「合上卡册」；合上时换成翻开的书，aria-label 为「打开卡册」，同时设置 `aria-pressed="true"` 并显示浅色圆底。
   - × 按钮，aria-label 为「关闭」。
 - **底栏（打开时）**：
   - 圆形描边按钮 ‹（「上一页」）；
   - 计数 `k / N`（`aria-live="polite"`）；
   - 圆形描边按钮 ›（「下一页」），k = S + 1 时禁用；
   - 下方提示：「拖动页面或点击两侧翻页；点击卡片查看详情」。
-- **底栏（合上时）**：深青色（#1d5f80）胶囊主按钮「打开卡册」，带书本图标；下方提示：「点击封面或向左拖动打开」。
+- **底栏（合上时）**：深青色（#1d5f80）胶囊主按钮「打开卡册」，带翻开的书图标；下方提示：「点击封面或向左拖动打开」。
 - **详情栏**：
   - 从右侧滑入，宽 360 px，窄屏时全宽；
   - 显示大图（或放大的占位卡）、标题、「第 i 张，共 n 张」，以及 × 关闭按钮（「关闭详情」）；
@@ -378,28 +399,29 @@ ResizeObserver 触发 resize，然后重绘。
 - WebGL 不可用（创建 renderer 失败），或发生 `webglcontextlost`：在覆盖层中显示「当前浏览器无法显示 3D 卡册（WebGL 不可用）」，保留关闭按钮。
 - cards.json 加载失败：入口页显示「相册数据加载失败」。
 - 图片缺失或加载失败：画占位卡。图片到达后，重绘对应面的贴图并请求一帧。
+- 详情栏的大图加载失败时移除该图片，露出下面的占位（底色 + 标题）。
 - dispose：
   - 取消 rAF，移除事件监听和 ResizeObserver；
   - 释放几何、材质、贴图、PMREM 和 renderer。
 
 ## 14. 验证与成功标准
 
-- **构建**：`npm run build` 通过。
-- **REA 截图对比**：用 REA `capture_browser_scenario` 抓本地 dev server，视口 1280×720，`reduced_motion` 设为 no-preference，同时采集 console 和 page-errors。
-  - 场景：打开查看器后截图（1/6）；按 → 后截图（2/6）；再按 → 后截图（3/6）；点书本图标合上后截图。
-  - 与原站同一状态的截图（1/6、2/6、3/6、合上）并排对比，以下各项应一致：三板结构、四环与环座、2×3 卡布局、磨砂封面、阴影、底栏与提示；书在画面中的位置和比例应接近。
-  - console 和 page-errors 必须为空。
-- **手动清单**：
-  - 慢拖超过 22% 时翻页，不足时回弹，快甩时翻页；
-  - 点两侧翻页；
-  - 点卡打开详情；
-  - ←、→、PageUp、PageDown；
-  - Esc 的关闭顺序；
-  - 合上/打开，包括从第 4 个跨页合上时的错峰动画；
-  - 窗口缩放；
-  - 竖屏提示；
-  - reduced motion 下直接切换。
-- **规模**：JS + CSS 约 1000 行，运行时依赖只有 three。
+检查脚本放在仓库外（`/tmp/album-checks/`），用完即删，不提交。
+
+- **构建**：`npm run build` 通过（three 使 viewer chunk 超过 500 kB，只出现体积警告）。
+- **几何断言**（node）：layout、sheet、binder 的纯计算与 §7–§9 的校验值一致，包括 S、卡袋位置、`cardAt`、孔角范围、活页外边、环心与板宽 B。
+- **浏览器检查**（无头 Chrome，经 DevTools 协议，视口 1280×720）：
+  - 键盘与按钮：打开、←/→/PageUp/PageDown、‹ ›、连按到底与合上、开合按钮、翻页途中关闭再打开、Esc；
+  - 指针：慢拖超过 22% 翻页、不足回弹、快甩翻页、反向甩回取消、拖左页回翻、点卡看详情（左右两页）、点两侧翻页、拖动和点击封面打开；
+  - 边界：卡片数 0/1/7/12/13、图片成功与失败（贴图和详情栏）、cards.json 损坏、无 WebGL、reduced motion、手机竖屏提示与横屏取景。
+  - console 和页面异常必须为空（无 WebGL 时 three 自己打印的错误除外）。
+- **截图对比**：本地 1/6、3/6、合上三张截图与原站同一状态的 REA 截图并排对比，以下各项应一致：三板结构、四环与环座、2×3 卡布局、磨砂封面、阴影、底栏与提示；书在画面中的位置和比例应接近。
+- **手动清单**（脚本覆盖不到的部分）：
+  - 真机触摸拖拽与点击；
+  - Safari 下接触阴影的模糊（依赖 `ctx.filter`）；
+  - 从第 4 个跨页合上时的错峰动画观感；
+  - 桌面拖动窗口大小时的重新取景。
+- **规模**：JS 约 1100 行、CSS 约 360 行，运行时依赖只有 three。
 
 ## 附录：REA 证据
 
