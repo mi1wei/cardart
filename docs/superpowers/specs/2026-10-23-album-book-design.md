@@ -92,7 +92,8 @@ src/book/book.js         createBook：组装、叶状态与弹簧、拖拽/点�
 接口：
 
 - `viewer.js`：`openViewer(album)` 创建覆盖层，返回关闭函数 `close`。
-- `book.js`：`createBook(container, { album, onChange, onCardClick })`，返回 `{ next(), prev(), toggleCover(), dispose() }`。
+- `book.js`：`createBook(container, { album, insets, onChange, onCardClick })`，返回 `{ next(), prev(), toggleCover(), dispose() }`。
+  - `insets = { top, bottom }`：顶栏、底栏的像素高度。画布铺满覆盖层，取景时避开这两条栏。
   - 初始状态 k = 1：直接以打开状态显示第一个跨页，不播放开封面动画。
   - `onChange({ spread, spreads, closed })`：创建后先回调一次，之后每次 k 变化时立即回调。`spread = k`，`spreads = S + 1`，`closed = (k === 0)`。
   - `onCardClick(card)`：`card` 是 cards.json 里的对象，另外附加 `index` 字段。
@@ -107,10 +108,11 @@ src/book/book.js         createBook：组装、叶状态与弹簧、拖拽/点�
   - `restHoleAngle(cy, R, y)`：静止孔角（§9）；
   - `restEdgeX(C, R, y)`：活页平铺在高度 y 时的外边 x，binder 用它计算 B；
   - `createSheet(frontTex, backTex)`，返回 `{ group, front, back, update(C, R, ψ, θ, b), dispose() }`。
-- `binder.js`：`createBinder({ sheets, title })`，返回 `{ group, R, B, xb, pose(c) → { C }, span(c) → [x0, x1], dispose() }`。
+- `binder.js`：`createBinder({ sheets, title })`，返回 `{ group, R, B, xb, closedCenter, pose(c) → { C }, dispose() }`。
   - `pose(c)` 按封面进度摆放各部件，更新左侧接触阴影，返回环心 C。
-- `scene.js`：`createStage(container, halfWidth)`，halfWidth = xb + B，用于阴影相机范围。返回 `{ scene, camera, renderer, frame(x0, x1, depth, dt) → moving, render(), resize(), dispose() }`。
-  - `frame` 让镜头平滑地取景 [x0, x1] × depth；镜头仍在移动时返回 true。
+  - `closedCenter`：合上时书的水平中心，用于镜头取景（§8）。
+- `scene.js`：`createStage(container, halfWidth, insets)`，halfWidth = xb + B，用于取景宽度和阴影相机范围。返回 `{ scene, camera, renderer, frame(x, zoom), render(), resize(), dispose() }`。
+  - `frame(x, zoom)` 按 §11 摆放镜头：取景中心为 x，距离再乘以 zoom。
 
 ## 6. 数据
 
@@ -196,11 +198,11 @@ arc(φ, Δ, L) 表示从方向 φ 出发、转过 Δ（逆时针为正）、走�
 - 铰链：用厚 CT 的 BoxGeometry，放在弧的两个端点之间（弦近似）；靠书脊的一端用下沉后的端点。
 - 校验值（R = 13）：打开时 C = (0, 13.3)；合上时 C ≈ (33.6, 17.9)，封面中线 y ≈ 36.6，盖在环的上方。
 
-**取景跨度**
+**取景中心**
 
-- 打开时为 [−(xb + B), xb + B]；
-- 合上时为 [p1.x − CT, xb + B]，这里 p1 取 c = 0 时的值；
-- 中间状态按 c 线性插值。
+- 原站开合时不改变缩放，只平移镜头：合上的书留在画面中央，约占半宽。
+- closedCenter = (p1.x − CT + xb + B)/2，这里 p1 取 c = 0 时的值。R = 13 时约为 132.8。
+- 取景中心 x = closedCenter·(1 − smoothstep(c))，其中 smoothstep(t) = t²(3 − 2t)。
 
 **封面标题**
 
@@ -338,14 +340,18 @@ ResizeObserver 触发 resize，然后重绘。
 
 **镜头**
 
-- PerspectiveCamera，fov 24。视线偏离竖直方向 9°：相机在目标上方，并略偏向 +z。
-- 取景范围：x 方向为 span(c)，z 方向为 HB；四周各留 4% 后，整体放进画布。
-- 目标点和距离用时间常数 0.25 s 的指数平滑跟随。
-- 画布只占顶栏和底栏之间的区域。
+- PerspectiveCamera，fov 24，near 50，far 4000。
+- 画布铺满覆盖层。可用高度比 band = max(0.3, (画布高 − top − bottom)/画布高)。
+- 取景宽 w = 2·halfWidth + 24，取景深 h = H + 30，两者都是常量。
+- 距离 s = max((w/2)/(tan12°·aspect), (h/2)/(tan12°·band))·zoom。
+  - zoom = 1 + 0.15·sin(π·c)。封面竖起时角会抬得很高，所以稍微拉远；这是对原站「最多拉远 1.15 倍」修正的简化。
+- 视线偏离竖直方向 9°：相机位于 (x, 4 + s·cos9°, s·sin9°)，看向 (x, 4, 0)。
+- `setViewOffset(画布宽, 画布高, 0, (bottom − top)/2, 画布宽, 画布高)`，让书居中在顶栏和底栏之间。翻页时竖起的页角可以伸到栏下，不会被裁掉。
+- 镜头不做额外平滑：c 本身由弹簧驱动，已经是连续的；reduced motion 下随 c 直接切换。
 
 **按需渲染**
 
-只有在有叶在动、正在拖拽或镜头尚未收敛时才运行 rAF；全部静止后停止。
+只有在有叶在动或正在拖拽时才运行 rAF；全部静止后停止。
 
 ## 12. 查看器 UI
 
