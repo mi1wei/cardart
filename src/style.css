@@ -109,7 +109,8 @@ button {
 .ab-bar {
   top: 0;
   min-height: 56px;
-  padding: 8px 10px 0 clamp(20px, 4vw, 40px);
+  padding: calc(env(safe-area-inset-top, 0px) + 8px) max(env(safe-area-inset-right, 0px), 10px) 0
+    max(env(safe-area-inset-left, 0px), clamp(20px, 4vw, 40px));
   display: flex;
   align-items: center;
   gap: 12px;
@@ -129,7 +130,7 @@ button {
 
 .ab-foot {
   bottom: 0;
-  padding: 0 20px 16px;
+  padding: 0 20px calc(env(safe-area-inset-bottom, 0px) + 16px);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -227,7 +228,7 @@ button {
   bottom: 0;
   z-index: 2;
   width: 360px;
-  padding: 0 12px 12px 0;
+  padding: 0 max(env(safe-area-inset-right, 0px), 12px) calc(env(safe-area-inset-bottom, 0px) + 12px) 0;
   pointer-events: none;
 }
 
@@ -348,6 +349,49 @@ button {
   .ab-foot,
   .ab-panel-wrap {
     visibility: hidden;
+  }
+}
+
+/* Touch screens get no hint, as on the original. */
+@media not ((hover: hover) and (pointer: fine)) {
+  .ab-hint {
+    display: none;
+  }
+}
+
+/* Phone landscape (same query as viewer.js): compact bar, ‹ › on the screen edges over the book. */
+@media (orientation: landscape) and (max-height: 519.98px) {
+  .ab-bar {
+    min-height: 44px;
+    padding-top: calc(env(safe-area-inset-top, 0px) + 2px);
+  }
+
+  .ab-foot {
+    top: 0;
+    flex-direction: row;
+    justify-content: center;
+    padding: 0 max(env(safe-area-inset-right, 0px), 8px) 0 max(env(safe-area-inset-left, 0px), 8px);
+  }
+
+  .ab-nav[data-open] {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .ab-nav[data-closed] {
+    position: absolute;
+    left: 50%;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 10px);
+    translate: -50%;
+  }
+
+  .ab-count,
+  .ab-hint {
+    display: none;
+  }
+
+  .ab-panel-wrap {
+    top: 44px;
   }
 }
 

@@ -133,8 +133,11 @@ export function createStage(container, halfWidth, insets) {
     },
     // Centre the view on x between the top and bottom bars (spec §11).
     frame(x, zoom) {
+      const phone = width > height && height < 520; // phone landscape: tighter margins, as on the original
       const band = Math.max(0.3, (height - insets.top - insets.bottom) / height);
-      const s = Math.max((halfWidth + 12) / (TAN * (width / height)), (DIM.H + 30) / 2 / (TAN * band)) * zoom;
+      const fitWidth = (halfWidth + (phone ? 5 : 12)) / (TAN * (width / height));
+      const fitHeight = (DIM.HB + (phone ? 10 : 30)) / 2 / (TAN * band);
+      const s = Math.max(fitWidth, fitHeight) * zoom;
       camera.position.set(x, 4 + s * Math.cos(TILT), s * Math.sin(TILT));
       camera.lookAt(x, 4, 0);
       camera.setViewOffset(width, height, 0, (insets.bottom - insets.top) / 2, width, height);

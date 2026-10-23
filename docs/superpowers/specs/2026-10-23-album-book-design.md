@@ -94,7 +94,7 @@ src/book/book.js         createBook：组装、叶状态与弹簧、拖拽/点�
 
 - `viewer.js`：`openViewer(album)` 创建覆盖层，返回关闭函数 `close`。
 - `book.js`：`createBook(container, { album, insets, onChange, onCardClick })`，返回 `{ next(), prev(), toggleCover(), dispose() }`。
-  - `insets = { top, bottom }`：顶栏、底栏的像素高度。画布铺满覆盖层，取景时避开这两条栏。
+  - `insets = { top, bottom }`：顶栏、底栏的像素高度，每次取景时实时读取（转屏后自动更新）；手机横屏时底栏浮在书上，bottom 为 0。画布铺满覆盖层，取景时避开这两条栏。
   - 初始状态 k = 1：直接以打开状态显示第一个跨页，不播放开封面动画。
   - `onChange({ spread, spreads, closed })`：创建后先回调一次，之后每次 k 变化时立即回调。`spread = k`，`spreads = S + 1`，`closed = (k === 0)`。
   - `onCardClick(card)`：`card` 是 cards.json 里的对象，另外附加 `index` 字段。
@@ -363,7 +363,8 @@ ResizeObserver 触发 resize，然后重绘。
 
 - PerspectiveCamera，fov 24，near 50，far 4000。
 - 画布铺满覆盖层。可用高度比 band = max(0.3, (画布高 − top − bottom)/画布高)。
-- 取景宽 w = 2·halfWidth + 24，取景深 h = H + 30，两者都是常量。
+- 取景宽 w = 2·halfWidth + 24，取景深 h = HB + 30（HB 为板高，与原站一致），两者都是常量。
+  - 手机横屏（画布宽 > 高且高 < 520）时边距收紧：w = 2·halfWidth + 10，h = HB + 10。
 - 距离 s = max((w/2)/(tan12°·aspect), (h/2)/(tan12°·band))·zoom。
   - zoom = 1 + 0.15·sin(π·c)。封面竖起时角会抬得很高，所以稍微拉远；这是对原站「最多拉远 1.15 倍」修正的简化。
 - 视线偏离竖直方向 9°：相机位于 (x, 4 + s·cos9°, s·sin9°)，看向 (x, 4, 0)。
@@ -392,6 +393,12 @@ ResizeObserver 触发 resize，然后重绘。
   - 显示大图（或放大的占位卡）、标题、「第 i 张，共 n 张」，以及 × 关闭按钮（「关闭详情」）；
   - 覆盖在场景上，不移动场景。
 - **竖屏提示**：满足 `@media (max-width: 600px) and (orientation: portrait)` 时，显示「请横过手机查看卡册」。
+- **手机横屏**：满足 `@media (orientation: landscape) and (max-height: 519.98px)` 时，与原站一致：
+  - 顶栏高度压到 44 px，详情栏从 44 px 处开始；
+  - 底栏铺满全屏但不拦截触摸，‹ › 移到屏幕左右边缘并垂直居中，隐藏计数和提示；
+  - 「打开卡册」按钮固定在底部居中。
+- **触屏**：不满足 `(hover: hover) and (pointer: fine)` 时不显示提示。
+- **全面屏**：viewport 加 `viewport-fit=cover`，画布铺到刘海和圆角下；顶栏、底栏、详情栏用 `env(safe-area-inset-*)` 让按钮避开刘海和 Home 条。
 - **关闭查看器**：移除覆盖层，并调用 `dispose()`。
 
 ## 13. 错误与降级

@@ -129,7 +129,16 @@ export function openViewer(album) {
   document.body.append(root);
   root.focus();
 
-  const insets = { top: $('.ab-bar').offsetHeight, bottom: $('.ab-foot').offsetHeight };
+  // Read live so the framing follows rotation; in phone landscape the foot floats over the book.
+  const phoneLandscape = matchMedia('(orientation: landscape) and (max-height: 519.98px)');
+  const insets = {
+    get top() {
+      return $('.ab-bar').offsetHeight;
+    },
+    get bottom() {
+      return phoneLandscape.matches ? 0 : $('.ab-foot').offsetHeight;
+    },
+  };
   try {
     book = createBook(stage, { album, insets, onChange, onCardClick: showCard });
   } catch (err) {
