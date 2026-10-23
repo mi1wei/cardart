@@ -203,8 +203,8 @@ export function createBook(container, { album, insets, onChange, onCardClick }) 
     if (drag) {
       drag = null;
       release(p, e);
-    } else if (e.type === 'pointerup') {
-      tap(e, p);
+    } else if (e.type === 'pointerup' && Math.hypot(e.clientX - p.x0, e.clientY - p.y0) < p.slop) {
+      tap(e, p); // a swipe that turned no leaf (e.g. past the last spread) is not a tap
     }
     requestRender();
   }

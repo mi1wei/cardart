@@ -27,6 +27,6 @@ loadAlbum().then((album) => {
   app.querySelector('.page-count').textContent = `${album.cards.length} 张卡片`;
   app.querySelector('button').addEventListener('click', async () => {
     const { openViewer } = await import('./viewer.js');
-    openViewer(album);
+    if (!document.querySelector('.ab')) openViewer(album); // a double click must not open two viewers
   });
 });
