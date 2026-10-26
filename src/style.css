@@ -591,6 +591,138 @@ body:has(.ab, .lb) {
   overflow: hidden;
 }
 
+/* Lightbox */
+.lb {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: #0e1115;
+  color: #e8edf2;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.lb-bar {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 64px;
+  padding: env(safe-area-inset-top, 0px) max(env(safe-area-inset-right, 0px), 16px) 0 max(env(safe-area-inset-left, 0px), 24px);
+}
+
+.lb-name {
+  min-width: 0;
+  margin-left: 8px;
+  color: #8d98a5;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lb-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: #dfe5ec;
+  cursor: pointer;
+}
+
+.lb-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.lb-btn:not(:disabled):hover {
+  background: rgb(255 255 255 / 0.12);
+}
+
+.lb-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.lb .ibtn {
+  background: rgb(255 255 255 / 0.1);
+  color: #fff;
+}
+
+.lb .ibtn:not(:disabled):hover {
+  background: rgb(255 255 255 / 0.2);
+}
+
+.lb .ibtn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.lb-img {
+  position: absolute;
+  left: 88px;
+  top: 72px;
+  width: calc(100% - 176px);
+  height: calc(100% - 96px);
+  object-fit: contain;
+}
+
+.lb.missing .lb-img {
+  visibility: hidden;
+}
+
+.lb.missing::after {
+  content: '图片丢失';
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #8d98a5;
+}
+
+.lb-nav {
+  position: absolute;
+  top: 50%;
+  width: 48px;
+  height: 48px;
+  margin-top: -24px;
+}
+
+.lb-nav.l {
+  left: max(env(safe-area-inset-left, 0px), 24px);
+}
+
+.lb-nav.r {
+  right: max(env(safe-area-inset-right, 0px), 24px);
+}
+
+@media (max-width: 600px) {
+  .lb-bar {
+    min-height: 56px;
+    padding-left: 16px;
+  }
+
+  .lb-btn span,
+  .lb-name,
+  .lb-nav {
+    display: none;
+  }
+
+  .lb-img {
+    left: 0;
+    top: 64px;
+    width: 100%;
+    height: calc(100% - 88px);
+  }
+}
+
 /* Phones: two-column wall, three-column grid, floating buttons */
 @media (max-width: 600px) {
   .mgr {

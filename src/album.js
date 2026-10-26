@@ -1,5 +1,6 @@
 import { api, mediaUrl } from './api.js';
-import { close, open } from './router.js';
+import { openLightbox } from './lightbox.js';
+import { close, open, swap } from './router.js';
 import { dialog, icon, toast } from './ui.js';
 
 const fine = matchMedia('(pointer: fine)');
@@ -16,6 +17,7 @@ export function renderAlbum(app, id) {
   const queue = [];
   const tally = { total: 0, done: 0, dup: 0, bad: 0, big: 0, fail: 0 };
   let uploading = false;
+  let lightbox = null;
 
   app.innerHTML = `
     <main class="mgr album-page">
@@ -61,10 +63,41 @@ export function renderAlbum(app, id) {
       const same = album && JSON.stringify(next) === JSON.stringify(album);
       album = next;
       if (!same) render();
+      sync();
     } catch (err) {
       if (!alive) return;
       if (err.status === 404) main.innerHTML = '<p class="empty">相册不存在。<a href="#/">回到全部相册</a></p>';
       else toast(`加载失败：${err.message}`);
+    }
+  }
+
+  const base = () => `#/a/${id}${route.three ? '/3d' : ''}`;
+
+  // The lightbox changed the album (cover, deletion): redraw what lies under it.
+  function changed(next) {
+    album = next;
+    render();
+  }
+
+  // Opens, moves or closes the lightbox to match the address.
+  function sync() {
+    const i = route.photo ? album.photos.findIndex((p) => p.id === route.photo) : -1;
+    if (i >= 0 && lightbox) lightbox.show(i, album);
+    else if (i >= 0) {
+      lightbox = openLightbox({
+        album,
+        index: i,
+        onIndex: (pid) => {
+          route = { ...route, photo: pid };
+          swap(`${base()}/p/${pid}`);
+        },
+        onAlbum: changed,
+        onClose: () => close(base()),
+      });
+    } else {
+      lightbox?.close();
+      lightbox = null;
+      if (route.photo) swap(base()); // a photo that no longer exists
     }
   }
 
@@ -287,9 +320,11 @@ export function renderAlbum(app, id) {
   return {
     update(next) {
       route = next;
+      if (album) sync();
     },
     destroy() {
       alive = false;
+      lightbox?.close();
       drag?.ghost?.remove();
       app.removeEventListener('click', onClick);
       window.removeEventListener('pointermove', onPointerMove);
