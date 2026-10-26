@@ -1,7 +1,7 @@
 import { mediaUrl } from './api.js';
 import { createBook } from './book/book.js';
 import { layoutPages, spreadOfPage } from './book/layout.js';
-import { icon } from './ui.js';
+import { fullscreenTip, icon, toast } from './ui.js';
 
 const HINT_OPEN = '拖动页面或点击两侧翻页；点击照片看大图';
 const HINT_CLOSED = '点击封面或向左拖动打开';
@@ -22,6 +22,7 @@ export function openViewer({ album, onOpenPhoto, onClose, onPerPage }) {
       <button class="ab-icon" type="button" data-act="close" aria-label="关闭">${icon('close')}</button>
       <h2 class="ab-title"></h2>
       <label class="ab-select"><span>每页</span><select>${DENSITY.map(([v, t]) => `<option value="${v}">${t}</option>`).join('')}</select></label>
+      <button class="ab-icon" type="button" data-act="fullscreen" aria-label="全屏" aria-pressed="false">${icon('fullscreen')}</button>
       <button class="ab-icon" type="button" data-act="cover" aria-label="合上相册" aria-pressed="false">${icon('book')}</button>
     </header>
     <footer class="ab-foot">
@@ -42,10 +43,30 @@ export function openViewer({ album, onOpenPhoto, onClose, onPerPage }) {
   const stage = $('.ab-stage');
   const slider = $('.ab-slider');
   const per = $('.ab-select select');
+  const full = $('[data-act=fullscreen]');
   let book = null;
   let pages = [];
   let spread = 1;
   let sliding = false;
+
+  // Full screen is the whole page, so the lightbox shows over the book too (spec §9). iPhone has no
+  // Fullscreen API: the button explains the Home Screen, and opened from there it is not needed.
+  const canFull = !!document.fullscreenEnabled;
+  const standalone = navigator.standalone || matchMedia('(display-mode: standalone)').matches;
+  full.hidden = !canFull && (standalone || !/iPhone|iPod/.test(navigator.userAgent));
+
+  function toggleFullscreen() {
+    if (!canFull) toast(fullscreenTip(), 8000);
+    else if (document.fullscreenElement) document.exitFullscreen();
+    else document.documentElement.requestFullscreen().catch(() => toast('当前浏览器不能全屏'));
+  }
+
+  function onFullscreen() {
+    const on = !!document.fullscreenElement;
+    full.innerHTML = icon(on ? 'fullscreenExit' : 'fullscreen');
+    full.setAttribute('aria-label', on ? '退出全屏' : '全屏');
+    full.setAttribute('aria-pressed', String(on));
+  }
 
   const photoUrl = (i, size) => mediaUrl(album.id, album.photos[i].id, size);
   const firstPhotoOf = (s) => (pages[2 * s - 3]?.rects[0] ?? pages[2 * s - 2]?.rects[0])?.i ?? 0;
@@ -111,6 +132,7 @@ export function openViewer({ album, onOpenPhoto, onClose, onPerPage }) {
   function onClick(e) {
     const act = e.target.closest('[data-act]')?.dataset.act;
     if (act === 'close') onClose();
+    else if (act === 'fullscreen') toggleFullscreen();
     else if (act && book) book[act === 'cover' ? 'toggleCover' : act]();
   }
 
@@ -132,6 +154,8 @@ export function openViewer({ album, onOpenPhoto, onClose, onPerPage }) {
 
   function close() {
     window.removeEventListener('keydown', onKey);
+    document.removeEventListener('fullscreenchange', onFullscreen);
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
     stage.removeEventListener('webglcontextlost', fail, true);
     book?.dispose();
     book = null;
@@ -141,6 +165,7 @@ export function openViewer({ album, onOpenPhoto, onClose, onPerPage }) {
 
   root.addEventListener('click', onClick);
   window.addEventListener('keydown', onKey);
+  document.addEventListener('fullscreenchange', onFullscreen);
   stage.addEventListener('webglcontextlost', fail, true); // the event does not bubble
   document.body.append(root);
   root.focus();

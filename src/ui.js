@@ -13,10 +13,18 @@ const PATHS = {
   expand: '<path d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7"/>',
   check: '<path d="m5.5 12.5 4 4 9-9"/>',
   copy: '<rect x="8.5" y="8.5" width="11" height="11" rx="2"/><path d="M15.5 8.5V6A1.5 1.5 0 0 0 14 4.5H6A1.5 1.5 0 0 0 4.5 6v8A1.5 1.5 0 0 0 6 15.5h2.5"/>',
+  fullscreen: '<path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/>',
+  fullscreenExit: '<path d="M9 4v5H4M15 4v5h5M20 15h-5v5M4 15h5v5"/>',
 };
 
 export const icon = (name) =>
   `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${PATHS[name]}</svg>`;
+
+// iPhone browsers cannot go full screen; a Home Screen web app opens without browser bars (spec §9).
+export const fullscreenTip = () =>
+  /MicroMessenger/i.test(navigator.userAgent)
+    ? '微信里不能全屏：点右上角「···」→「在 Safari 中打开」，再点分享 →「添加到主屏幕」。'
+    : 'iPhone 的浏览器不能全屏：点分享 →「添加到主屏幕」，以后从主屏幕上的「相册」图标打开就是全屏。';
 
 let toastEl = null;
 export function toast(text, ms = 3000) {
