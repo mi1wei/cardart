@@ -1,40 +1,42 @@
 import { Plane, Raycaster, Vector2, Vector3 } from 'three';
 import { createBinder } from './binder.js';
-import { DIM, cardAt, sheetCount } from './layout.js';
+import { DIM, photoAt } from './layout.js';
 import { createStage } from './scene.js';
 import { createSheet, restHoleAngle } from './sheet.js';
-import { createFaceTexture } from './textures.js';
+import { createPageTexture } from './textures.js';
 
 const { W, H, T } = DIM;
 const PI = Math.PI;
+const DRAWN = 20; // leaves drawn at once (spec §11)
+const MIDDLE = 11; // local k with ten leaves on each side
 const smoothstep = (t) => t * t * (3 - 2 * t);
 
-export function createBook(container, { album, insets, onChange, onCardClick }) {
-  const { cards } = album;
-  const S = sheetCount(cards.length);
-  const binder = createBinder({ sheets: S, title: album.title });
+export function createBook(container, { title, pages, photoUrl, insets, startSpread = 1, onChange, onPhotoClick }) {
+  const G = Math.max(1, Math.ceil(pages.length / 2)); // leaves in the whole album
+  const S = Math.min(DRAWN, G); // leaves drawn
+  const binder = createBinder({ sheets: S, title });
   const stage = createStage(container, binder.xb + binder.B, insets);
   const { scene, camera, renderer } = stage;
   const canvas = renderer.domElement;
   scene.add(binder.group);
 
   const anisotropy = renderer.capabilities.getMaxAnisotropy();
+  const blank = [0, 1].map((face) => createPageTexture(face, null, photoUrl, () => {}));
+  const textures = new Map(); // album face → texture, only around the current spread
   const sheets = [];
   for (let i = 0; i < S; i++) {
-    const [front, back] = [2 * i, 2 * i + 1].map((face) => {
-      const texture = createFaceTexture(face, cards, requestRender);
-      texture.anisotropy = anisotropy;
-      return texture;
-    });
-    const sheet = createSheet(front, back);
-    sheet.front.userData.face = 2 * i;
-    sheet.back.userData.face = 2 * i + 1;
+    const sheet = createSheet(blank[0], blank[1]);
+    sheet.front.userData = { i, back: false };
+    sheet.back.userData = { i, back: true };
     scene.add(sheet.group);
     sheets.push(sheet);
   }
 
-  // Leaf 0 is the cover, leaf j ≥ 1 is sheet j − 1. Leaves j < k lie on the left.
-  const leaves = Array.from({ length: S + 1 }, (_, j) => ({ th: j === 0 ? PI : 0, w: 0, b: 0, bv: 0, wait: 0 }));
+  // Leaf 0 is the cover; leaf j ≥ 1 is drawn sheet j − 1 and shows album leaf o + j − 1.
+  // Leaves j < k lie on the left. The album spread is o + k, or 0 when closed.
+  const idle = (j, kk) => ({ th: j < kk ? PI : 0, w: 0, b: 0, bv: 0, wait: 0 });
+  const leaves = Array.from({ length: S + 1 }, (_, j) => idle(j, 1));
+  let o = 0;
   let k = 1;
   let ringX = 0;
   let pointer = null;
@@ -45,19 +47,85 @@ export function createBook(container, { album, insets, onChange, onCardClick }) 
   const reduced = matchMedia('(prefers-reduced-motion: reduce)');
 
   const atRest = (leaf) => leaf.w === 0 && leaf.b === 0 && leaf.bv === 0 && (leaf.th === 0 || leaf.th === PI);
+  // At rest on the side it belongs to: a leaf told to turn but not yet moving is not settled.
+  const settled = (leaf, j) => atRest(leaf) && leaf.wait === 0 && leaf.th === (j < k ? PI : 0);
+  const spread = () => (k === 0 ? 0 : o + k);
+  const report = () => onChange({ spread: spread(), spreads: G + 1, closed: k === 0 });
 
-  function setK(next) {
-    next = Math.max(0, Math.min(S + 1, next));
-    if (next === k) return;
+  // Real pages for the spreads around the current one; every other face shows the blank film.
+  function refreshTextures() {
+    const s = Math.max(1, spread());
+    const want = new Set();
+    for (let t = s - 2; t <= s + 2; t++) {
+      for (const f of [2 * t - 3, 2 * t - 2]) if (f >= 0 && f < 2 * G) want.add(f);
+    }
+    for (const [f, texture] of textures) {
+      if (want.has(f)) continue;
+      texture.dispose();
+      textures.delete(f);
+    }
+    for (const f of want) {
+      if (textures.has(f)) continue;
+      const texture = createPageTexture(f, pages[f] ?? null, photoUrl, requestRender);
+      texture.anisotropy = anisotropy;
+      textures.set(f, texture);
+    }
+    sheets.forEach((sheet, i) => {
+      sheet.front.material.map = textures.get(2 * (o + i)) ?? blank[0];
+      sheet.back.material.map = textures.get(2 * (o + i) + 1) ?? blank[1];
+    });
+    requestRender();
+  }
+
+  // Keeps the current spread in the middle of the drawn leaves (spec §11). Leaf states shift
+  // with the window, so the visible spread stays put and the piles change by a sheet or so.
+  function recenter() {
+    if (drag || pointer) return;
+    const target = Math.max(0, Math.min(G - S, spread() - MIDDLE));
+    const d = target - o;
+    if (!d) return;
+    // Leaves that drop out: the bottom of the left pile (d > 0) or of the right pile (d < 0).
+    const first = d > 0 ? 1 : Math.max(1, S + 1 + d);
+    const lastOut = d > 0 ? Math.min(S, d) : S;
+    for (let j = first; j <= lastOut; j++) if (!settled(leaves[j], j)) return;
+    const kept = leaves.slice(1);
+    const kNext = k === 0 ? 0 : k - d;
+    for (let j = 1; j <= S; j++) leaves[j] = kept[j + d - 1] ?? idle(j, kNext);
+    o = target;
+    k = kNext;
+    refreshTextures();
+  }
+
+  function setSpread(s) {
+    s = Math.max(0, Math.min(G + 1, s));
+    if (s === spread()) return;
+    recenter();
+    const next = s === 0 ? 0 : s - o;
+    if (s > 0 && (next < 1 || next > S + 1)) return; // the drawn leaves cannot follow yet
     // Leaves that change side leave one after another, nearest to the current spread first.
     const order = next > k ? leaves.slice(k, next) : leaves.slice(next, k).reverse();
     order.forEach((leaf, i) => {
       leaf.wait = atRest(leaf) ? i * 0.06 : 0;
     });
     k = next;
-    onChange({ spread: k, spreads: S + 1, closed: k === 0 });
-    requestRender();
+    report();
+    refreshTextures();
   }
+
+  // Straight to an album spread, without turning pages.
+  function jump(s) {
+    s = Math.max(1, Math.min(G + 1, Math.round(s)));
+    pointer = drag = null;
+    o = Math.max(0, Math.min(G - S, s - MIDDLE));
+    k = s - o;
+    leaves.forEach((leaf, j) => Object.assign(leaf, idle(j, k)));
+    report();
+    refreshTextures();
+  }
+
+  // From the cover: if the window has not got back to the start yet, jump there.
+  const open = () => (o > 0 ? jump(1) : setSpread(1));
+  const setLocal = (kk) => setSpread(kk === 0 ? 0 : o + kk);
 
   // Advances every leaf by dt seconds; returns true while anything still moves.
   function step(dt) {
@@ -116,6 +184,7 @@ export function createBook(container, { album, insets, onChange, onCardClick }) 
   function tick(now) {
     raf = 0;
     const moving = step(last ? Math.min(1 / 30, (now - last) / 1000) : 1 / 60);
+    recenter();
     place();
     stage.render();
     last = moving || drag ? now : 0;
@@ -126,7 +195,7 @@ export function createBook(container, { album, insets, onChange, onCardClick }) 
     if (!disposed && !raf) raf = requestAnimationFrame(tick);
   }
 
-  // Pointer input: drag a leaf, fling it, or tap a card / either side.
+  // Pointer input: drag a leaf, fling it, or tap a photo / either side.
   const raycaster = new Raycaster();
   const floor = new Plane(new Vector3(0, 1, 0), 0);
   const ndc = new Vector2();
@@ -180,20 +249,21 @@ export function createBook(container, { album, insets, onChange, onCardClick }) 
     const vx = dt > 0 ? (e.clientX - x0) / p.scale / W / dt : 0; // sheet widths per second, rightwards
     const v = p.fromRight ? -vx : vx;
     const progress = p.fromRight ? p.edge / PI : 1 - p.edge / PI;
-    if (v > 0.9 || (progress > 0.22 && v >= -0.05)) setK(p.fromRight ? Math.max(k, p.j + 1) : Math.min(k, p.j));
+    if (v > 0.9 || (progress > 0.22 && v >= -0.05)) setLocal(p.fromRight ? Math.max(k, p.j + 1) : Math.min(k, p.j));
   }
 
   function tap(e, p) {
-    if (k === 0) return setK(1);
+    if (k === 0) return open();
     aim(e);
     const [first] = raycaster.intersectObjects(sheets.flatMap((s) => [s.front, s.back]), false);
     if (first) {
-      const { face } = first.object.userData;
-      const u = face % 2 ? 1 - first.uv.x : first.uv.x;
-      const index = cardAt(face, u * W, (1 - first.uv.y) * H, cards.length);
-      if (index >= 0) return onCardClick({ ...cards[index], index });
+      const { i, back } = first.object.userData;
+      const face = 2 * (o + i) + (back ? 1 : 0);
+      const u = back ? 1 - first.uv.x : first.uv.x;
+      const index = photoAt(pages[face], face, u * W, (1 - first.uv.y) * H);
+      if (index >= 0) return onPhotoClick(index);
     }
-    setK(p.x < ringX ? k - 1 : k + 1);
+    setSpread(spread() + (p.x < ringX ? -1 : 1));
   }
 
   function onUp(e) {
@@ -220,14 +290,15 @@ export function createBook(container, { album, insets, onChange, onCardClick }) 
   });
   observer.observe(container);
   stage.resize();
+  jump(startSpread);
   place();
-  requestRender();
-  onChange({ spread: k, spreads: S + 1, closed: false });
 
   return {
-    next: () => setK(k + 1),
-    prev: () => setK(k - 1),
-    toggleCover: () => setK(k > 0 ? 0 : 1),
+    next: () => (k === 0 ? open() : setSpread(spread() + 1)),
+    prev: () => setSpread(spread() - 1),
+    toggleCover: () => (k > 0 ? setSpread(0) : open()),
+    jump,
+    stats: () => ({ offset: o, textures: textures.size }),
     dispose() {
       disposed = true;
       cancelAnimationFrame(raf);
@@ -237,6 +308,7 @@ export function createBook(container, { album, insets, onChange, onCardClick }) 
       canvas.removeEventListener('pointerup', onUp);
       canvas.removeEventListener('pointercancel', onUp);
       sheets.forEach((s) => s.dispose());
+      for (const texture of [...textures.values(), ...blank]) texture.dispose();
       binder.dispose();
       stage.dispose();
     },
