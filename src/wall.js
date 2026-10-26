@@ -1,6 +1,10 @@
 import { api, mediaUrl } from './api.js';
 import { open } from './router.js';
 import { dialog, icon, toast } from './ui.js';
+import { openPhoneDialog } from './phone.js';
+
+// Phone access is set up on the computer only (spec §12).
+const local = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
 
 export function renderWall(app) {
   let alive = true;
@@ -11,6 +15,7 @@ export function renderWall(app) {
       <header class="bar">
         <h1 class="brand"><span class="logo">${icon('book')}</span>相册</h1>
         <span class="sp"></span>
+        ${local ? `<button class="btn" type="button" data-act="phone">${icon('phone')}<span>手机访问</span></button>` : ''}
         <button class="btn pri" type="button" data-act="new" aria-label="新建相册">${icon('plus')}<span>新建相册</span></button>
       </header>
       <div class="wall"></div>
@@ -64,6 +69,8 @@ export function renderWall(app) {
             '<div class="menu" role="menu"><button type="button" data-act="rename">重命名</button><button type="button" class="red" data-act="delete">删除相册</button></div>',
           );
         }
+      } else if (act === 'phone') {
+        openPhoneDialog();
       } else if (act === 'new') {
         const title = await dialog({ title: '新建相册', value: '新相册', ok: '创建' });
         if (title) open(`#/a/${(await api.createAlbum(title)).id}`);
