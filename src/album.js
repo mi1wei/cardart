@@ -18,6 +18,8 @@ export function renderAlbum(app, id) {
   const tally = { total: 0, done: 0, dup: 0, bad: 0, big: 0, fail: 0 };
   let uploading = false;
   let lightbox = null;
+  let viewer = null;
+  let viewerLoading = false;
 
   app.innerHTML = `
     <main class="mgr album-page">
@@ -77,10 +79,35 @@ export function renderAlbum(app, id) {
   function changed(next) {
     album = next;
     render();
+    viewer?.refresh(next);
   }
 
-  // Opens, moves or closes the lightbox to match the address.
+  // Opens or closes the 3D book and the lightbox to match the address.
   function sync() {
+    if (route.three && !album.photos.length) {
+      route = { ...route, three: false, photo: null };
+      swap(`#/a/${id}`);
+    }
+    if (route.three && !viewer && !viewerLoading) {
+      viewerLoading = true;
+      import('./viewer.js').then(({ openViewer }) => {
+        viewerLoading = false;
+        if (!alive || !route.three || viewer) return;
+        viewer = openViewer({
+          album,
+          onOpenPhoto: (i) => open(`#/a/${id}/3d/p/${album.photos[i].id}`),
+          onClose: () => close(`#/a/${id}`),
+          onPerPage: (perPage) =>
+            api.updateAlbum(id, { perPage }).then(
+              (next) => (album = next),
+              (err) => toast(`保存失败：${err.message}`),
+            ),
+        });
+      });
+    } else if (!route.three && viewer) {
+      viewer.close();
+      viewer = null;
+    }
     const i = route.photo ? album.photos.findIndex((p) => p.id === route.photo) : -1;
     if (i >= 0 && lightbox) lightbox.show(i, album);
     else if (i >= 0) {
@@ -301,7 +328,7 @@ export function renderAlbum(app, id) {
   }
 
   const onFocus = () => {
-    if (!uploading && !drag) load();
+    if (!uploading && !drag && !viewer) load();
   };
   input.addEventListener('change', () => {
     enqueue(input.files);
@@ -324,6 +351,7 @@ export function renderAlbum(app, id) {
     },
     destroy() {
       alive = false;
+      viewer?.close();
       lightbox?.close();
       drag?.ghost?.remove();
       app.removeEventListener('click', onClick);
