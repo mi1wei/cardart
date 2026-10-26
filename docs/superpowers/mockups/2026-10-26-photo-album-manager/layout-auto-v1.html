@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>3D 翻阅 · 一页多张自动排版（草稿）</title>
+<style>
+:root{
+  --bg:#f7f9fb;--ink:oklch(23.5% 0.02 255);--ink-2:oklch(46.5% 0.022 248);--ink-3:oklch(52.5% 0.016 248);
+  --line:oklch(92.2% 0.007 245);--accent:#1d5f80;
+  --font:system-ui,-apple-system,'PingFang SC','Noto Sans CJK SC',sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e5e9ee;color:var(--ink);font:14px/20px var(--font);-webkit-font-smoothing:antialiased}
+.doc{max-width:1240px;margin:0 auto;padding:40px 28px 90px}
+h1{margin:0 0 8px;font-size:26px;line-height:34px;font-weight:650}
+.lead{margin:0 0 6px;max-width:900px;color:var(--ink-2)}
+.lead b{color:var(--ink)}
+.sub{margin:26px 0 8px;font-size:13px;font-weight:600;color:var(--ink-3)}
+.strip{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end}
+.strip .photo{position:relative;height:46px;border-radius:3px;box-shadow:0 1px 2px rgba(0,0,0,.25)}
+.photo>i{position:absolute;inset:0;border-radius:inherit}
+.no{position:absolute;left:3px;top:3px;min-width:17px;height:17px;padding:0 4px;border-radius:9px;background:rgba(255,255,255,.93);color:var(--ink);font:600 11px/17px var(--font);text-align:center}
+
+.opt{margin-top:34px;padding:22px 24px 30px;border-radius:20px;background:var(--bg);box-shadow:0 0 0 1px var(--line)}
+.oh{display:flex;align-items:center;gap:14px;margin-bottom:6px}
+.letter{display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:var(--accent);color:#fff;font-weight:650}
+.oh h2{margin:0;font-size:19px;line-height:26px;font-weight:650}
+.stat{margin:0 0 20px 44px;color:var(--ink-2)}
+.pick{margin-left:auto;height:36px;padding:0 18px;border:0;border-radius:999px;background:#fff;box-shadow:inset 0 0 0 1px var(--line);color:var(--ink);font:500 14px/36px var(--font);cursor:pointer}
+.pick.on,.cardC.on .pick{background:var(--accent);color:#fff;box-shadow:none}
+.opt.on,.cardC.on{box-shadow:0 0 0 3px var(--accent)}
+
+.spreads{display:grid;grid-template-columns:repeat(2,max-content);gap:26px;justify-content:center}
+.spread{position:relative;display:flex;gap:10px;padding:8px;border-radius:10px;background:linear-gradient(#45596e,#33475b);box-shadow:0 18px 30px -18px rgba(20,35,55,.65)}
+.page{position:relative;overflow:hidden;border-radius:2px;background:#eef1f3}
+.page.board{background:linear-gradient(160deg,#51667b,#425569)}
+.page.blank .pocket{display:none}
+.pocket{position:absolute;background:#f5f6f8;box-shadow:inset 0 0 0 1px rgba(24,31,40,.16)}
+.film{position:absolute;inset:0;pointer-events:none;background:linear-gradient(118deg,transparent 30%,rgba(255,255,255,.38) 44%,transparent 58%)}
+.page .photo{position:absolute;border-radius:1px;box-shadow:0 1px 2.5px rgba(0,0,0,.32)}
+.hole{position:absolute;border-radius:50%;background:#3a4e62;box-shadow:0 0 0 1px rgba(255,255,255,.9)}
+.ring{position:absolute;z-index:2;height:9px;margin-top:-4.5px;border-radius:5px;background:linear-gradient(#fdfdfd,#b9c3cd 45%,#7d8995 56%,#e4e9ee);box-shadow:0 2px 3px rgba(0,0,0,.3)}
+.cap{position:absolute;left:0;right:0;bottom:-21px;color:var(--ink-3);font-size:12px;text-align:center}
+
+.cardC{display:flex;align-items:center;gap:14px;margin-top:34px;padding:20px 24px;border-radius:20px;background:var(--bg);box-shadow:0 0 0 1px var(--line)}
+.cardC p{margin:2px 0 0;color:var(--ink-2)}
+.foot{margin-top:28px;color:var(--ink-2)}
+.p1{background:radial-gradient(circle at 72% 36%,#ffe7b3 0 7%,transparent 7.5%),linear-gradient(#ef946b,#f7c590 50%,#2f6a8a 50.5%,#1b4460)}
+.p2{background:linear-gradient(transparent 68%,#6d8868 68%),conic-gradient(from 136deg at 30% 30%,#4d6077 0 88deg,transparent 0),conic-gradient(from 132deg at 68% 42%,#71859b 0 96deg,transparent 0),linear-gradient(#b5d2ea,#ebf3f9)}
+.p3{background:radial-gradient(ellipse 30% 44% at 18% 76%,#2d5a3b 97%,transparent),radial-gradient(ellipse 34% 50% at 52% 82%,#3c7450 97%,transparent),radial-gradient(ellipse 30% 42% at 86% 74%,#28503a 97%,transparent),linear-gradient(#dcebd8,#a5c9a9)}
+.p4{background:radial-gradient(circle at 78% 20%,#f3efdc 0 6%,transparent 6.5%),linear-gradient(#19223d 0 46%,transparent 46%),radial-gradient(circle,#ffd77c 0 1.3px,transparent 1.9px) 0 0/11px 9px,linear-gradient(90deg,#242d48 0 14%,#1c2440 14% 27%,#2a3352 27% 41%,#1f2843 41% 58%,#283150 58% 73%,#1d2541 73% 86%,#262f4d 86%)}
+.p5{background:radial-gradient(circle at 28% 38%,#f7b4c6 0 11%,transparent 11.5%),radial-gradient(circle at 64% 28%,#f294ae 0 9%,transparent 9.5%),radial-gradient(circle at 72% 68%,#fbc8d5 0 13%,transparent 13.5%),radial-gradient(circle at 36% 74%,#ee86a4 0 8%,transparent 8.5%),radial-gradient(circle at 50% 52%,#fde3ea 0 6%,transparent 6.5%),linear-gradient(140deg,#729d61,#3e6a46)}
+.p6{background:linear-gradient(transparent 60%,rgba(255,255,255,.75) 60% 62.5%,transparent 62.5%),linear-gradient(#93d3f1 0 44%,#3aa2c9 44% 61%,#f0dcb2 61%)}
+.p7{background:radial-gradient(ellipse 17% 9% at 50% 31%,#3a2a22 97%,transparent),radial-gradient(circle at 50% 42%,#f1c7a5 0 12%,transparent 12.5%),radial-gradient(ellipse 34% 34% at 50% 94%,#de5a4d 97%,transparent),linear-gradient(#f6e6cf,#e7cba7)}
+.p8{background:radial-gradient(circle at 24% 30%,#e3792f 0 19%,transparent 19.5%),radial-gradient(circle at 72% 26%,#c8452b 0 21%,transparent 21.5%),radial-gradient(circle at 54% 68%,#eaa53b 0 23%,transparent 23.5%),linear-gradient(#7b4b2e,#4b2f20)}
+.p9{background:radial-gradient(circle,#fff 0 1.6px,transparent 2.2px) 0 0/15px 15px,linear-gradient(#a7bed3,#e6edf3 68%,#f9fbfd 68%)}
+.p10{background:radial-gradient(circle at 50% 52%,#d98a3d 0 22%,#fffdf9 22.5% 40%,#e6e0d6 40.5% 43%,transparent 43.5%),repeating-linear-gradient(90deg,#a97d53 0 22px,#9c714a 22px 44px)}
+.p11{background:linear-gradient(#2b2b2b,#2b2b2b) 50% 24%/74% 5% no-repeat,linear-gradient(#c8352c,#c8352c) 50% 36%/58% 4% no-repeat,linear-gradient(90deg,transparent 29%,#c8352c 29% 35%,transparent 35% 65%,#c8352c 65% 71%,transparent 71%) 0 100%/100% 74% no-repeat,linear-gradient(#bcd7c0,#5f8d63)}
+.p12{background:radial-gradient(circle at 50% 38%,#fff1cf 0 7%,transparent 7.5%),radial-gradient(ellipse 4% 16% at 50% 66%,rgba(255,244,214,.85) 90%,transparent),linear-gradient(#f5d5a6,#e8b787 49%,#8ea6b7 50%,#c6d2db)}
+.v1{filter:hue-rotate(28deg) saturate(.85)}
+.v2{filter:hue-rotate(-22deg) brightness(1.06);transform:scaleX(-1)}
+.v3{filter:saturate(.6) brightness(1.1)}
+</style>
+</head>
+<body>
+<div class="doc">
+<h1>3D 翻阅 · 一页多张自动排版（草稿）</h1>
+<p class="lead">规则：<b>照片顺序不变、不裁切</b>（横图竖图都完整显示）。程序按每张照片的长宽比，自动决定<b>每页放几张、怎么摆</b>（左右并排 / 上下叠放 / 一大配两小），让页面尽量铺满；每张照片短边不小于 3 cm。</p>
+<p class="lead">下面用同一组 18 张横竖混合的照片，对比两种密度。页面按真实比例画（每页约 21 × 19 cm），照片上的数字是相册里的顺序。</p>
+
+<div class="sub">这 18 张照片（相册里的顺序）</div>
+<div class="strip" id="strip"></div>
+
+<section class="opt" id="optA" data-max="3" data-target="2">
+  <div class="oh"><span class="letter">A</span><h2>宽松：平均每页约 2 张（每页 1–3 张）</h2><button class="pick" data-choice="A">选 A</button></div>
+  <p class="stat"></p>
+  <div class="spreads"></div>
+</section>
+
+<section class="opt" id="optB" data-max="4" data-target="3">
+  <div class="oh"><span class="letter">B</span><h2>紧凑：平均每页约 3 张（每页 1–4 张）</h2><button class="pick" data-choice="B">选 B</button></div>
+  <p class="stat"></p>
+  <div class="spreads"></div>
+</section>
+
+<div class="cardC" id="optC">
+  <span class="letter">C</span>
+  <div><h2 style="margin:0;font-size:19px;line-height:26px">都要：3D 翻阅右上角加「每页张数」切换</h2>
+  <p>1 张 / 宽松 / 紧凑 三档，切换后马上重新排版；默认宽松。</p></div>
+  <button class="pick" data-choice="C">选 C</button>
+</div>
+
+<p class="foot">也可以直接在终端说想法，比如「每页最多 2 张」「允许稍微裁切，让页面更满」。</p>
+</div>
+
+<script>
+const DIM = { W: 209.8, H: 192.4, spine: 22, outer: 5.6, top: 6.4, hole: 9.2, holeR: 3.1, rings: [-81, -27, 27, 81] };
+const POCKET = { w: 182.2, h: 179.6 }, PAD = 5, GAP = 4, MINSIDE = 30;
+const BW = POCKET.w - 2 * PAD, BH = POCKET.h - 2 * PAD;
+const PX = 1.3; // screen px per mm in this draft
+
+const PHOTOS = [[4/3,'p1'],[3/4,'p7'],[3/4,'p5'],[16/9,'p2'],[4/3,'p11'],[9/16,'p4'],[1,'p10'],[3/4,'p8'],[4/3,'p6'],
+  [3,'p3'],[4/3,'p12'],[3/4,'p9'],[3/4,'p7 v1'],[3/2,'p2 v2'],[4/3,'p1 v3'],[2/3,'p5 v1'],[16/9,'p6 v2'],[3/4,'p11 v1']];
+const aspect = PHOTOS.map((p) => p[0]);
+
+// --- auto layout: order-preserving split trees, no cropping ---
+// Each tree's width as a function of its height is w = al·h + be (gaps included).
+function layoutPages(a, maxK, target) {
+  const treeMemo = new Map(), pageMemo = new Map();
+  const trees = (s, e) => {
+    const key = s + ':' + e;
+    if (treeMemo.has(key)) return treeMemo.get(key);
+    const out = [];
+    if (e - s === 1) out.push({ i: s, al: a[s], be: 0 });
+    else for (let m = s + 1; m < e; m++) for (const A of trees(s, m)) for (const B of trees(m, e)) {
+      out.push({ row: true, A, B, al: A.al + B.al, be: A.be + B.be + GAP });
+      const al = 1 / (1 / A.al + 1 / B.al);
+      out.push({ row: false, A, B, al, be: al * (A.be / A.al + B.be / B.al - GAP) });
+    }
+    treeMemo.set(key, out);
+    return out;
+  };
+  const place = (n, x, y, w, h, out) => {
+    if (n.i !== undefined) out.push({ i: n.i, x, y, w, h });
+    else if (n.row) {
+      const wA = n.A.al * h + n.A.be;
+      place(n.A, x, y, wA, h, out);
+      place(n.B, x + wA + GAP, y, w - wA - GAP, h, out);
+    } else {
+      const hA = (w - n.A.be) / n.A.al;
+      place(n.A, x, y, w, hA, out);
+      place(n.B, x, y + hA + GAP, w, h - hA - GAP, out);
+    }
+    return out;
+  };
+  const page = (s, e) => {
+    const key = s + ':' + e;
+    if (pageMemo.has(key)) return pageMemo.get(key);
+    let best = null;
+    for (const t of trees(s, e)) {
+      const h = Math.min(BH, (BW - t.be) / t.al), w = t.al * h + t.be;
+      if (w <= 0 || h <= 0) continue;
+      const rects = place(t, (BW - w) / 2, (BH - h) / 2, w, h, []);
+      if (e - s > 1 && rects.some((r) => Math.min(r.w, r.h) < MINSIDE)) continue;
+      const fill = rects.reduce((sum, r) => sum + r.w * r.h, 0) / (BW * BH);
+      if (!best || fill > best.fill) best = { s, e, fill, rects };
+    }
+    pageMemo.set(key, best);
+    return best;
+  };
+  // Exactly ceil(n / target) pages, rounded up to even so no leaf side stays blank;
+  // choose how many photos each page gets to maximise total fill.
+  const n = a.length;
+  let P = Math.max(Math.ceil(n / target), Math.ceil(n / maxK));
+  if (P % 2 && P < n) P++;
+  let cost = Array(n + 1).fill(Infinity);
+  cost[0] = 0;
+  const from = [];
+  for (let p = 0; p < P; p++) {
+    const next = Array(n + 1).fill(Infinity), back = Array(n + 1).fill(-1);
+    for (let j = 1; j <= n; j++) for (let k = 1; k <= Math.min(maxK, j); k++) {
+      const pg = cost[j - k] < Infinity && page(j - k, j);
+      if (pg && cost[j - k] + 1 - pg.fill < next[j]) { next[j] = cost[j - k] + 1 - pg.fill; back[j] = j - k; }
+    }
+    cost = next;
+    from.push(back);
+  }
+  const pages = [];
+  for (let p = P - 1, j = n; p >= 0; p--) { pages.unshift(page(from[p][j], j)); j = from[p][j]; }
+  return pages;
+}
+
+// --- drawing ---
+const el = (tag, cls, css) => { const e = document.createElement(tag); if (cls) e.className = cls; if (css) Object.assign(e.style, css); return e; };
+const mm = (v) => v * PX + 'px';
+function photoEl(i, css) {
+  const p = el('div', 'photo', css);
+  p.append(el('i', PHOTOS[i][1]));
+  const no = el('span', 'no'); no.textContent = i + 1; p.append(no);
+  return p;
+}
+function pageEl(pg, spineLeft, kind) {
+  const d = el('div', 'page' + (kind ? ' ' + kind : ''), { width: mm(DIM.W), height: mm(DIM.H) });
+  if (kind === 'board') return d;
+  const left = spineLeft ? DIM.spine : DIM.outer;
+  const pocket = el('div', 'pocket', { left: mm(left), top: mm(DIM.top), width: mm(POCKET.w), height: mm(POCKET.h) });
+  if (pg) for (const r of pg.rects) pocket.append(photoEl(r.i, { left: mm(PAD + r.x), top: mm(PAD + r.y), width: mm(r.w), height: mm(r.h) }));
+  pocket.append(el('div', 'film'));
+  d.append(pocket);
+  const hx = spineLeft ? DIM.hole : DIM.W - DIM.hole;
+  for (const z of DIM.rings) d.append(el('span', 'hole', { left: mm(hx - DIM.holeR), top: mm(DIM.H / 2 + z - DIM.holeR), width: mm(2 * DIM.holeR), height: mm(2 * DIM.holeR) }));
+  return d;
+}
+function render(section) {
+  const pages = layoutPages(aspect, +section.dataset.max, +section.dataset.target);
+  const sheets = Math.ceil(pages.length / 2);
+  const box = section.querySelector('.spreads');
+  // Spread 1 = inside cover | page 1; then pages (2,3), (4,5) …; last = page | back board.
+  for (let k = 1; k <= sheets + 1; k++) {
+    const li = 2 * k - 3, ri = 2 * k - 2;
+    const sp = el('div', 'spread');
+    sp.append(k === 1 ? pageEl(null, false, 'board') : pageEl(pages[li], false, pages[li] ? '' : 'blank'));
+    sp.append(k === sheets + 1 ? pageEl(null, true, 'board') : pageEl(pages[ri], true, pages[ri] ? '' : 'blank'));
+    for (const z of DIM.rings) sp.append(el('span', 'ring', { left: mm(DIM.W - DIM.hole + 8 / PX - 1.5), width: `calc(${mm(2 * DIM.hole + 3)} + 10px)`, top: `calc(8px + ${mm(DIM.H / 2 + z)})` }));
+    const used = [pages[li], pages[ri]].filter(Boolean).map((p) => p.e - p.s);
+    const cap = el('div', 'cap'); cap.textContent = `第 ${k} 个跨页` + (used.length ? ` · ${used.join(' + ')} 张` : '');
+    sp.append(cap);
+    box.append(sp);
+  }
+  const per = +section.dataset.target, avgFill = pages.reduce((s, p) => s + p.fill, 0) / pages.length;
+  section.querySelector('.stat').textContent =
+    `18 张 → ${pages.length} 页，${sheets + 1} 个跨页；页面平均铺满 ${Math.round(avgFill * 100)}%。一册（20 张活页 = 40 页）约放 ${40 * per} 张。`;
+  section.dataset.pages = JSON.stringify(pages.map((p) => ({ k: p.e - p.s, fill: +p.fill.toFixed(3), rects: p.rects.map((r) => [r.i, +r.x.toFixed(2), +r.y.toFixed(2), +r.w.toFixed(2), +r.h.toFixed(2)]) })));
+}
+
+const strip = document.getElementById('strip');
+PHOTOS.forEach((p, i) => strip.append(photoEl(i, { width: 46 * p[0] + 'px' })));
+render(document.getElementById('optA'));
+render(document.getElementById('optB'));
+
+document.querySelectorAll('.pick').forEach((b) => b.addEventListener('click', () => {
+  document.querySelectorAll('.opt,.cardC,.pick').forEach((x) => x.classList.remove('on'));
+  b.classList.add('on');
+  b.closest('.opt,.cardC').classList.add('on');
+}));
+</script>
+</body>
+</html>

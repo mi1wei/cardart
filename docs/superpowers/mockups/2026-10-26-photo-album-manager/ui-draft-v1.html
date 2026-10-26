@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>本地相册 · 界面草稿 v1</title>
+<style>
+:root{
+  --bg:#f7f9fb;--raised:#fff;
+  --ink:oklch(23.5% 0.02 255);--ink-2:oklch(46.5% 0.022 248);--ink-3:oklch(52.5% 0.016 248);
+  --line:oklch(92.2% 0.007 245);--hover:oklch(95.5% 0.007 242);
+  --accent:#1d5f80;--accent-soft:#e6f0f5;--accent-mid:#8db2c6;--danger:#b42318;
+  --font:system-ui,-apple-system,'PingFang SC','Noto Sans CJK SC',sans-serif;
+  --panel:0 0 0 1px var(--line),0 12px 32px -12px oklch(23.5% 0.02 255 / .28);
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e5e9ee;color:var(--ink);font:14px/20px var(--font);-webkit-font-smoothing:antialiased}
+.doc{max-width:1240px;margin:0 auto;padding:40px 28px 100px}
+h1{margin:0 0 6px;font-size:28px;line-height:36px;font-weight:650}
+.lead{margin:0;color:var(--ink-2);max-width:800px}
+.group{margin:44px 0 20px;padding-top:20px;border-top:1px solid #d3dae2;font-size:13px;font-weight:600;letter-spacing:.06em;color:var(--ink-3)}
+.row{display:flex;flex-wrap:wrap;gap:28px;align-items:flex-start;margin-bottom:40px}
+.notes{flex:1;min-width:260px;max-width:380px;padding-top:4px}
+.notes h2{display:flex;align-items:center;gap:10px;margin:0 0 10px;font-size:18px;line-height:26px;font-weight:650}
+.n{flex:none;display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--accent);color:#fff;font-size:13px;font-weight:600}
+.notes ul{margin:0;padding-left:18px;color:var(--ink-2)}
+.notes li{margin-bottom:6px}
+.notes b{color:var(--ink);font-weight:600}
+.tag{display:inline-block;margin-left:4px;padding:0 7px;border-radius:999px;background:#fff1cc;color:#7a5200;font-size:12px;line-height:18px}
+.ic{flex:none;width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+
+/* desktop browser frame (drawn at 1200px, shown at 66%) */
+.browser{flex:none;display:flex;flex-direction:column;width:1200px;height:760px;zoom:.66;border-radius:14px;overflow:hidden;background:var(--bg);box-shadow:0 40px 80px -30px rgba(20,35,55,.45),0 0 0 1px rgba(20,35,55,.08)}
+.browser.short{height:480px}
+.chrome{flex:none;display:flex;align-items:center;gap:8px;height:42px;padding:0 16px;background:#e9edf1;border-bottom:1px solid #d9dfe6}
+.chrome i{width:12px;height:12px;border-radius:50%;background:#ff5f57}
+.chrome i:nth-child(2){background:#febc2e}
+.chrome i:nth-child(3){background:#28c840}
+.url{width:420px;height:26px;margin-left:18px;padding:0 12px;border-radius:8px;background:#fff;color:var(--ink-3);font-size:13px;line-height:26px}
+.screen{position:relative;flex:1;overflow:hidden;background:var(--bg)}
+
+/* shared controls */
+.bar{display:flex;align-items:center;gap:10px;height:72px;padding:0 32px}
+.sp{flex:1}
+.brand{display:flex;align-items:center;gap:10px;font-size:18px;font-weight:650}
+.logo{display:grid;place-items:center;width:30px;height:30px;border-radius:9px;background:var(--accent);color:#fff}
+.btn{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 16px;border:0;border-radius:999px;background:var(--raised);box-shadow:inset 0 0 0 1px var(--line);color:var(--ink);font:500 14px/20px var(--font);white-space:nowrap;cursor:pointer}
+.btn.pri{background:var(--accent);color:#fff;box-shadow:none}
+.btn.ghost{padding:0 10px 0 6px;background:none;box-shadow:none;color:var(--ink-2)}
+.btn.red{color:var(--danger)}
+.btn.off{opacity:.4}
+.ibtn{flex:none;display:grid;place-items:center;width:36px;height:36px;border-radius:50%;background:var(--raised);box-shadow:inset 0 0 0 1px var(--line);color:var(--ink)}
+.ttl{display:flex;align-items:baseline;gap:10px}
+.ttl b{font-size:20px;line-height:28px;font-weight:650}
+.ttl span{color:var(--ink-3);font-size:13px}
+.menu{position:absolute;z-index:5;padding:6px;border-radius:12px;background:var(--raised);box-shadow:var(--panel);color:var(--ink)}
+.menu div{padding:7px 12px;border-radius:8px;white-space:nowrap}
+.menu .on{background:var(--hover);font-weight:600}
+.menu .red{color:var(--danger)}
+.menu small{color:var(--ink-3);font-size:12px;margin-left:8px}
+
+/* album wall */
+.wall{display:grid;grid-template-columns:repeat(4,1fr);gap:30px 28px;padding:8px 32px 32px}
+.album{position:relative;isolation:isolate}
+.cover{position:relative;aspect-ratio:4/3;border-radius:14px;box-shadow:0 1px 2px rgba(20,35,55,.14),0 12px 24px -14px rgba(20,35,55,.4)}
+.cover::before{content:"";position:absolute;z-index:-1;left:12px;right:12px;top:-6px;height:40px;border-radius:12px;background:#d3dbe3}
+.at{margin-top:12px;font-size:15px;line-height:22px;font-weight:600}
+.am{color:var(--ink-3);font-size:13px;line-height:18px}
+.more{position:absolute;top:10px;right:10px;display:grid;place-items:center;width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.94);box-shadow:0 1px 3px rgba(0,0,0,.18)}
+
+/* album page grid */
+.grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;padding:0 32px}
+.t{position:relative;aspect-ratio:1;border-radius:6px}
+.t>i{position:absolute;inset:0;border-radius:inherit}
+.badge{position:absolute;left:8px;top:8px;padding:0 8px;border-radius:999px;background:rgba(255,255,255,.94);font-size:12px;line-height:20px;font-weight:600}
+.slot{border:2px dashed var(--accent-mid);background:var(--accent-soft)}
+.drag{position:absolute;width:157px;height:157px;border-radius:8px;transform:rotate(-4deg) scale(1.05);box-shadow:0 26px 40px -14px rgba(20,35,55,.55),0 0 0 3px #fff}
+.cursor{position:absolute;width:24px;height:24px}
+.toast{position:absolute;right:24px;bottom:24px;width:320px;padding:14px 16px;border-radius:16px;background:var(--raised);box-shadow:var(--panel)}
+.toast .r{display:flex;justify-content:space-between;gap:8px}
+.toast .r span{color:var(--ink-3);font-size:13px}
+.prog{height:6px;margin:10px 0 8px;border-radius:3px;background:var(--line);overflow:hidden}
+.prog i{display:block;width:40%;height:100%;background:var(--accent)}
+.toast small{color:var(--ink-3);font-size:12px}
+/* select mode */
+.chk{position:absolute;right:8px;top:8px;display:grid;place-items:center;width:24px;height:24px;border-radius:50%;border:2px solid #fff;background:rgba(0,0,0,.18);color:#fff}
+.chk .ic{width:14px;height:14px;stroke-width:3;opacity:0}
+.sel{background:var(--accent-soft);outline:3px solid var(--accent);outline-offset:-3px}
+.sel>i{inset:9px;border-radius:4px}
+.sel .chk{background:var(--accent)}
+.sel .chk .ic{opacity:1}
+
+/* empty album / drop zone */
+.drop{display:grid;place-items:center;align-content:center;height:330px;margin:4px 32px 0;border:2px dashed var(--accent-mid);border-radius:20px;background:var(--accent-soft);text-align:center;color:var(--ink-2)}
+.drop>.ic{width:40px;height:40px;stroke-width:1.5;color:var(--accent)}
+.drop b{display:block;margin:12px 0 4px;color:var(--ink);font-size:17px;line-height:24px}
+.drop a{color:var(--accent);font-weight:600;text-decoration:none}
+.drop small{display:block;margin-top:10px;color:var(--ink-3);font-size:12px}
+
+/* lightbox */
+.screen.dark{background:#0e1115;color:#e8edf2}
+.lbbar{position:absolute;inset:0 0 auto;display:flex;align-items:center;gap:8px;height:64px;padding:0 20px 0 28px}
+.lbbar .fn{margin-left:8px;color:#8d98a5;font-size:13px}
+.lbtn{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 14px;border-radius:999px;color:#dfe5ec}
+.lbtn.h{background:rgba(255,255,255,.12)}
+.dk{background:rgba(255,255,255,.1);box-shadow:none;color:#fff}
+.lbph{position:absolute;left:50%;top:calc(50% + 20px);width:800px;height:533px;transform:translate(-50%,-50%);border-radius:3px}
+.nav{position:absolute;top:calc(50% + 20px);width:48px;height:48px;margin-top:-24px}
+.nav.l{left:28px}
+.nav.r{right:28px}
+
+/* 3D view */
+.v3d{background:radial-gradient(ellipse 70% 60% at 50% 45%,#fff,#eef2f6)}
+.stage{position:absolute;inset:64px 0 86px;display:grid;place-items:center;perspective:1800px}
+.book{position:relative;width:900px;height:394px;transform:rotateX(12deg)}
+.board{position:absolute;inset:-14px -16px;border-radius:14px;background:linear-gradient(#45596e,#33475b);box-shadow:0 46px 60px -34px rgba(20,35,55,.7)}
+.pg{position:absolute;top:0;width:430px;height:394px;background:linear-gradient(160deg,#fff,#edf1f4)}
+.pg.l{left:0;border-radius:8px 3px 3px 8px}
+.pg.r{right:0;border-radius:3px 8px 8px 3px}
+.slv{position:absolute;inset:16px;display:grid;grid-template:100%/100%;place-items:center;border-radius:3px;background:rgba(236,241,245,.7);box-shadow:inset 0 0 0 1px rgba(110,130,150,.3)}
+.slv::after{content:"";position:absolute;inset:0;background:linear-gradient(118deg,transparent 34%,rgba(255,255,255,.42) 45%,transparent 58%)}
+.slv>i{box-shadow:0 1px 3px rgba(20,35,55,.3)}
+.land{width:92%;aspect-ratio:3/2}
+.port{height:94%;aspect-ratio:2/3}
+.ring{position:absolute;left:50%;width:60px;height:16px;margin-left:-30px;border-radius:9px;background:linear-gradient(#fdfdfd,#b9c3cd 45%,#7d8995 56%,#e4e9ee);box-shadow:0 3px 5px rgba(0,0,0,.3)}
+.pager{position:absolute;left:50%;bottom:24px;display:flex;align-items:center;gap:14px;padding:4px;transform:translateX(-50%);border-radius:999px;background:var(--raised);box-shadow:var(--panel);font-weight:600}
+.pager .ibtn{background:var(--hover);box-shadow:none}
+.book.sm{width:634px;height:280px;transform:rotateX(10deg)}
+.book.sm .board{inset:-10px -11px}
+.book.sm .pg{width:305px;height:280px}
+.book.sm .slv{inset:11px}
+.book.sm .ring{width:44px;height:12px;margin-left:-22px}
+.pstage{position:absolute;inset:0;display:grid;place-items:center;perspective:1400px}
+.pnav3{position:absolute;top:50%;width:40px;height:40px;margin-top:-20px}
+
+/* phone-access dialog */
+.scrim{position:absolute;inset:0;background:rgba(16,26,38,.42)}
+.modal{position:absolute;left:50%;top:50%;width:480px;padding:22px 28px 26px;transform:translate(-50%,-50%);border-radius:20px;background:var(--raised);box-shadow:var(--panel)}
+.mh{display:flex;align-items:center;justify-content:space-between}
+.mh b{font-size:18px;line-height:26px}
+.modal p{margin:6px 0 16px;color:var(--ink-2)}
+.qr{display:block;width:220px;height:220px;margin:0 auto;border-radius:12px;box-shadow:0 0 0 1px var(--line)}
+.ub{display:flex;align-items:center;gap:8px;margin-top:18px}
+.ub code{flex:1;overflow:hidden;height:36px;padding:0 12px;border-radius:10px;background:var(--hover);color:var(--ink-2);font:13px/36px ui-monospace,Menlo,monospace;white-space:nowrap;text-overflow:ellipsis}
+.tg{display:flex;align-items:center;justify-content:space-between;margin-top:18px;padding-top:16px;border-top:1px solid var(--line)}
+.tg small{display:block;color:var(--ink-3);font-size:12px;line-height:18px}
+.sw{position:relative;width:46px;height:28px;border-radius:14px;background:var(--accent)}
+.sw::after{content:"";position:absolute;top:3px;right:3px;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25)}
+/* phone frames (drawn at 390x844, shown at 60%) */
+.phones{display:flex;flex-wrap:wrap;gap:36px 28px;align-items:flex-start}
+.pc{width:249px}
+.pc.wide{width:521px}
+.pc .notes{min-width:0;max-width:none;padding-top:16px}
+.pc .notes h2{font-size:16px;line-height:24px}
+.phone{flex:none;width:414px;height:868px;zoom:.6;padding:12px;border-radius:62px;background:#15191e;box-shadow:0 30px 60px -24px rgba(20,35,55,.55),inset 0 0 0 2px #303741}
+.phone.lnd{width:868px;height:414px}
+.pscr{position:relative;width:100%;height:100%;overflow:hidden;border-radius:50px;background:var(--bg)}
+.island{position:absolute;z-index:9;top:11px;left:50%;width:124px;height:36px;margin-left:-62px;border-radius:20px;background:#000}
+.lnd .island{top:50%;left:11px;width:36px;height:124px;margin:-62px 0 0}
+.status{display:flex;align-items:center;justify-content:space-between;height:54px;padding:0 34px 0 46px;font-size:16px;font-weight:600}
+.batt{position:relative;width:27px;height:13px;border:1.5px solid currentColor;border-radius:4px}
+.batt::after{content:"";position:absolute;inset:1.5px 6px 1.5px 1.5px;border-radius:1.5px;background:currentColor}
+.safari{position:absolute;left:0;right:0;bottom:0;display:flex;justify-content:center;height:88px;padding-top:10px;background:rgba(246,248,250,.96);border-top:1px solid var(--line)}
+.safari span{display:grid;place-items:center;width:310px;height:42px;border-radius:13px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.12);color:var(--ink-2);font-size:15px}
+.pbar{display:flex;align-items:center;justify-content:space-between;padding:4px 20px 14px}
+.pbar b{font-size:32px;line-height:40px;font-weight:700}
+.pwall{display:grid;grid-template-columns:1fr 1fr;gap:22px 14px;padding:6px 18px}
+.pnav{display:grid;grid-template-columns:60px 1fr 60px;align-items:center;padding:2px 12px 12px}
+.pt{text-align:center}
+.pt b{display:block;font-size:17px;line-height:22px;font-weight:650}
+.pt span{color:var(--ink-3);font-size:12px}
+.ptx{color:var(--accent);font-size:16px;font-weight:500;text-align:right}
+.pgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:2px}
+.pgrid .t{border-radius:0}
+.pact{position:absolute;left:0;right:0;bottom:104px;display:flex;justify-content:center;gap:10px}
+.pact .btn{height:46px;padding:0 24px;font-size:16px;box-shadow:inset 0 0 0 1px var(--line),0 10px 24px -10px rgba(20,35,55,.5)}
+.pact .btn.pri{box-shadow:0 10px 24px -10px rgba(20,35,55,.6)}
+.pscr.dark{background:#000;color:#fff}
+.plbtop{display:flex;align-items:center;justify-content:space-between;padding:6px 16px}
+.plbph{position:absolute;left:0;top:124px;width:100%;aspect-ratio:2/3}
+.plbact{position:absolute;left:0;right:0;bottom:34px;display:flex;justify-content:space-around;padding:0 24px;color:#cfd6de;font-size:12px}
+.plbact div{display:grid;justify-items:center;gap:6px}
+.plbact .ic{width:24px;height:24px}
+
+/* fake photos */
+.p1{background:radial-gradient(circle at 72% 36%,#ffe7b3 0 7%,transparent 7.5%),linear-gradient(#ef946b,#f7c590 50%,#2f6a8a 50.5%,#1b4460)}
+.p2{background:linear-gradient(transparent 68%,#6d8868 68%),conic-gradient(from 136deg at 30% 30%,#4d6077 0 88deg,transparent 0),conic-gradient(from 132deg at 68% 42%,#71859b 0 96deg,transparent 0),linear-gradient(#b5d2ea,#ebf3f9)}
+.p3{background:radial-gradient(ellipse 30% 44% at 18% 76%,#2d5a3b 97%,transparent),radial-gradient(ellipse 34% 50% at 52% 82%,#3c7450 97%,transparent),radial-gradient(ellipse 30% 42% at 86% 74%,#28503a 97%,transparent),linear-gradient(#dcebd8,#a5c9a9)}
+.p4{background:radial-gradient(circle at 78% 20%,#f3efdc 0 6%,transparent 6.5%),linear-gradient(#19223d 0 46%,transparent 46%),radial-gradient(circle,#ffd77c 0 1.3px,transparent 1.9px) 0 0/11px 9px,linear-gradient(90deg,#242d48 0 14%,#1c2440 14% 27%,#2a3352 27% 41%,#1f2843 41% 58%,#283150 58% 73%,#1d2541 73% 86%,#262f4d 86%)}
+.p5{background:radial-gradient(circle at 28% 38%,#f7b4c6 0 11%,transparent 11.5%),radial-gradient(circle at 64% 28%,#f294ae 0 9%,transparent 9.5%),radial-gradient(circle at 72% 68%,#fbc8d5 0 13%,transparent 13.5%),radial-gradient(circle at 36% 74%,#ee86a4 0 8%,transparent 8.5%),radial-gradient(circle at 50% 52%,#fde3ea 0 6%,transparent 6.5%),linear-gradient(140deg,#729d61,#3e6a46)}
+.p6{background:linear-gradient(transparent 60%,rgba(255,255,255,.75) 60% 62.5%,transparent 62.5%),linear-gradient(#93d3f1 0 44%,#3aa2c9 44% 61%,#f0dcb2 61%)}
+.p7{background:radial-gradient(ellipse 17% 9% at 50% 31%,#3a2a22 97%,transparent),radial-gradient(circle at 50% 42%,#f1c7a5 0 12%,transparent 12.5%),radial-gradient(ellipse 34% 34% at 50% 94%,#de5a4d 97%,transparent),linear-gradient(#f6e6cf,#e7cba7)}
+.p8{background:radial-gradient(circle at 24% 30%,#e3792f 0 19%,transparent 19.5%),radial-gradient(circle at 72% 26%,#c8452b 0 21%,transparent 21.5%),radial-gradient(circle at 54% 68%,#eaa53b 0 23%,transparent 23.5%),linear-gradient(#7b4b2e,#4b2f20)}
+.p9{background:radial-gradient(circle,#fff 0 1.6px,transparent 2.2px) 0 0/15px 15px,linear-gradient(#a7bed3,#e6edf3 68%,#f9fbfd 68%)}
+.p10{background:radial-gradient(circle at 50% 52%,#d98a3d 0 22%,#fffdf9 22.5% 40%,#e6e0d6 40.5% 43%,transparent 43.5%),repeating-linear-gradient(90deg,#a97d53 0 22px,#9c714a 22px 44px)}
+.p11{background:linear-gradient(#2b2b2b,#2b2b2b) 50% 24%/74% 5% no-repeat,linear-gradient(#c8352c,#c8352c) 50% 36%/58% 4% no-repeat,linear-gradient(90deg,transparent 29%,#c8352c 29% 35%,transparent 35% 65%,#c8352c 65% 71%,transparent 71%) 0 100%/100% 74% no-repeat,linear-gradient(#bcd7c0,#5f8d63)}
+.p12{background:radial-gradient(circle at 50% 38%,#fff1cf 0 7%,transparent 7.5%),radial-gradient(ellipse 4% 16% at 50% 66%,rgba(255,244,214,.85) 90%,transparent),linear-gradient(#f5d5a6,#e8b787 49%,#8ea6b7 50%,#c6d2db)}
+.v1{filter:hue-rotate(28deg) saturate(.85)}
+.v2{filter:hue-rotate(-22deg) brightness(1.06);transform:scaleX(-1)}
+.v3{filter:saturate(.6) brightness(1.1)}
+
+.fb{display:flex;gap:12px;margin-top:16px}
+.fb .on{outline:3px solid #f0b429;outline-offset:2px}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+<symbol id="i-phone" viewBox="0 0 24 24"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/></symbol>
+<symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 15V4M7.5 8.5 12 4l4.5 4.5M5 15v3.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V15"/></symbol>
+<symbol id="i-book" viewBox="0 0 24 24"><path d="M12 6.5C10 5 7 4.5 3.5 5v13c3.5-.5 6.5 0 8.5 1.5 2-1.5 5-2 8.5-1.5V5C17 4.5 14 5 12 6.5Zm0 0v13"/></symbol>
+<symbol id="i-left" viewBox="0 0 24 24"><path d="m14.5 6-6 6 6 6"/></symbol>
+<symbol id="i-right" viewBox="0 0 24 24"><path d="m9.5 6 6 6-6 6"/></symbol>
+<symbol id="i-down" viewBox="0 0 24 24"><path d="m6.5 9.5 5.5 5.5 5.5-5.5"/></symbol>
+<symbol id="i-x" viewBox="0 0 24 24"><path d="m6.5 6.5 11 11M17.5 6.5l-11 11"/></symbol>
+<symbol id="i-more" viewBox="0 0 24 24"><circle cx="6" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="18" cy="12" r="1.4" fill="currentColor" stroke="none"/></symbol>
+<symbol id="i-trash" viewBox="0 0 24 24"><path d="M4.5 7h15M9.5 7V4.5h5V7M6.5 7l1 12.5h9l1-12.5"/></symbol>
+<symbol id="i-star" viewBox="0 0 24 24"><path d="m12 4 2.4 5 5.4.6-4 3.7 1.1 5.3L12 16l-4.9 2.6 1.1-5.3-4-3.7 5.4-.6Z"/></symbol>
+<symbol id="i-expand" viewBox="0 0 24 24"><path d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="m5.5 12.5 4 4 9-9"/></symbol>
+<symbol id="i-copy" viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="11" height="11" rx="2"/><path d="M15.5 8.5V6A1.5 1.5 0 0 0 14 4.5H6A1.5 1.5 0 0 0 4.5 6v8A1.5 1.5 0 0 0 6 15.5h2.5"/></symbol>
+</svg>
+
+<div class="doc">
+<h1>本地相册 · 界面草稿 v1</h1>
+<p class="lead">配色、字体、按钮沿用现在 3D 翻阅页的风格；照片先用色块代替。下面是电脑端 7 个画面、手机端 4 个画面，每个画面右边/下面写了交互说明。</p>
+
+<div class="group">电脑 · 浏览器打开 localhost（以后打包成安装版也是这套界面）</div>
+
+<!-- 1 album wall -->
+<div class="row">
+  <div class="browser"><div class="chrome"><i></i><i></i><i></i><div class="url">localhost:5180</div></div>
+    <div class="screen">
+      <div class="bar">
+        <div class="brand"><span class="logo"><svg class="ic"><use href="#i-book"/></svg></span>相册</div>
+        <div class="sp"></div>
+        <span class="btn"><svg class="ic"><use href="#i-phone"/></svg>手机访问</span>
+        <span class="btn pri"><svg class="ic"><use href="#i-plus"/></svg>新建相册</span>
+      </div>
+      <div class="wall">
+        <div class="album"><div class="cover p11"></div><div class="at">2024 京都旅行</div><div class="am">128 张</div></div>
+        <div class="album"><div class="cover p7"><span class="more"><svg class="ic"><use href="#i-more"/></svg></span></div><div class="at">宝宝一周岁</div><div class="am">86 张</div>
+          <div class="menu" style="top:48px;right:10px;width:140px"><div class="on">重命名</div><div class="red">删除相册</div></div></div>
+        <div class="album"><div class="cover p12"></div><div class="at">西湖周末</div><div class="am">42 张</div></div>
+        <div class="album"><div class="cover p10"></div><div class="at">家庭聚会 2023</div><div class="am">214 张</div></div>
+        <div class="album"><div class="cover p2"></div><div class="at">冰岛自驾</div><div class="am">301 张</div></div>
+        <div class="album"><div class="cover p5"></div><div class="at">樱花季</div><div class="am">57 张</div></div>
+        <div class="album"><div class="cover p6"></div><div class="at">海边</div><div class="am">33 张</div></div>
+        <div class="album"><div class="cover p8"></div><div class="at">秋天的银杏</div><div class="am">61 张</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="notes"><h2><span class="n">1</span>相册墙（首页）</h2><ul>
+    <li>每本相册一张卡片：<b>封面、名字、张数</b>。封面默认是第一张，可以在大图里改</li>
+    <li><b>新建相册</b>：弹个小框填名字，建好直接进入这本相册</li>
+    <li>鼠标移到卡片上出现 <b>⋯</b>：重命名、删除相册（删除前要确认）</li>
+    <li><b>手机访问</b>：见 7</li>
+  </ul></div>
+</div>
+
+<!-- 2 album page -->
+<div class="row">
+  <div class="browser"><div class="chrome"><i></i><i></i><i></i><div class="url">localhost:5180/#/album/8f2a…</div></div>
+    <div class="screen">
+      <div class="bar">
+        <span class="btn ghost"><svg class="ic"><use href="#i-left"/></svg>全部相册</span>
+        <div class="ttl"><b>2024 京都旅行</b><span>128 张</span></div>
+        <div class="sp"></div>
+        <span class="btn">选择</span>
+        <span class="btn"><svg class="ic"><use href="#i-upload"/></svg>上传照片</span>
+        <span class="btn pri"><svg class="ic"><use href="#i-book"/></svg>3D 翻阅</span>
+      </div>
+      <div class="grid" data-n="28" data-cover data-slot="9"></div>
+      <div class="drag p5" style="left:400px;top:268px"></div>
+      <svg class="cursor" viewBox="0 0 24 24" style="left:488px;top:346px"><path d="M5 3l14 8-6.2 1.6L9.6 19Z" fill="#111" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg>
+      <div class="toast">
+        <div class="r"><b>正在导入 12 / 30</b><span>IMG_2041.HEIC</span></div>
+        <div class="prog"><i></i></div>
+        <small>已跳过 1 张重复照片</small>
+      </div>
+    </div>
+  </div>
+  <div class="notes"><h2><span class="n">2</span>相册页</h2><ul>
+    <li>方形缩略图，<b>顺序就是 3D 翻阅里的顺序</b>；封面那张有「封面」标记</li>
+    <li><b>上传照片</b>选文件，或直接把照片拖进窗口；右下角显示进度，重复的照片自动跳过</li>
+    <li><b>拖动缩略图调顺序</b>（只在电脑上），松手自动保存（图中正把一张拖到虚线位置）</li>
+    <li>点缩略图看大图（5）；<b>3D 翻阅</b>打开 3D 相册（6）</li>
+    <li>点标题可以直接改名</li>
+  </ul></div>
+</div>
+<!-- 3 select mode -->
+<div class="row">
+  <div class="browser short"><div class="chrome"><i></i><i></i><i></i><div class="url">localhost:5180/#/album/8f2a…</div></div>
+    <div class="screen">
+      <div class="bar">
+        <span class="btn ghost" style="padding:0 10px">取消</span>
+        <div class="ttl"><b>已选 3 张</b></div>
+        <div class="sp"></div>
+        <span class="btn red"><svg class="ic"><use href="#i-trash"/></svg>删除</span>
+      </div>
+      <div class="grid" data-n="21" data-pick data-sel="1,4,9"></div>
+    </div>
+  </div>
+  <div class="notes"><h2><span class="n">3</span>选择模式</h2><ul>
+    <li>点「选择」进入，点照片打勾；顶部变成「已选 N 张」</li>
+    <li><b>删除</b>前要确认；删除后不能恢复</li>
+    <li>这个模式下不能拖动排序，避免误操作</li>
+  </ul></div>
+</div>
+
+<!-- 4 empty album / drop -->
+<div class="row">
+  <div class="browser short"><div class="chrome"><i></i><i></i><i></i><div class="url">localhost:5180/#/album/91bc…</div></div>
+    <div class="screen">
+      <div class="bar">
+        <span class="btn ghost"><svg class="ic"><use href="#i-left"/></svg>全部相册</span>
+        <div class="ttl"><b>毕业旅行</b><span>0 张</span></div>
+        <div class="sp"></div>
+        <span class="btn off">选择</span>
+        <span class="btn"><svg class="ic"><use href="#i-upload"/></svg>上传照片</span>
+        <span class="btn pri off"><svg class="ic"><use href="#i-book"/></svg>3D 翻阅</span>
+      </div>
+      <div class="drop"><div>
+        <svg class="ic" style="width:40px;height:40px;stroke-width:1.5;color:var(--accent)"><use href="#i-upload"/></svg>
+        <b>把照片拖到这里</b>
+        <span>或 <a>点这里选择照片</a></span>
+        <small>支持 JPG、PNG、HEIC、WebP</small>
+      </div></div>
+    </div>
+  </div>
+  <div class="notes"><h2><span class="n">4</span>空相册 / 拖入上传</h2><ul>
+    <li>新相册是空的，整块区域就是拖放区</li>
+    <li>在相册页把文件拖进窗口时，网格区域也会亮成同样的虚线框</li>
+    <li>没有照片时「选择」「3D 翻阅」是灰的</li>
+  </ul></div>
+</div>
+
+<!-- 5 lightbox -->
+<div class="row">
+  <div class="browser"><div class="chrome"><i></i><i></i><i></i><div class="url">localhost:5180/#/album/8f2a…/p012</div></div>
+    <div class="screen dark">
+      <div class="lbbar">
+        <b>12 / 128</b><span class="fn">IMG_2041.HEIC</span>
+        <div class="sp"></div>
+        <span class="lbtn h"><svg class="ic"><use href="#i-star"/></svg>设为封面</span>
+        <span class="lbtn"><svg class="ic"><use href="#i-expand"/></svg>查看原图</span>
+        <span class="lbtn"><svg class="ic"><use href="#i-trash"/></svg>删除</span>
+        <span class="ibtn dk" style="margin-left:8px"><svg class="ic"><use href="#i-x"/></svg></span>
+      </div>
+      <div class="lbph p12"></div>
+      <span class="ibtn dk nav l"><svg class="ic" style="width:22px;height:22px"><use href="#i-left"/></svg></span>
+      <span class="ibtn dk nav r"><svg class="ic" style="width:22px;height:22px"><use href="#i-right"/></svg></span>
+    </div>
+  </div>
+  <div class="notes"><h2><span class="n">5</span>大图</h2><ul>
+    <li>黑底全屏，照片完整显示；<b>← →</b> 键或两侧按钮切换，<b>Esc</b> 关闭</li>
+    <li><b>设为封面</b>：这张变成相册墙上的封面</li>
+    <li><b>查看原图</b>：新标签页打开导入时保存的原始文件</li>
+    <li><b>删除</b>：同 3，删除前确认，不能恢复</li>
+  </ul></div>
+</div>
+<!-- 6 3D view -->
+<div class="row">
+  <div class="browser"><div class="chrome"><i></i><i></i><i></i><div class="url">localhost:5180/#/album/8f2a…/3d</div></div>
+    <div class="screen v3d">
+      <div class="bar" style="height:64px">
+        <span class="ibtn"><svg class="ic"><use href="#i-x"/></svg></span>
+        <b style="font-size:17px;margin-left:4px">2024 京都旅行</b>
+        <div class="sp"></div>
+        <span class="btn">第 1 册 · 共 4 册<svg class="ic"><use href="#i-down"/></svg></span>
+      </div>
+      <div class="menu" style="top:58px;right:32px;width:210px">
+        <div class="on">第 1 册<small>第 1–40 张</small></div>
+        <div>第 2 册<small>第 41–80 张</small></div>
+        <div>第 3 册<small>第 81–120 张</small></div>
+        <div>第 4 册<small>第 121–128 张</small></div>
+      </div>
+      <div class="stage"><div class="book">
+        <div class="board"></div>
+        <div class="pg l"><div class="slv"><i class="p2 land"></i></div></div>
+        <div class="pg r"><div class="slv"><i class="p7 port"></i></div></div>
+        <span class="ring" style="top:54px"></span><span class="ring" style="top:146px"></span>
+        <span class="ring" style="top:232px"></span><span class="ring" style="top:324px"></span>
+      </div></div>
+      <div class="pager">
+        <span class="ibtn"><svg class="ic"><use href="#i-left"/></svg></span>3 / 21<span class="ibtn"><svg class="ic"><use href="#i-right"/></svg></span>
+      </div>
+    </div>
+  </div>
+  <div class="notes"><h2><span class="n">6</span>3D 翻阅</h2><ul>
+    <li>就是现在的 3D 相册：每页一个透明插袋放<b>一张照片</b>，横图竖图都完整显示，一个跨页看两张</li>
+    <li>每册最多 <b>40 张</b>，多了自动分成几册；右上角切换（图中展开了下拉）</li>
+    <li>点照片打开大图（和 5 同一个）<span class="tag">改动：之前说的是侧边面板，大图更简单</span></li>
+    <li>底部 ‹ 3 / 21 › 翻页，键盘 ← → 也行；× 回到相册页</li>
+  </ul></div>
+</div>
+
+<!-- 7 phone access -->
+<div class="row">
+  <div class="browser"><div class="chrome"><i></i><i></i><i></i><div class="url">localhost:5180</div></div>
+    <div class="screen">
+      <div class="bar">
+        <div class="brand"><span class="logo"><svg class="ic"><use href="#i-book"/></svg></span>相册</div>
+        <div class="sp"></div>
+        <span class="btn"><svg class="ic"><use href="#i-phone"/></svg>手机访问</span>
+        <span class="btn pri"><svg class="ic"><use href="#i-plus"/></svg>新建相册</span>
+      </div>
+      <div class="wall">
+        <div class="album"><div class="cover p11"></div><div class="at">2024 京都旅行</div><div class="am">128 张</div></div>
+        <div class="album"><div class="cover p7"></div><div class="at">宝宝一周岁</div><div class="am">86 张</div></div>
+        <div class="album"><div class="cover p12"></div><div class="at">西湖周末</div><div class="am">42 张</div></div>
+        <div class="album"><div class="cover p10"></div><div class="at">家庭聚会 2023</div><div class="am">214 张</div></div>
+        <div class="album"><div class="cover p2"></div><div class="at">冰岛自驾</div><div class="am">301 张</div></div>
+        <div class="album"><div class="cover p5"></div><div class="at">樱花季</div><div class="am">57 张</div></div>
+        <div class="album"><div class="cover p6"></div><div class="at">海边</div><div class="am">33 张</div></div>
+        <div class="album"><div class="cover p8"></div><div class="at">秋天的银杏</div><div class="am">61 张</div></div>
+      </div>
+      <div class="scrim"></div>
+      <div class="modal">
+        <div class="mh"><b>用手机看相册</b><span class="ibtn"><svg class="ic"><use href="#i-x"/></svg></span></div>
+        <p>手机和这台电脑连同一个 Wi‑Fi，用手机相机扫下面的码。</p>
+        <canvas class="qr" width="429" height="429"></canvas>
+        <div class="ub"><code>http://192.168.1.23:5180/?key=7f3a9c2e</code><span class="btn"><svg class="ic"><use href="#i-copy"/></svg>复制</span></div>
+        <div class="tg"><div><b>允许手机访问</b><small>关掉后，手机马上打不开</small></div><span class="sw"></span></div>
+      </div>
+    </div>
+  </div>
+  <div class="notes"><h2><span class="n">7</span>手机访问</h2><ul>
+    <li>手机和电脑连同一个 Wi‑Fi，<b>扫码就能打开</b>，不用装 App</li>
+    <li>链接里带随机密钥，同一个 Wi‑Fi 下的别人也猜不到</li>
+    <li>关掉开关，手机马上打不开；电脑本机打开不需要密钥</li>
+  </ul></div>
+</div>
+<div class="group">手机 · 同一个 Wi‑Fi 下扫码，用浏览器打开</div>
+<div class="phones">
+  <!-- 8 phone wall -->
+  <div class="pc">
+    <div class="phone"><div class="pscr"><div class="island"></div>
+      <div class="status"><span>9:41</span><span class="batt"></span></div>
+      <div class="pbar"><b>相册</b><span class="ibtn"><svg class="ic"><use href="#i-plus"/></svg></span></div>
+      <div class="pwall">
+        <div class="album"><div class="cover p11"></div><div class="at">2024 京都旅行</div><div class="am">128 张</div></div>
+        <div class="album"><div class="cover p7"></div><div class="at">宝宝一周岁</div><div class="am">86 张</div></div>
+        <div class="album"><div class="cover p12"></div><div class="at">西湖周末</div><div class="am">42 张</div></div>
+        <div class="album"><div class="cover p10"></div><div class="at">家庭聚会 2023</div><div class="am">214 张</div></div>
+        <div class="album"><div class="cover p2"></div><div class="at">冰岛自驾</div><div class="am">301 张</div></div>
+        <div class="album"><div class="cover p5"></div><div class="at">樱花季</div><div class="am">57 张</div></div>
+      </div>
+      <div class="safari"><span>192.168.1.23</span></div>
+    </div></div>
+    <div class="notes"><h2><span class="n">8</span>相册墙</h2><ul>
+      <li>两列卡片；右上「＋」新建相册</li>
+      <li>没有「手机访问」按钮（只在电脑上）</li>
+    </ul></div>
+  </div>
+
+  <!-- 9 phone album page -->
+  <div class="pc">
+    <div class="phone"><div class="pscr"><div class="island"></div>
+      <div class="status"><span>9:41</span><span class="batt"></span></div>
+      <div class="pnav"><span class="ibtn" style="box-shadow:none;background:none;color:var(--accent)"><svg class="ic" style="width:26px;height:26px"><use href="#i-left"/></svg></span>
+        <div class="pt"><b>2024 京都旅行</b><span>128 张</span></div><span class="ptx">选择</span></div>
+      <div class="pgrid" data-n="18" data-cover></div>
+      <div class="pact"><span class="btn"><svg class="ic"><use href="#i-upload"/></svg>上传</span><span class="btn pri"><svg class="ic"><use href="#i-book"/></svg>3D 翻阅</span></div>
+      <div class="safari"><span>192.168.1.23</span></div>
+    </div></div>
+    <div class="notes"><h2><span class="n">9</span>相册页</h2><ul>
+      <li>三列网格，和系统相册一样</li>
+      <li>「上传」打开手机相册选照片</li>
+      <li>手机上<b>不能拖动排序</b></li>
+    </ul></div>
+  </div>
+
+  <!-- 10 phone lightbox -->
+  <div class="pc">
+    <div class="phone"><div class="pscr dark"><div class="island"></div>
+      <div class="status"><span>9:41</span><span class="batt"></span></div>
+      <div class="plbtop"><span class="ibtn dk"><svg class="ic"><use href="#i-x"/></svg></span><b>12 / 128</b><span style="width:36px"></span></div>
+      <div class="plbph p7"></div>
+      <div class="plbact">
+        <div><svg class="ic"><use href="#i-star"/></svg>设为封面</div>
+        <div><svg class="ic"><use href="#i-expand"/></svg>原图</div>
+        <div><svg class="ic"><use href="#i-trash"/></svg>删除</div>
+      </div>
+    </div></div>
+    <div class="notes"><h2><span class="n">10</span>大图</h2><ul>
+      <li>左右滑动切换</li>
+      <li>底部三个操作，同电脑版</li>
+    </ul></div>
+  </div>
+
+  <!-- 11 phone landscape 3D -->
+  <div class="pc wide">
+    <div class="phone lnd"><div class="pscr v3d"><div class="island"></div>
+      <div class="pstage"><div class="book sm">
+        <div class="board"></div>
+        <div class="pg l"><div class="slv"><i class="p1 land"></i></div></div>
+        <div class="pg r"><div class="slv"><i class="p11 port"></i></div></div>
+        <span class="ring" style="top:38px"></span><span class="ring" style="top:104px"></span>
+        <span class="ring" style="top:164px"></span><span class="ring" style="top:230px"></span>
+      </div></div>
+      <span class="ibtn" style="position:absolute;left:58px;top:12px"><svg class="ic"><use href="#i-x"/></svg></span>
+      <span class="btn" style="position:absolute;right:58px;top:12px;height:34px;padding:0 12px">第 1 / 4 册<svg class="ic"><use href="#i-down"/></svg></span>
+      <span class="ibtn pnav3" style="left:58px"><svg class="ic"><use href="#i-left"/></svg></span>
+      <span class="ibtn pnav3" style="right:58px"><svg class="ic"><use href="#i-right"/></svg></span>
+      <span class="btn" style="position:absolute;left:50%;bottom:8px;height:28px;padding:0 12px;transform:translateX(-50%);font-size:13px">3 / 21</span>
+    </div></div>
+    <div class="notes"><h2><span class="n">11</span>横屏 3D 翻阅</h2><ul>
+      <li>书铺满屏幕，两侧 ‹ › 翻页，也可以直接在书上滑动</li>
+      <li>竖着拿时提示「横过来看」（沿用现在的逻辑）</li>
+    </ul></div>
+  </div>
+</div>
+
+<div class="group">反馈</div>
+<p class="lead">哪里要改直接在终端说，比如「相册页按钮太多」「封面要正方形」「手机端要能排序」。也可以先点一下：</p>
+<div class="fb">
+  <span class="btn pri" data-choice="ok">整体 OK，可以写设计文档</span>
+  <span class="btn" data-choice="change">要改，我在终端说</span>
+</div>
+</div>
+
+<script>
+const P=['p11','p2','p1','p12','p7','p8','p3','p5','p6','p9','p4','p10'],V=['','v1','v2','v3'];
+document.querySelectorAll('[data-n]').forEach(el=>{
+  const n=+el.dataset.n,slot='slot'in el.dataset?+el.dataset.slot:-1;
+  const sel=(el.dataset.sel||'').split(',').filter(Boolean).map(Number);
+  for(let i=0,j=0;i<n;i++){
+    const t=document.createElement('div');t.className='t';
+    if(i===slot){t.classList.add('slot');el.append(t);continue}
+    t.innerHTML='<i class="'+P[(j*7)%12]+' '+V[Math.floor(j/12)%4]+'"></i>';j++;
+    if(i===0&&'cover'in el.dataset)t.insertAdjacentHTML('beforeend','<span class="badge">封面</span>');
+    if('pick'in el.dataset){t.insertAdjacentHTML('beforeend','<span class="chk"><svg class="ic"><use href="#i-check"/></svg></span>');if(sel.includes(i))t.classList.add('sel')}
+    el.append(t);
+  }
+});
+document.querySelectorAll('canvas.qr').forEach(c=>{
+  const N=29,Q=2,s=c.width/(N+2*Q),g=c.getContext('2d');let x=20241026;
+  const r=()=>{x^=x<<13;x^=x>>>17;x^=x<<5;return(x>>>0)/4294967296};
+  const px=(a,b)=>g.fillRect((a+Q)*s,(b+Q)*s,s,s);
+  const fz=(a,b)=>(a<8&&b<8)||(a>N-9&&b<8)||(a<8&&b>N-9);
+  g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);g.fillStyle='#16212c';
+  for(let a=0;a<N;a++)for(let b=0;b<N;b++)if(!fz(a,b)&&r()<.48)px(a,b);
+  for(const[i,j]of[[0,0],[N-7,0],[0,N-7]])for(let a=0;a<7;a++)for(let b=0;b<7;b++)if(Math.max(Math.abs(a-3),Math.abs(b-3))!==2)px(i+a,j+b);
+});
+document.querySelectorAll('[data-choice]').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('[data-choice]').forEach(o=>o.classList.remove('on'));b.classList.add('on');
+}));
+</script>
+</body>
+</html>
