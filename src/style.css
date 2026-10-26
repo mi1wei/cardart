@@ -710,6 +710,30 @@ body:has(.ab, .lb) {
   color: var(--danger);
 }
 
+.note {
+  margin: 10px 0 0;
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+/* WeChat tip */
+.wx-tip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  padding: 6px max(env(safe-area-inset-right, 0px), 6px) 6px max(env(safe-area-inset-left, 0px), 14px);
+  background: oklch(96.5% 0.012 235);
+  color: var(--ink-2);
+  font-size: 13px;
+  line-height: 19px;
+}
+
+.wx-tip span {
+  flex: 1;
+}
+
 /* Lightbox */
 .lb {
   position: fixed;

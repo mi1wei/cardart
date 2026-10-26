@@ -106,7 +106,8 @@
 ```
 package.json          新增依赖 sharp、uqr；scripts：dev / build / start
 vite.config.js        新增：开发时挂接口中间件
-index.html            标题改为「相册」
+index.html            标题改为「相册」；加主屏幕 Web App 标签
+public/apple-touch-icon.png   新增：主屏幕图标（180×180）
 server/index.js       命令行入口：读 ALBUM_LIBRARY、PORT，调用 startServer
 server/app.js         请求处理：访问控制、接口路由、图片、静态文件；startServer
 server/library.js     相册库：目录、library.json、album.json 读写、写队列、删除
@@ -362,6 +363,12 @@ public/cards.json     删除
   - IPv4 取第一个非内部、非 169.254 的地址，优先 en0 / en1；
   - 没有时显示「这台电脑没有连接局域网」。
 - 开关默认关闭。打开时生成新密钥；关掉后手机马上打不开。
+- iPhone 全屏：
+  - 页面带 `apple-mobile-web-app-capable` 和主屏幕图标 `/apple-touch-icon.png`（180×180）。在 Safari 里点分享 →「添加到主屏幕」，从图标打开时没有地址栏和工具栏。
+  - 状态栏用默认样式：页面底色浅，`black-translucent` 的白色状态栏文字会看不清。
+  - 弹窗里在链接下面加一行：「想在 iPhone 上全屏看：在 Safari 里点分享 →「添加到主屏幕」，以后点主屏幕上的「相册」图标打开。」
+  - 在微信里打开时（UA 含 `MicroMessenger`），页面最上面显示可关闭的提示：「微信里不能全屏：点右上角「···」→「在 Safari 中打开」，再点分享 →「添加到主屏幕」。」
+  - 每次重新打开开关都会换密钥，主屏幕上的图标要删掉重新添加。
 
 ## 10. 3D 自动排版
 
@@ -452,7 +459,8 @@ public/cards.json     删除
 - **本机**（127.0.0.1、::1、::ffff:127.0.0.1）：不需要密钥。
 - **其他地址**：
   - 手机访问关闭时，返回 403 页面：「手机访问已关闭，请在电脑上打开「手机访问」」。
-  - 手机访问开启时，第一次访问带 `/?key=…`。服务端校验通过后，设置 Cookie `album_key`（HttpOnly、SameSite=Lax、一年有效），再 302 跳到 `/`。之后都靠这个 Cookie。密钥不对返回 403。
+  - 手机访问开启时，第一次访问带 `/?key=…`。服务端校验通过后，设置 Cookie `album_key`（HttpOnly、SameSite=Lax、一年有效），页面照常返回，地址里保留 key：从微信跳到 Safari、从主屏幕图标打开时都还没有 Cookie，要靠地址里的 key。之后的接口和图片请求靠这个 Cookie。密钥不对返回 403。
+  - `/apple-touch-icon.png` 不需要密钥：iOS 取主屏幕图标时可能不带 Cookie。
   - 校验用 `crypto.timingSafeEqual`。密钥是 128 位随机数。
 - **`/api/phone`** 只允许本机调用。
 - **路径安全**：

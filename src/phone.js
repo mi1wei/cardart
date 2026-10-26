@@ -10,6 +10,7 @@ export async function openPhoneDialog() {
     <p class="dlg-text">手机和这台电脑连同一个 Wi‑Fi，用手机相机扫下面的码。</p>
     <div class="qr"></div>
     <div class="ub"><code></code><button class="btn" type="button" data-act="copy">${icon('copy')}<span>复制</span></button></div>
+    <p class="note">想在 iPhone 上全屏看：在 Safari 里点分享 →「添加到主屏幕」，以后点主屏幕上的「相册」图标打开。</p>
     <label class="tg"><span><b>允许手机访问</b><small>关掉后，手机马上打不开</small></span><input class="sw" type="checkbox"></label>
     <p class="err" hidden>这台电脑没有连接局域网</p>`;
   const sw = d.querySelector('.sw');

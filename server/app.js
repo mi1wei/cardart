@@ -103,26 +103,21 @@ function gate(lib, req, res, url) {
     return null;
   }
   const local = LOOPBACK.has(req.socket.remoteAddress);
-  if (!local) {
+  // The Home Screen icon is public: iOS may fetch it without the cookie.
+  if (!local && url.pathname !== '/apple-touch-icon.png') {
     const { enabled, key } = lib.phone();
     if (!enabled) {
       send(res, 403, page('手机访问已关闭，请在电脑上打开「手机访问」'));
       return null;
     }
     const given = url.searchParams.get('key');
-    if (given !== null) {
-      if (!same(given, key)) send(res, 403, page('链接已失效，请在电脑上重新扫码'));
-      else {
-        res.writeHead(302, {
-          Location: '/',
-          'Set-Cookie': `album_key=${key}; Path=/; Max-Age=31536000; HttpOnly; SameSite=Lax`,
-          'Cache-Control': 'no-store',
-        });
-        res.end();
-      }
+    if (given !== null && !same(given, key)) {
+      send(res, 403, page('链接已失效，请在电脑上重新扫码'));
       return null;
     }
-    if (!same(cookie(req, 'album_key'), key)) {
+    // No redirect: the key stays in the address for Safari opened from WeChat and for the Home Screen app.
+    if (given !== null) res.setHeader('Set-Cookie', `album_key=${key}; Path=/; Max-Age=31536000; HttpOnly; SameSite=Lax`);
+    else if (!same(cookie(req, 'album_key'), key)) {
       send(res, 403, page('请在电脑上打开「手机访问」，用手机扫码进入'));
       return null;
     }
