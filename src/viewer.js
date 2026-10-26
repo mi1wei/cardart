@@ -100,7 +100,8 @@ export function openViewer({ album, onOpenPhoto, onClose, onPerPage }) {
   }
 
   function onKey(e) {
-    if (e.target.closest?.('select, input')) return; // the menu and the slider keep their keys
+    // The menu and the slider keep their keys; so do the lightbox and confirmations above the book.
+    if (e.target.closest?.('select, input') || document.querySelector('.lb, dialog[open]')) return;
     if (e.key === 'Escape') onClose();
     else if (KEYS[e.key] && book) book[KEYS[e.key]]();
     else return;

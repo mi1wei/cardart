@@ -258,10 +258,11 @@ public/cards.json     删除
 2. 进入这本相册的写队列。后面的步骤依次执行，避免两台设备同时传同一张。
 3. 与本相册已有照片的 sha256 比较，相同则删除临时文件，返回 `duplicate`。
 4. 取号 `pNNN`（`nextSeq`）。
-5. 解码：先交给 sharp。sharp 不能解码时，如果是 macOS，就用 `sips -s format jpeg` 转成临时 JPEG（`.tmp-*`，用完即删）再交给 sharp，这条路径处理 HEIC。仍然失败则返回 `unsupported`。
+5. 识别格式：只收位图照片（sharp 识别为 jpeg、png、webp、gif、tiff、heif）。其他格式（如 SVG，里面可以带脚本）返回 `unsupported`。
+   解码：先交给 sharp。sharp 不能解码时，如果是 macOS，就用 `sips -s format jpeg` 转成临时 JPEG（`.tmp-*`，用完即删）再交给 sharp，这条路径处理 HEIC。仍然失败则返回 `unsupported`。
 6. 用 sharp `.rotate()` 按 EXIF 摆正，得到摆正后的 `w`、`h`。
 7. 生成两张缓存图：`cache/pNNN_600.webp`（长边 600，质量 80）和 `cache/pNNN_1600.webp`（长边 1600，质量 82），都不放大。
-8. 临时文件改名为 `originals/pNNN.<扩展名>`。扩展名取原文件名的小写扩展名（只允许 1–5 位字母或数字）；不符合时按 sharp 识别出的格式取。`name` 只取文件名部分，最多 200 字。
+8. 临时文件改名为 `originals/pNNN.<扩展名>`。扩展名按识别出的格式取：`.jpg`、`.png`、`.webp`、`.gif`、`.tif`、`.heic`（AV1 编码的 heif 用 `.avif`），不用原文件名里的扩展名。`name` 只取文件名部分，最多 200 字。
 9. 把照片追加到 `photos` 末尾，`nextSeq + 1`，写入 `album.json`。到这一步才算导入成功。
 
 缓存图缺失时（例如手动删了 `cache/`），`ensureCache` 从原图按第 5–7 步重新生成。
@@ -467,6 +468,8 @@ public/cards.json     删除
   - 路径参数先校验格式：相册 id 必须是 UUID，照片 id 必须是 `p` 加数字，尺寸只能是 600 / 1600 / original，否则返回 404。
   - 照片 id 还必须在 `album.json` 里，文件路径由 `album.json` 里的 `file` 拼出，不直接用请求里的字符串。
   - 静态文件的路径规范化后必须仍在 `dist/` 内。
+  - `/media/*` 响应都带 `X-Content-Type-Options: nosniff` 和 `Content-Security-Policy: sandbox`：不管文件里是什么，都不会在本站里当网页运行。
+  - 发送文件前先打开文件：文件在这之间被删除或读不了时返回 404，不会让服务退出。
 - **防跨站与 DNS 重绑定**（因为本机请求不要密钥，必须防止网页借用户的浏览器调用本机接口）：
   - `Host` 必须是 `localhost`、`127.0.0.1` 或本机的局域网 IP（带端口），否则返回 403。
   - 写请求（POST / PATCH / DELETE）如果带 `Origin` 头，它必须与 `Host` 一致，否则返回 403。

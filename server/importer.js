@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
 import { createWriteStream } from 'node:fs';
 import { rename, rm, stat } from 'node:fs/promises';
-import { basename, extname, join } from 'node:path';
+import { basename, join } from 'node:path';
 import { Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { promisify } from 'node:util';
@@ -11,7 +11,8 @@ import { fail } from './library.js';
 
 const run = promisify(execFile);
 export const MAX_BYTES = 100 * 1024 * 1024;
-const FORMAT_EXT = { jpeg: '.jpg', heif: '.heic' };
+// Originals are named by what they really are; other formats (SVG, PDF…) are not photos.
+const RASTER = { jpeg: '.jpg', png: '.png', webp: '.webp', gif: '.gif', tiff: '.tif', heif: '.heic' };
 const tmpName = () => `.tmp-${randomBytes(8).toString('hex')}`;
 
 // The 1600 image comes from the source, the 600 from the upright 1600: one full decode per photo.
@@ -82,17 +83,15 @@ export async function importPhoto(lib, albumId, req, rawName) {
       return { skipped: 'duplicate' };
     }
     const id = `p${String(album.nextSeq).padStart(3, '0')}`;
+    const { format, compression } = await sharp(tmp).metadata().catch(() => ({}));
+    const ext = format === 'heif' && compression === 'av1' ? '.avif' : RASTER[format];
     let size;
     try {
+      if (!ext) throw new Error('not a photo');
       size = await makeCache(tmp, join(dir, 'cache'), id);
     } catch {
       await rm(tmp, { force: true });
       return { skipped: 'unsupported' };
-    }
-    let ext = extname(name).toLowerCase();
-    if (!/^\.[a-z0-9]{1,5}$/.test(ext)) {
-      const { format } = await sharp(tmp).metadata().catch(() => ({ format: 'heif' }));
-      ext = FORMAT_EXT[format] ?? `.${format}`;
     }
     const file = `${id}${ext}`;
     await rename(tmp, join(dir, 'originals', file));

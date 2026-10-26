@@ -1,9 +1,9 @@
 import { timingSafeEqual } from 'node:crypto';
-import { createReadStream } from 'node:fs';
-import { stat } from 'node:fs/promises';
+import { open } from 'node:fs/promises';
 import http from 'node:http';
 import { networkInterfaces } from 'node:os';
 import { extname, join, resolve, sep } from 'node:path';
+import { pipeline } from 'node:stream/promises';
 import { ensureCache, importPhoto } from './importer.js';
 import { fail, isAlbumId, isPhotoId, openLibrary } from './library.js';
 
@@ -51,16 +51,24 @@ function send(res, status, body, headers = {}) {
 const page = (text) =>
   `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>相册</title><p style="margin:48px 24px;font:16px/1.6 system-ui,sans-serif;text-align:center;color:#3b4a5a">${text}</p>`;
 
+// Opens first: a file deleted or unreadable meanwhile is a 404, never a crash of the server.
 async function sendFile(res, file, headers) {
-  const info = await stat(file).catch(() => null);
-  if (!info?.isFile()) throw fail(404, '图片丢失');
+  const handle = await open(file).catch(() => null);
+  const info = await handle?.stat();
+  if (!info?.isFile()) {
+    await handle?.close();
+    throw fail(404, '图片丢失');
+  }
   res.writeHead(200, {
     'Content-Type': MIME[extname(file).toLowerCase()] ?? 'application/octet-stream',
     'Content-Length': info.size,
     ...headers,
   });
-  createReadStream(file).pipe(res);
+  await pipeline(handle.createReadStream(), res).catch(() => {}); // the phone left mid-download
 }
+
+// Whatever is inside a file, it never runs as a page of this site.
+const MEDIA = { 'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': 'sandbox' };
 
 async function readJson(req) {
   if (!String(req.headers['content-type']).startsWith('application/json')) throw fail(415, '请求格式不对');
@@ -170,6 +178,7 @@ async function media(lib, res, pathname) {
   if (!photo) throw fail(404, '没有这张图');
   if (size === 'original') {
     return sendFile(res, join(lib.albumDir(albumId), 'originals', photo.file), {
+      ...MEDIA,
       'Cache-Control': 'private, max-age=31536000, immutable',
       'Content-Disposition': `inline; filename*=UTF-8''${encodeURIComponent(photo.name)}`,
     });
@@ -177,7 +186,7 @@ async function media(lib, res, pathname) {
   const file = await ensureCache(lib, albumId, photo, size).catch(() => {
     throw fail(404, '图片丢失');
   });
-  return sendFile(res, file, { 'Cache-Control': 'public, max-age=31536000, immutable' });
+  return sendFile(res, file, { ...MEDIA, 'Cache-Control': 'public, max-age=31536000, immutable' });
 }
 
 export function createHandler(lib) {

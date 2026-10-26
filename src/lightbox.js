@@ -58,9 +58,11 @@ export function openLightbox({ album, index, onIndex, onAlbum, onClose }) {
         toast('已设为封面');
       } else if (name === 'delete') {
         const text = '删除这张照片？删除后不能恢复。';
-        if (!(await dialog({ title: '删除照片', text, ok: '删除', danger: true }))) return;
+        // Back may have closed the lightbox while the confirmation was open.
+        if (!(await dialog({ title: '删除照片', text, ok: '删除', danger: true })) || !root.isConnected) return;
         const next = await api.deletePhotos(album.id, [p.id]);
         onAlbum(next);
+        if (!root.isConnected) return; // closed while deleting: the address is no longer ours
         if (!next.photos.length) return onClose();
         show(index, next);
         onIndex(album.photos[index].id);

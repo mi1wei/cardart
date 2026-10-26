@@ -183,12 +183,13 @@ export function createBook(container, { title, pages, photoUrl, insets, startSpr
 
   function tick(now) {
     raf = 0;
+    if (disposed) return;
     const moving = step(last ? Math.min(1 / 30, (now - last) / 1000) : 1 / 60);
     recenter();
     place();
     stage.render();
     last = moving || drag ? now : 0;
-    if (last) raf = requestAnimationFrame(tick);
+    if (last) requestRender(); // recenter() may have asked for this frame already: one loop only
   }
 
   function requestRender() {
