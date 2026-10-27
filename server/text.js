@@ -28,6 +28,7 @@ export const TEXT = {
     'library-lock-lost': '相册库锁已失效，已停止写入，请退出后重试',
     'library-closed': '相册库已关闭',
     'library-corrupt': '相册库设置无法读取，原文件已保留，请检查或恢复 library.json',
+    'server-stopping': '正在退出，请稍后重新打开 Folio',
   },
   en: {
     app: 'Folio',
@@ -56,6 +57,7 @@ export const TEXT = {
     'library-lock-lost': 'The library lock was lost. Writes have stopped; quit and try again.',
     'library-closed': 'The library is closed.',
     'library-corrupt': 'Library settings are unreadable. The original file was preserved; check or restore library.json.',
+    'server-stopping': 'Folio is shutting down. Reopen it to continue.',
   },
 };
 

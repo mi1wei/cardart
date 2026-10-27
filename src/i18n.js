@@ -218,13 +218,15 @@ let current = null;
 // With site data blocked, storage access throws: the choice then lasts for this visit only.
 function stored() {
   try {
-    return localStorage.getItem('lang');
-  } catch {
-    return null;
-  }
+    const saved = localStorage.getItem('lang');
+    if (saved === 'zh' || saved === 'en') return saved;
+  } catch {}
+  try {
+    return document.cookie.split(';').map((part) => part.trim()).find((part) => /^folio_lang=(zh|en)$/.test(part))?.split('=')[1] ?? null;
+  } catch { return null; }
 }
 
-// Decided on first use: a saved choice, else the browser's first language (spec §10).
+// Cookies survive a local-server port change; localStorage is origin-specific.
 export function lang() {
   if (!current) {
     const saved = stored();

@@ -232,7 +232,7 @@ export function createHandler(lib) {
       if (!who) return;
       if (url.pathname.startsWith('/api/')) return await api(lib, req, res, url, who.local);
       if (url.pathname.startsWith('/media/')) return await media(lib, req, res, url.pathname);
-      next();
+      return await next();
     } catch (err) {
       if (!err.status) console.error(err);
       if (res.headersSent) return res.destroy();
@@ -255,24 +255,59 @@ async function serveStatic(root, req, res) {
   await sendFile(req, res, file, { 'Cache-Control': cache });
 }
 
-export async function startServer({ dir, port = 5180, host = '0.0.0.0', dist }) {
+export async function startServer({ dir, port = 5180, host = '0.0.0.0', dist, fallbackToRandomPort = false }) {
+  const root = resolve(dist);
   const lib = await openLibrary(dir);
   const handler = createHandler(lib);
-  const root = resolve(dist);
-  const server = http.createServer((req, res) =>
-    handler(req, res, () =>
+  const pending = new Set();
+  let stopping = false;
+  let closing;
+  const server = http.createServer((req, res) => {
+    if (stopping) return send(res, 503, { error: say(langOf(req), 'server-stopping') }, { Connection: 'close' });
+    const job = handler(req, res, () =>
       serveStatic(root, req, res).catch((err) => {
         if (res.headersSent) return res.destroy();
         send(res, err.status ?? 500, page(langOf(req), err.status === 404 ? 'no-page' : 'server-error'));
       }),
-    ),
-  );
-  await new Promise((ok, bad) => {
-    server.once('error', bad);
-    server.listen(port, host, ok);
+    );
+    pending.add(job);
+    job.then(
+      () => pending.delete(job),
+      (error) => { pending.delete(job); res.destroy(); console.error(error); },
+    );
   });
+  const listen = (number) => new Promise((ok, bad) => {
+    const cleanup = () => { server.off('error', failed); server.off('listening', ready); };
+    const failed = (error) => { cleanup(); bad(error); };
+    const ready = () => { cleanup(); ok(); };
+    server.once('error', failed);
+    server.once('listening', ready);
+    try { server.listen(number, host); } catch (error) { failed(error); }
+  });
+  try {
+    try { await listen(port); }
+    catch (error) {
+      if (!fallbackToRandomPort || error.code !== 'EADDRINUSE') throw error;
+      await listen(0);
+    }
+  } catch (error) {
+    await lib.close();
+    throw error;
+  }
+  const actualPort = server.address().port;
   return {
-    url: `http://localhost:${server.address().port}/`,
-    close: () => new Promise((ok) => server.close(ok)),
+    url: `http://localhost:${actualPort}/`,
+    port: actualPort,
+    close() {
+      closing ??= (async () => {
+        stopping = true;
+        const stopped = new Promise((ok, bad) => server.close((error) => error ? bad(error) : ok()));
+        server.closeIdleConnections();
+        await Promise.allSettled([...pending]);
+        server.closeIdleConnections();
+        try { await stopped; } finally { await lib.close(); }
+      })();
+      return closing;
+    },
   };
 }
