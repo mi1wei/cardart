@@ -24,6 +24,10 @@ export const TEXT = {
     'upload-header': '缺少上传标记',
     'no-api': '没有这个接口',
     'not-supported': '不支持',
+    'library-in-use': '相册库已被另一个 Folio 进程打开，请先退出另一个实例',
+    'library-lock-lost': '相册库锁已失效，已停止写入，请退出后重试',
+    'library-closed': '相册库已关闭',
+    'library-corrupt': '相册库设置无法读取，原文件已保留，请检查或恢复 library.json',
   },
   en: {
     app: 'Folio',
@@ -48,6 +52,10 @@ export const TEXT = {
     'upload-header': 'Missing upload header',
     'no-api': 'Not found',
     'not-supported': 'Not supported',
+    'library-in-use': 'This library is open in another Folio process. Quit the other instance first.',
+    'library-lock-lost': 'The library lock was lost. Writes have stopped; quit and try again.',
+    'library-closed': 'The library is closed.',
+    'library-corrupt': 'Library settings are unreadable. The original file was preserved; check or restore library.json.',
   },
 };
 
