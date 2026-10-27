@@ -1,9 +1,11 @@
-// Hash routes (spec §9): #/ · #/a/<id> · #/a/<id>/p/<photo> · #/a/<id>/3d · #/a/<id>/3d/p/<photo>
+// Hash routes (spec §5): #/ home · #/albums · #/a/<id> · #/a/<id>/p/<photo> · #/a/<id>/3d · #/a/<id>/3d/p/<photo>
 let listener = () => {};
 
+// Anything the app does not know shows the home page.
 export function parse(hash) {
   const m = /^#\/a\/([0-9a-f-]{36})(\/3d)?(?:\/p\/(p\d{3,}))?$/.exec(hash);
-  return m ? { album: m[1], three: !!m[2], photo: m[3] ?? null } : { album: null, three: false, photo: null };
+  if (m) return { page: 'album', album: m[1], three: !!m[2], photo: m[3] ?? null };
+  return { page: hash === '#/albums' ? 'albums' : 'home', album: null, three: false, photo: null };
 }
 
 const emit = () => listener(parse(location.hash));

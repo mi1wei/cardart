@@ -1,12 +1,8 @@
 import { api } from './api.js';
 import { folder, folderClick, pocket } from './folder.js';
 import { t } from './i18n.js';
-import { openPhoneDialog } from './phone.js';
 import { open } from './router.js';
 import { dialog, icon, toast } from './ui.js';
-
-// Phone access is set up on the computer only (spec §12).
-const local = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
 
 export function renderWall(app) {
   let alive = true;
@@ -17,7 +13,6 @@ export function renderWall(app) {
       <header class="ph">
         <div><h1 class="t1">${t('albums')}</h1><p class="sub" hidden></p></div>
         <span class="sp"></span>
-        ${local ? `<button class="btn" type="button" data-act="phone">${icon('phone')}<span>${t('phone-access')}</span></button>` : ''}
         <button class="btn pri" type="button" data-act="new" aria-label="${t('new-album')}">${icon('plus')}<span>${t('new-album')}</span></button>
       </header>
       <div class="folders"></div>
@@ -62,8 +57,6 @@ export function renderWall(app) {
             `<div class="menu" role="menu"><button type="button" data-act="rename">${t('rename')}</button><button type="button" class="red" data-act="delete">${t('delete-album')}</button></div>`,
           );
         }
-      } else if (act === 'phone') {
-        openPhoneDialog();
       } else if (act === 'new') {
         const title = await dialog({ title: t('new-album'), value: t('new-album-name'), ok: t('create') });
         if (title) open(`#/a/${(await api.createAlbum(title)).id}`);

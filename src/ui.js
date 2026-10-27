@@ -17,6 +17,9 @@ const PATHS = {
   copy: '<rect x="8.5" y="8.5" width="11" height="11" rx="2"/><path d="M15.5 8.5V6A1.5 1.5 0 0 0 14 4.5H6A1.5 1.5 0 0 0 4.5 6v8A1.5 1.5 0 0 0 6 15.5h2.5"/>',
   fullscreen: '<path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/>',
   fullscreenExit: '<path d="M9 4v5H4M15 4v5h5M20 15h-5v5M4 15h5v5"/>',
+  arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+  laptop: '<rect x="4" y="5" width="16" height="11" rx="1.5"/><path d="M2.5 19h19"/>',
+  layout: '<rect x="4" y="4" width="9" height="7" rx="1.2"/><rect x="15" y="4" width="5" height="16" rx="1.2"/><rect x="4" y="13" width="9" height="7" rx="1.2"/>',
 };
 
 export const icon = (name) =>

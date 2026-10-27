@@ -1,0 +1,43 @@
+import { lang, setLang, t } from './i18n.js';
+import { onComputer, openPhoneDialog } from './phone.js';
+import { icon } from './ui.js';
+
+// The bar on top of every page (spec §5). `onLang` re-opens the current page in the new language.
+export function createNav(onLang) {
+  const el = document.createElement('nav');
+  el.className = 'nav';
+  let page = 'home';
+
+  function render() {
+    el.setAttribute('aria-label', t('app'));
+    el.innerHTML = `
+      <a class="logo" href="#/"><i>${icon('book')}</i><span>${t('app')}</span></a>
+      <a class="nl" href="#/" data-page="home">${t('home')}</a>
+      <a class="nl" href="#/albums" data-page="albums">${t('albums')}</a>
+      <span class="sp"></span>
+      ${onComputer ? `<button class="btn" type="button" data-act="phone">${icon('phone')}<span>${t('phone-access')}</span></button>` : ''}
+      <span class="lang" role="group" aria-label="${t('language')}"><button type="button" data-lang="zh" lang="zh-CN">中</button><button type="button" data-lang="en" lang="en">EN</button></span>`;
+    update(page);
+  }
+
+  function update(next) {
+    page = next;
+    for (const a of el.querySelectorAll('.nl')) {
+      if (a.dataset.page === page) a.setAttribute('aria-current', 'page');
+      else a.removeAttribute('aria-current');
+    }
+    for (const b of el.querySelectorAll('[data-lang]')) b.setAttribute('aria-pressed', String(b.dataset.lang === lang()));
+  }
+
+  el.addEventListener('click', (e) => {
+    if (e.target.closest('[data-act=phone]')) return openPhoneDialog();
+    const next = e.target.closest('[data-lang]')?.dataset.lang;
+    // While photos import, the page must not be rebuilt: the rest of the queue would be lost (spec §10).
+    if (!next || next === lang() || document.documentElement.hasAttribute('data-busy')) return;
+    setLang(next);
+    render();
+    onLang();
+  });
+  render();
+  return { el, update };
+}

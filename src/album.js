@@ -173,6 +173,7 @@ export function renderAlbum(app, id) {
 
   async function pump() {
     uploading = true;
+    document.documentElement.setAttribute('data-busy', '');
     box.hidden = false;
     clearTimeout(box.timer);
     box.querySelector('small').textContent = '';
@@ -196,6 +197,7 @@ export function renderAlbum(app, id) {
       }
     }
     uploading = false;
+    document.documentElement.removeAttribute('data-busy');
     if (!alive) return;
     const skipped = tally.dup + tally.bad + tally.big;
     const why = [tally.dup && t('dup', { n: tally.dup }), tally.bad && t('bad', { n: tally.bad }), tally.big && t('big', { n: tally.big })]
@@ -250,7 +252,7 @@ export function renderAlbum(app, id) {
     const t = e.target.closest('.tile');
     if (t && !act) return onTile(t);
     if (!album && act !== 'back') return;
-    if (act === 'back') close('#/');
+    if (act === 'back') close('#/albums');
     else if (act === 'upload') input.click();
     else if (act === 'select' || act === 'cancel') {
       selecting = act === 'select';

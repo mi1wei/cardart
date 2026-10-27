@@ -3,6 +3,9 @@ import { api } from './api.js';
 import { icon, toast } from './ui.js';
 import { t } from './i18n.js';
 
+// Phone access is set up on the computer only (spec §12).
+export const onComputer = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
+
 export async function openPhoneDialog() {
   const d = document.createElement('dialog');
   d.className = 'dlg phone off';
