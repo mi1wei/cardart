@@ -1,7 +1,7 @@
+import brandMark from './assets/folio-mark.svg?raw';
 import { t } from './i18n.js';
 
 const PATHS = {
-  book: '<path d="M5 5.5A2.5 2.5 0 0 1 7.5 3H19v14H7.5A2.5 2.5 0 0 0 5 19.5z"/><path d="M5 19.5A2.5 2.5 0 0 0 7.5 22H19v-5"/>',
   bookOpen: '<path d="M12 6.5C10.5 5 8 4.5 4 4.5v13c4 0 6.5.5 8 2 1.5-1.5 4-2 8-2v-13c-4 0-6.5.5-8 2z"/><path d="M12 6.5v13"/>',
   close: '<path d="M6 6l12 12M18 6 6 18"/>',
   prev: '<path d="m14.5 6-6 6 6 6"/>',
@@ -24,7 +24,9 @@ const PATHS = {
 };
 
 export const icon = (name) =>
-  `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${PATHS[name]}</svg>`;
+  name === 'book'
+    ? brandMark
+    : `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${PATHS[name]}</svg>`;
 
 // iPhone browsers cannot go full screen; a Home Screen web app opens without browser bars (spec §9).
 export const fullscreenTip = () => t(/MicroMessenger/i.test(navigator.userAgent) ? 'tip-wechat' : 'tip-iphone');

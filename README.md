@@ -36,3 +36,17 @@ npm start
 ## 字体
 
 英文和数字用 Geist 字体（SIL Open Font License 1.1），打包在软件里，不从网上加载。许可证见 `public/geist-OFL.txt`。
+
+## 图标
+
+网页 Logo 与各平台图标共用 `src/assets/folio-mark.svg`：纯色照片页和弧形卷角，不使用阴影或渐变。修改后运行 `npm run icons` 重新生成资源，用 `npm test` 检查格式、尺寸及资源是否同步。
+
+| 用途 | 资源 |
+| --- | --- |
+| 浏览器标签页 | `public/favicon.svg`、`public/favicon.ico` |
+| iPhone 主屏幕 | `public/apple-touch-icon.png`（180px，不透明背景） |
+| 通用应用图标 | `public/icons/folio-1024.png` |
+| macOS Dock | `public/icons/folio.icns`（含 Retina 尺寸与透明外边距） |
+| Windows | `public/favicon.ico`（16–256px 多尺寸，同浏览器后备图标） |
+
+当前项目是网页应用，没有原生桌面应用打包配置；`.icns` 和 `.ico` 可在后续桌面打包时使用，不会自动替换 Node 进程的系统图标。已添加到 iPhone 主屏幕的旧图标，需要删除后重新添加才能更新。
