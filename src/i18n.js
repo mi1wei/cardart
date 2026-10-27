@@ -215,10 +215,19 @@ export const TEXT = {
 
 let current = null;
 
+// With site data blocked, storage access throws: the choice then lasts for this visit only.
+function stored() {
+  try {
+    return localStorage.getItem('lang');
+  } catch {
+    return null;
+  }
+}
+
 // Decided on first use: a saved choice, else the browser's first language (spec §10).
 export function lang() {
   if (!current) {
-    const saved = localStorage.getItem('lang');
+    const saved = stored();
     const browser = navigator.languages?.[0] ?? navigator.language ?? '';
     current = saved === 'zh' || saved === 'en' ? saved : /^zh/i.test(browser) ? 'zh' : 'en';
     apply();
@@ -232,16 +241,19 @@ export function t(key, vars = {}) {
 }
 
 export function setLang(code) {
-  localStorage.setItem('lang', code);
+  try {
+    localStorage.setItem('lang', code);
+  } catch {}
   current = code;
   apply();
 }
 
 // The page, the Home Screen name, the CSS placeholder text and the server follow the language.
+// Cookies are shared by every app on this host, whatever the port: hence a name of our own.
 function apply() {
   const root = document.documentElement;
   root.lang = current === 'zh' ? 'zh-CN' : 'en';
   root.style.setProperty('--missing', JSON.stringify(TEXT[current]['image-missing']));
   document.querySelector('meta[name=apple-mobile-web-app-title]')?.setAttribute('content', TEXT[current].app);
-  document.cookie = `lang=${current}; Path=/; Max-Age=31536000; SameSite=Lax`;
+  document.cookie = `folio_lang=${current}; Path=/; Max-Age=31536000; SameSite=Lax`;
 }

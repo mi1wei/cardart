@@ -122,9 +122,9 @@ function cookie(req, name) {
   return '';
 }
 
-// The page's choice (cookie `lang`) wins; otherwise the browser's first language (spec §10).
+// The page's choice (cookie `folio_lang`) wins; otherwise the browser's first language (spec §10).
 function langOf(req) {
-  const chosen = cookie(req, 'lang');
+  const chosen = cookie(req, 'folio_lang');
   if (chosen === 'zh' || chosen === 'en') return chosen;
   return /^zh/i.test(String(req.headers['accept-language'] ?? '')) ? 'zh' : 'en';
 }
