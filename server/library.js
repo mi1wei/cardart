@@ -7,7 +7,8 @@ export const DEFAULT_DIR = join(homedir(), 'Pictures', '相册库');
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 export const isAlbumId = (id) => typeof id === 'string' && UUID.test(id);
 export const isPhotoId = (id) => typeof id === 'string' && /^p\d{3,}$/.test(id);
-export const fail = (status, message) => Object.assign(new Error(message), { status });
+// `code` is a key of server/text.js; app.js turns it into the visitor's language.
+export const fail = (status, code) => Object.assign(new Error(code), { status });
 
 const newKey = () => randomBytes(16).toString('hex');
 
@@ -19,7 +20,7 @@ async function writeJson(file, data) {
 
 function cleanTitle(title) {
   const t = typeof title === 'string' ? title.trim() : '';
-  if (!t || [...t].length > 50) throw fail(400, '相册名要 1–50 个字');
+  if (!t || [...t].length > 50) throw fail(400, 'title-length');
   return t;
 }
 
@@ -32,7 +33,7 @@ export async function openLibrary(dir) {
   try {
     settings = JSON.parse(await readFile(settingsFile, 'utf8'));
   } catch (err) {
-    if (err.code !== 'ENOENT') console.warn(`library.json 读不了，已重建：${err.message}`);
+    if (err.code !== 'ENOENT') console.warn(`library.json 读不了，已重建：${err.message}\nlibrary.json was unreadable and has been rebuilt: ${err.message}`);
     settings = { version: 1, phone: { enabled: false, key: newKey() } };
     await writeJson(settingsFile, settings);
   }
@@ -44,7 +45,7 @@ export async function openLibrary(dir) {
     try {
       albums.set(id, JSON.parse(await readFile(join(albumsDir, id, 'album.json'), 'utf8')));
     } catch (err) {
-      console.warn(`跳过相册 ${id}：${err.message}`);
+      console.warn(`跳过相册 ${id}：${err.message}\nSkipped album ${id}: ${err.message}`);
       continue;
     }
     for (const sub of ['originals', 'cache']) {
@@ -66,7 +67,7 @@ export async function openLibrary(dir) {
   const albumDir = (id) => join(albumsDir, id);
   function get(id) {
     const album = isAlbumId(id) ? albums.get(id) : null;
-    if (!album) throw fail(404, '相册不存在');
+    if (!album) throw fail(404, 'album-missing');
     return album;
   }
   // Albums are replaced, never mutated, so a reader always sees a whole snapshot.
@@ -86,12 +87,14 @@ export async function openLibrary(dir) {
       return [...albums.values()]
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
         .map((a) => {
+          // The pocket on the wall shows the cover in front, then the next photos (spec §7, §11).
           const cover = a.photos.find((p) => p.id === a.cover) ?? a.photos[0];
+          const previews = cover ? [cover, ...a.photos.slice(0, 3).filter((p) => p !== cover)].slice(0, 3) : [];
           return {
             id: a.id,
             title: a.title,
             count: a.photos.length,
-            cover: cover ? { id: cover.id, w: cover.w, h: cover.h } : null,
+            previews: previews.map(({ id, w, h }) => ({ id, w, h })),
             createdAt: a.createdAt,
           };
         });
@@ -113,17 +116,17 @@ export async function openLibrary(dir) {
     },
     async update(id, patch) {
       get(id);
-      if (!patch || typeof patch !== 'object') throw fail(400, '参数不对');
+      if (!patch || typeof patch !== 'object') throw fail(400, 'bad-request');
       return queue(id, () => {
         const album = get(id);
         const next = { ...album };
         if ('title' in patch) next.title = cleanTitle(patch.title);
         if ('cover' in patch) {
-          if (patch.cover !== null && !album.photos.some((p) => p.id === patch.cover)) throw fail(400, '封面照片不存在');
+          if (patch.cover !== null && !album.photos.some((p) => p.id === patch.cover)) throw fail(400, 'cover-missing');
           next.cover = patch.cover;
         }
         if ('perPage' in patch) {
-          if (![1, 2, 3].includes(patch.perPage)) throw fail(400, '每页张数只能是 1、2、3');
+          if (![1, 2, 3].includes(patch.perPage)) throw fail(400, 'per-page');
           next.perPage = patch.perPage;
         }
         if ('order' in patch) {
@@ -134,7 +137,7 @@ export async function openLibrary(dir) {
             order.length === byId.size &&
             new Set(order).size === order.length &&
             order.every((pid) => byId.has(pid));
-          if (!same) throw fail(409, '照片有变化，请刷新后再排');
+          if (!same) throw fail(409, 'order-changed');
           next.photos = order.map((pid) => byId.get(pid));
         }
         return save(next);
@@ -153,7 +156,7 @@ export async function openLibrary(dir) {
     },
     async deletePhotos(id, ids) {
       get(id);
-      if (!Array.isArray(ids) || !ids.length) throw fail(400, '没有选中照片');
+      if (!Array.isArray(ids) || !ids.length) throw fail(400, 'none-selected');
       return queue(id, async () => {
         const album = get(id);
         const drop = new Set(ids);

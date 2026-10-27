@@ -6,6 +6,7 @@ import { extname, join, resolve, sep } from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import { ensureCache, importPhoto } from './importer.js';
 import { fail, isAlbumId, isPhotoId, openLibrary } from './library.js';
+import { say } from './text.js';
 
 const LOOPBACK = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
 const MIME = {
@@ -26,6 +27,8 @@ const MIME = {
   '.tiff': 'image/tiff',
   '.ico': 'image/x-icon',
   '.woff2': 'font/woff2',
+  '.mp4': 'video/mp4',
+  '.txt': 'text/plain; charset=utf-8',
 };
 
 // IPv4 LAN addresses; en0 / en1 (Wi‑Fi or Ethernet on a Mac) first.
@@ -48,42 +51,63 @@ function send(res, status, body, headers = {}) {
   res.end(html ? body : JSON.stringify(body));
 }
 
-const page = (text) =>
-  `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>相册</title><p style="margin:48px 24px;font:16px/1.6 system-ui,sans-serif;text-align:center;color:#3b4a5a">${text}</p>`;
+// A small page for refusals and errors, in the visitor's language.
+const page = (lang, code) =>
+  `<!doctype html><html lang="${lang === 'zh' ? 'zh-CN' : 'en'}"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${say(lang, 'app')}</title><p style="margin:48px 24px;font:16px/1.6 system-ui,sans-serif;text-align:center;color:#3b4a5a">${say(lang, code)}</p>`;
 
 // Opens first: a file deleted or unreadable meanwhile is a 404, never a crash of the server.
-async function sendFile(res, file, headers) {
+// One byte range is answered when asked: iPhone Safari plays video only this way (spec §11).
+async function sendFile(req, res, file, headers) {
   const handle = await open(file).catch(() => null);
   const info = await handle?.stat();
   if (!info?.isFile()) {
     await handle?.close();
-    throw fail(404, '图片丢失');
+    throw fail(404, 'image-missing');
   }
-  res.writeHead(200, {
+  const size = info.size;
+  let start = 0;
+  let end = size - 1;
+  const m = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range ?? '');
+  const partial = !!m && (m[1] !== '' || m[2] !== '');
+  if (partial) {
+    if (m[1] !== '') {
+      start = Number(m[1]);
+      if (m[2] !== '') end = Math.min(Number(m[2]), size - 1);
+    } else start = Math.max(0, size - Number(m[2]));
+    if (start > end) {
+      await handle.close();
+      res.writeHead(416, { 'Content-Range': `bytes */${size}`, 'Accept-Ranges': 'bytes' });
+      return res.end();
+    }
+  }
+  res.writeHead(partial ? 206 : 200, {
     'Content-Type': MIME[extname(file).toLowerCase()] ?? 'application/octet-stream',
-    'Content-Length': info.size,
+    'Content-Length': end - start + 1,
+    'Accept-Ranges': 'bytes',
+    ...(partial && { 'Content-Range': `bytes ${start}-${end}/${size}` }),
     ...headers,
   });
-  await pipeline(handle.createReadStream(), res).catch(() => {}); // the phone left mid-download
+  const stream = handle.createReadStream(partial ? { start, end } : {});
+  await pipeline(stream, res).catch(() => {}); // the phone left mid-download
 }
 
 // Whatever is inside a file, it never runs as a page of this site.
 const MEDIA = { 'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': 'sandbox' };
 
 async function readJson(req) {
-  if (!String(req.headers['content-type']).startsWith('application/json')) throw fail(415, '请求格式不对');
+  if (!String(req.headers['content-type']).startsWith('application/json')) throw fail(415, 'bad-request');
   let raw = '';
   for await (const chunk of req) {
     raw += chunk;
-    if (raw.length > 1_000_000) throw fail(413, '请求太大');
+    if (raw.length > 1_000_000) throw fail(413, 'too-big');
   }
   let data;
   try {
     data = JSON.parse(raw || '{}');
   } catch {
-    throw fail(400, '请求格式不对');
+    throw fail(400, 'bad-request');
   }
-  if (!data || typeof data !== 'object') throw fail(400, '请求格式不对');
+  if (!data || typeof data !== 'object') throw fail(400, 'bad-request');
   return data;
 }
 
@@ -95,6 +119,13 @@ function cookie(req, name) {
   return '';
 }
 
+// The page's choice (cookie `lang`) wins; otherwise the browser's first language (spec §10).
+function langOf(req) {
+  const chosen = cookie(req, 'lang');
+  if (chosen === 'zh' || chosen === 'en') return chosen;
+  return /^zh/i.test(String(req.headers['accept-language'] ?? '')) ? 'zh' : 'en';
+}
+
 function same(a, b) {
   const x = Buffer.from(String(a));
   const y = Buffer.from(String(b));
@@ -103,11 +134,12 @@ function same(a, b) {
 
 // Spec §12. Returns { local } when the request may go on; otherwise it has already answered.
 function gate(lib, req, res, url) {
+  const lang = langOf(req);
   const port = req.socket.localPort;
   const host = String(req.headers.host ?? '');
   const hosts = ['localhost', '127.0.0.1', '[::1]', ...lanAddresses()].map((h) => `${h}:${port}`);
   if (!hosts.includes(host)) {
-    send(res, 403, page('地址不对'));
+    send(res, 403, page(lang, 'wrong-address'));
     return null;
   }
   const local = LOOPBACK.has(req.socket.remoteAddress);
@@ -115,24 +147,24 @@ function gate(lib, req, res, url) {
   if (!local && url.pathname !== '/apple-touch-icon.png') {
     const { enabled, key } = lib.phone();
     if (!enabled) {
-      send(res, 403, page('手机访问已关闭，请在电脑上打开「手机访问」'));
+      send(res, 403, page(lang, 'phone-off'));
       return null;
     }
     const given = url.searchParams.get('key');
     if (given !== null && !same(given, key)) {
-      send(res, 403, page('链接已失效，请在电脑上重新扫码'));
+      send(res, 403, page(lang, 'link-expired'));
       return null;
     }
     // No redirect: the key stays in the address for Safari opened from WeChat and for the Home Screen app.
     if (given !== null) res.setHeader('Set-Cookie', `album_key=${key}; Path=/; Max-Age=31536000; HttpOnly; SameSite=Lax`);
     else if (!same(cookie(req, 'album_key'), key)) {
-      send(res, 403, page('请在电脑上打开「手机访问」，用手机扫码进入'));
+      send(res, 403, page(lang, 'scan-first'));
       return null;
     }
   }
   const origin = req.headers.origin;
   if (!['GET', 'HEAD'].includes(req.method) && origin && origin !== `http://${host}`) {
-    send(res, 403, { error: '不允许跨站请求' });
+    send(res, 403, { error: say(lang, 'cross-site') });
     return null;
   }
   return { local };
@@ -142,9 +174,9 @@ async function api(lib, req, res, url, local) {
   const [, , name, id, sub, action] = url.pathname.split('/');
   const m = req.method;
   if (name === 'phone' && id === undefined) {
-    if (!local) throw fail(403, '只能在电脑上设置');
+    if (!local) throw fail(403, 'computer-only');
     if (m === 'PATCH') await lib.setPhone((await readJson(req)).enabled === true);
-    else if (m !== 'GET') throw fail(405, '不支持');
+    else if (m !== 'GET') throw fail(405, 'not-supported');
     return send(res, 200, { ...lib.phone(), ip: lanAddresses()[0] ?? null, port: req.socket.localPort });
   }
   if (name === 'albums') {
@@ -159,34 +191,34 @@ async function api(lib, req, res, url, local) {
       }
     }
     if (sub === 'photos' && action === undefined && m === 'POST') {
-      if (req.headers['x-album-upload'] !== '1') throw fail(403, '缺少上传标记');
+      if (req.headers['x-album-upload'] !== '1') throw fail(403, 'upload-header');
       return send(res, 200, await importPhoto(lib, id, req, url.searchParams.get('name')));
     }
     if (sub === 'photos' && action === 'delete' && m === 'POST') {
       return send(res, 200, await lib.deletePhotos(id, (await readJson(req)).ids));
     }
   }
-  throw fail(404, '没有这个接口');
+  throw fail(404, 'no-api');
 }
 
-async function media(lib, res, pathname) {
+async function media(lib, req, res, pathname) {
   const [, , albumId, photoId, size] = pathname.split('/');
   if (!isAlbumId(albumId) || !isPhotoId(photoId) || !['600', '1600', 'original'].includes(size)) {
-    throw fail(404, '没有这张图');
+    throw fail(404, 'no-photo');
   }
   const photo = lib.get(albumId).photos.find((p) => p.id === photoId);
-  if (!photo) throw fail(404, '没有这张图');
+  if (!photo) throw fail(404, 'no-photo');
   if (size === 'original') {
-    return sendFile(res, join(lib.albumDir(albumId), 'originals', photo.file), {
+    return sendFile(req, res, join(lib.albumDir(albumId), 'originals', photo.file), {
       ...MEDIA,
       'Cache-Control': 'private, max-age=31536000, immutable',
       'Content-Disposition': `inline; filename*=UTF-8''${encodeURIComponent(photo.name)}`,
     });
   }
   const file = await ensureCache(lib, albumId, photo, size).catch(() => {
-    throw fail(404, '图片丢失');
+    throw fail(404, 'image-missing');
   });
-  return sendFile(res, file, { ...MEDIA, 'Cache-Control': 'public, max-age=31536000, immutable' });
+  return sendFile(req, res, file, { ...MEDIA, 'Cache-Control': 'public, max-age=31536000, immutable' });
 }
 
 export function createHandler(lib) {
@@ -196,28 +228,28 @@ export function createHandler(lib) {
       const who = gate(lib, req, res, url);
       if (!who) return;
       if (url.pathname.startsWith('/api/')) return await api(lib, req, res, url, who.local);
-      if (url.pathname.startsWith('/media/')) return await media(lib, res, url.pathname);
+      if (url.pathname.startsWith('/media/')) return await media(lib, req, res, url.pathname);
       next();
     } catch (err) {
       if (!err.status) console.error(err);
       if (res.headersSent) return res.destroy();
-      send(res, err.status ?? 500, { error: err.status ? err.message : '服务器出错了' });
+      send(res, err.status ?? 500, { error: say(langOf(req), err.status ? err.message : 'server-error') });
     }
   };
 }
 
 async function serveStatic(root, req, res) {
-  if (!['GET', 'HEAD'].includes(req.method)) throw fail(405, '不支持');
+  if (!['GET', 'HEAD'].includes(req.method)) throw fail(405, 'not-supported');
   let path;
   try {
     path = decodeURIComponent(new URL(req.url, 'http://local').pathname);
   } catch {
-    throw fail(400, '地址不对');
+    throw fail(400, 'wrong-address');
   }
   const file = resolve(root, `.${path === '/' ? '/index.html' : path}`);
-  if (!file.startsWith(root + sep)) throw fail(404, '没有这个页面');
+  if (!file.startsWith(root + sep)) throw fail(404, 'no-page');
   const cache = path.startsWith('/assets/') ? 'public, max-age=31536000, immutable' : 'no-cache';
-  await sendFile(res, file, { 'Cache-Control': cache });
+  await sendFile(req, res, file, { 'Cache-Control': cache });
 }
 
 export async function startServer({ dir, port = 5180, host = '0.0.0.0', dist }) {
@@ -228,7 +260,7 @@ export async function startServer({ dir, port = 5180, host = '0.0.0.0', dist }) 
     handler(req, res, () =>
       serveStatic(root, req, res).catch((err) => {
         if (res.headersSent) return res.destroy();
-        send(res, err.status ?? 500, page(err.status === 404 ? '没有这个页面' : '服务器出错了'));
+        send(res, err.status ?? 500, page(langOf(req), err.status === 404 ? 'no-page' : 'server-error'));
       }),
     ),
   );

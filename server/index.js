@@ -9,10 +9,11 @@ const dist = join(dirname(fileURLToPath(import.meta.url)), '..', 'dist');
 
 try {
   const { url } = await startServer({ dir, port, dist });
-  console.log(`相册已启动：${url}\n相册库：${dir}`);
+  console.log(`册页已启动：${url}；相册库：${dir}\nFolio is running: ${url}; library: ${dir}`);
 } catch (err) {
-  if (err.code === 'EADDRINUSE') console.error(`端口 ${port} 被占用，可以用 PORT=xxxx npm start 换一个`);
-  else if (['EACCES', 'EPERM', 'EROFS', 'ENOTDIR'].includes(err.code)) console.error(`相册库目录不可写：${dir}（${err.message}）`);
-  else console.error(err);
+  if (err.code === 'EADDRINUSE') console.error(`端口 ${port} 被占用，可以用 PORT=xxxx npm start 换一个\nPort ${port} is in use. Try PORT=xxxx npm start.`);
+  else if (['EACCES', 'EPERM', 'EROFS', 'ENOTDIR'].includes(err.code)) {
+    console.error(`相册库目录不可写：${dir}（${err.message}）\nThe library folder isn't writable: ${dir} (${err.message})`);
+  } else console.error(err);
   process.exit(1);
 }

@@ -40,7 +40,7 @@ export function renderWall(app) {
     el.className = 'album';
     el.dataset.id = a.id;
     el.innerHTML = `
-      <a class="cover" href="#/a/${a.id}" data-act="open">${a.cover ? `<img alt="" src="${mediaUrl(a.id, a.cover.id, 600)}">` : icon('book')}</a>
+      <a class="cover" href="#/a/${a.id}" data-act="open">${a.previews[0] ? `<img alt="" src="${mediaUrl(a.id, a.previews[0].id, 600)}">` : icon('book')}</a>
       <div class="meta">
         <div class="names"><h2></h2><p>${a.count} 张</p></div>
         <button class="ibtn" type="button" data-act="menu" aria-label="更多">${icon('more')}</button>
