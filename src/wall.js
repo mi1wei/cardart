@@ -1,8 +1,9 @@
-import { api, mediaUrl } from './api.js';
-import { open } from './router.js';
-import { dialog, icon, toast } from './ui.js';
+import { api } from './api.js';
+import { folder, folderClick, pocket } from './folder.js';
 import { t } from './i18n.js';
 import { openPhoneDialog } from './phone.js';
+import { open } from './router.js';
+import { dialog, icon, toast } from './ui.js';
 
 // Phone access is set up on the computer only (spec §12).
 const local = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
@@ -12,42 +13,35 @@ export function renderWall(app) {
   let albums = [];
   document.title = `${t('albums')} · ${t('app')}`;
   app.innerHTML = `
-    <main class="mgr">
-      <header class="bar">
-        <h1 class="brand"><span class="logo">${icon('book')}</span>${t('albums')}</h1>
+    <main class="page">
+      <header class="ph">
+        <div><h1 class="t1">${t('albums')}</h1><p class="sub" hidden></p></div>
         <span class="sp"></span>
         ${local ? `<button class="btn" type="button" data-act="phone">${icon('phone')}<span>${t('phone-access')}</span></button>` : ''}
         <button class="btn pri" type="button" data-act="new" aria-label="${t('new-album')}">${icon('plus')}<span>${t('new-album')}</span></button>
       </header>
-      <div class="wall"></div>
-      <p class="empty" hidden>${t('no-albums')}</p>
+      <div class="folders"></div>
+      <div class="empty" hidden>
+        <div class="pocket">${pocket('', [])}</div>
+        <p>${t('no-albums')}</p>
+        <button class="btn pri" type="button" data-act="new">${icon('plus')}<span>${t('new-album')}</span></button>
+      </div>
     </main>`;
-  const wall = app.querySelector('.wall');
+  const wall = app.querySelector('.folders');
+  const sub = app.querySelector('.sub');
 
   async function load() {
     try {
       const list = await api.albums();
       if (!alive) return;
       albums = list;
-      wall.replaceChildren(...albums.map(card));
+      wall.replaceChildren(...albums.map((a) => folder(a, { menu: true })));
+      sub.textContent = t('stats', { a: albums.length, p: albums.reduce((n, a) => n + a.count, 0) });
+      sub.hidden = albums.length === 0;
       app.querySelector('.empty').hidden = albums.length > 0;
     } catch (err) {
       if (alive) toast(t('load-failed', { reason: err.message }));
     }
-  }
-
-  function card(a) {
-    const el = document.createElement('article');
-    el.className = 'album';
-    el.dataset.id = a.id;
-    el.innerHTML = `
-      <a class="cover" href="#/a/${a.id}" data-act="open">${a.previews[0] ? `<img alt="" src="${mediaUrl(a.id, a.previews[0].id, 600)}">` : icon('book')}</a>
-      <div class="meta">
-        <div class="names"><h2></h2><p>${t('photos', { n: a.count })}</p></div>
-        <button class="ibtn" type="button" data-act="menu" aria-label="${t('more')}">${icon('more')}</button>
-      </div>`;
-    el.querySelector('h2').textContent = a.title;
-    return el;
   }
 
   const closeMenu = () => app.querySelector('.menu')?.remove();
@@ -55,13 +49,11 @@ export function renderWall(app) {
   async function onClick(e) {
     const target = e.target.closest('[data-act]');
     const act = target?.dataset.act;
-    const a = albums.find((x) => x.id === e.target.closest('.album')?.dataset.id);
+    const a = albums.find((x) => x.id === e.target.closest('.folder')?.dataset.id);
     if (act !== 'menu') closeMenu();
+    if (!act && folderClick(e)) return;
     try {
-      if (act === 'open') {
-        e.preventDefault();
-        open(`#/a/${a.id}`);
-      } else if (act === 'menu') {
+      if (act === 'menu') {
         const shown = target.parentElement.querySelector('.menu');
         closeMenu();
         if (!shown) {

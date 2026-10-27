@@ -1,5 +1,5 @@
 {
-  "name": "photo-album",
+  "name": "folio",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -10,6 +10,7 @@
     "start": "vite build && node server/index.js"
   },
   "dependencies": {
+    "@fontsource-variable/geist": "^5.3.0",
     "sharp": "^0.35.5",
     "three": "^0.186.1",
     "uqr": "^0.1.3"

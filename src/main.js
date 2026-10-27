@@ -1,3 +1,4 @@
+import '@fontsource-variable/geist';
 import './style.css';
 import { renderAlbum } from './album.js';
 import { lang, t } from './i18n.js';
