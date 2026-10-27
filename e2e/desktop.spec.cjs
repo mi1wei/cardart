@@ -1,7 +1,7 @@
 const { test, expect } = require('@playwright/test');
 const { _electron } = require('playwright');
 const { generateKeyPairSync, sign } = require('node:crypto');
-const { mkdtemp, mkdir, writeFile, rm } = require('node:fs/promises');
+const { mkdtemp, mkdir, writeFile, readFile, rm } = require('node:fs/promises');
 const { tmpdir } = require('node:os');
 const { join } = require('node:path');
 const sharp = require('sharp');
@@ -45,6 +45,17 @@ test('isolated desktop uses the real utility backend and a sandboxed renderer', 
     });
     const result = await uploaded.json();
     expect(result.photo).toMatchObject({ w: 12, h: 8 });
+    const heic = await page.request.post(`${origin}/api/albums/${album.id}/photos?name=owned.heic`, {
+      headers: { 'X-Album-Upload': '1', 'Content-Type': 'application/octet-stream' },
+      data: await readFile(join(__dirname, '../tests/fixtures/photos/multi.heic')),
+    });
+    const primary = (await heic.json()).photo;
+    expect(primary).toMatchObject({ w: 64, h: 48 });
+    const preview = await page.request.get(`${origin}/media/${album.id}/${primary.id}/600`);
+    const { data: pixels, info } = await sharp(await preview.body()).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+    const corner = (12 * info.width + 16) * info.channels;
+    expect(pixels[corner]).toBeGreaterThan(180);
+    expect(pixels[corner + 1]).toBeLessThan(60);
     await desktop.close();
     desktop = null;
     await expect(async () => { await fetch(origin); }).rejects.toThrow();

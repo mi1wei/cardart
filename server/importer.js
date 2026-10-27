@@ -1,24 +1,23 @@
-import { execFile } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
 import { createWriteStream } from 'node:fs';
 import { rename, rm, stat } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import { Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
-import { promisify } from 'node:util';
 import sharp from 'sharp';
 import { fail } from './library.js';
+import { decodeHeic } from './heic.js';
+import { MAX_BYTES } from './image-limits.js';
 
-const run = promisify(execFile);
-export const MAX_BYTES = 100 * 1024 * 1024;
+export { MAX_BYTES } from './image-limits.js';
 // Originals are named by what they really are; other formats (SVG, PDF…) are not photos.
 const RASTER = { jpeg: '.jpg', png: '.png', webp: '.webp', gif: '.gif', tiff: '.tif', heif: '.heic' };
 const tmpName = () => `.tmp-${randomBytes(8).toString('hex')}`;
 
 // The 1600 image comes from the source, the 600 from the upright 1600: one full decode per photo.
-async function render(src, cacheDir, id) {
+async function render(src, cacheDir, id, options = {}) {
   const big = join(cacheDir, `${id}_1600.webp`);
-  await sharp(src, { failOn: 'error' })
+  await sharp(src, { ...options, failOn: 'error' })
     .autoOrient()
     .resize(1600, 1600, { fit: 'inside', withoutEnlargement: true })
     .webp({ quality: 82 })
@@ -27,23 +26,21 @@ async function render(src, cacheDir, id) {
     .resize(600, 600, { fit: 'inside', withoutEnlargement: true })
     .webp({ quality: 80 })
     .toFile(join(cacheDir, `${id}_600.webp`));
-  const { autoOrient } = await sharp(src).metadata();
+  const { autoOrient } = await sharp(src, options).metadata();
   return { w: autoOrient.width, h: autoOrient.height };
 }
 
-// sharp's prebuilt libvips cannot decode HEIC (HEVC); on macOS, sips converts it to JPEG first.
 export async function makeCache(original, cacheDir, id) {
   try {
-    return await render(original, cacheDir, id);
-  } catch (err) {
-    if (process.platform !== 'darwin') throw err;
-    const jpeg = join(cacheDir, `${tmpName()}.jpg`);
-    try {
-      await run('sips', ['-s', 'format', 'jpeg', original, '--out', jpeg]);
-      return await render(jpeg, cacheDir, id);
-    } finally {
-      await rm(jpeg, { force: true });
+    const metadata = await sharp(original).metadata();
+    if (metadata.format === 'heif' && metadata.compression !== 'av1') {
+      const { width, height, pixels } = await decodeHeic(original);
+      return await render(Buffer.from(pixels.buffer, pixels.byteOffset, pixels.byteLength), cacheDir, id, { raw: { width, height, channels: 4 } });
     }
+    return await render(original, cacheDir, id);
+  } catch (error) {
+    await Promise.all([600, 1600].map((size) => rm(join(cacheDir, `${id}_${size}.webp`), { force: true })));
+    throw error;
   }
 }
 
