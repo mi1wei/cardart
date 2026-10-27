@@ -4,7 +4,7 @@
 
 ## 运行
 
-需要 macOS 和 Node 20.9 以上。
+源码运行需要 macOS 和 Node 24 以上；`.nvmrc` 指定开发/CI 使用的 Node 24 LTS。
 
 ```bash
 npm install
