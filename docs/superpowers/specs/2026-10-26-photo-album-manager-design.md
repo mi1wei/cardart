@@ -2,6 +2,7 @@
 
 - 日期：2026-10-26
 - 状态：已确认（2026-10-26）
+- 界面改版（主页、导航栏、中英切换）：见 `docs/superpowers/specs/2026-10-27-folio-redesign-design.md`。它覆盖本文 §9 里相册墙、相册页的样子，以及「界面用中文」的假设。
 - 实现计划：`docs/superpowers/plans/2026-10-26-photo-album-manager.md`
 - 基础：已完成的 3D 翻阅卡册（`docs/superpowers/specs/2026-10-23-album-book-design.md`，commit 7a51e56）
 - 界面稿：`docs/superpowers/mockups/2026-10-26-photo-album-manager/ui-draft-v1.html`（各页面）和 `layout-auto-v1.html`（3D 一页多张排版）。3D 页面以排版稿和本文为准：界面稿里的「第 i 册」下拉已取消，改为页码滑条（§9）。
