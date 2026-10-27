@@ -1267,6 +1267,25 @@ body:has(.ab, .lb) {
   margin: 0;
 }
 
+.phone-network {
+  display: grid;
+  gap: 6px;
+  margin: 14px 0;
+  color: var(--ink-2);
+  font-size: 13px;
+}
+
+.phone-network select {
+  width: 100%;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--raised);
+  color: var(--ink);
+  font: inherit;
+}
+
 .qr {
   width: 220px;
   height: 220px;

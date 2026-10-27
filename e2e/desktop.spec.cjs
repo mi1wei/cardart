@@ -36,6 +36,18 @@ test('isolated desktop uses the real utility backend and a sandboxed renderer', 
     const origin = new URL(page.url()).origin;
     const html = await page.request.get(origin);
     expect(html.headers()['content-security-policy']).toContain("script-src 'self'");
+    const port = new URL(origin).port;
+    await page.route('**/api/phone', (route) => route.fulfill({ json: {
+      enabled: true, key: 'owned-test-key', port: Number(port), ip: '192.168.50.10',
+      addresses: [{ address: '192.168.50.10', name: 'Wi-Fi' }, { address: '10.9.0.1', name: 'VPN' }],
+    } }));
+    await page.locator('.nav [data-act=phone]').click();
+    const network = page.locator('.phone select');
+    await expect(network).toHaveCount(1);
+    await network.selectOption('10.9.0.1');
+    await expect(page.locator('.phone code')).toHaveText(`http://10.9.0.1:${port}/?key=owned-test-key`);
+    await page.locator('.phone [data-act=close]').click();
+    await page.unroute('**/api/phone');
     const created = await page.request.post(`${origin}/api/albums`, { data: { title: 'Utility test' } });
     expect(created.ok()).toBe(true);
     const album = await created.json();

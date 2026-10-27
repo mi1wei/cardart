@@ -2,6 +2,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { open } from 'node:fs/promises';
 import http from 'node:http';
 import { networkInterfaces } from 'node:os';
+import { isIP } from 'node:net';
 import { extname, join, resolve, sep } from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import { ensureCache, importPhoto } from './importer.js';
@@ -31,16 +32,23 @@ const MIME = {
   '.txt': 'text/plain; charset=utf-8',
 };
 
-// IPv4 LAN addresses; en0 / en1 (Wi‑Fi or Ethernet on a Mac) first.
-export function lanAddresses() {
-  const rank = (name) => ['en0', 'en1'].indexOf(name) + 1 || 3;
-  return Object.entries(networkInterfaces())
-    .flatMap(([name, list]) => (list ?? []).map((a) => ({ ...a, name })))
-    .filter((a) => a.family === 'IPv4' && !a.internal && !a.address.startsWith('169.254.'))
-    .sort((a, b) => rank(a.name) - rank(b.name))
-    .map((a) => a.address);
+export function lanInterfaces(interfaces = networkInterfaces()) {
+  const seen = new Set();
+  return Object.entries(interfaces)
+    .flatMap(([name, list]) => (list ?? []).map((address) => ({ ...address, name })))
+    .filter((address) => address.family === 'IPv4' && !address.internal && isIP(address.address) === 4 &&
+      !/^(?:0\.|127\.|169\.254\.)/.test(address.address) && Number(address.address.split('.')[0]) < 224)
+    .map((address) => ({
+      ...address,
+      rank: (/utun|^tun|^tap|vpn|docker|vethernet|vmnet|tailscale|^veth|^br-/i.test(address.name) ? 2 : 0) +
+        (/^(?:10\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.)/.test(address.address) ? 0 : 1),
+    }))
+    .sort((a, b) => a.rank - b.rank)
+    .filter(({ address }) => { if (seen.has(address)) return false; seen.add(address); return true; })
+    .map(({ address, name }) => ({ address, name }));
 }
 
+export const lanAddresses = () => lanInterfaces().map(({ address }) => address);
 function send(res, status, body, headers = {}) {
   const html = typeof body === 'string';
   res.writeHead(status, {
@@ -180,7 +188,8 @@ async function api(lib, req, res, url, local) {
     if (!local) throw fail(403, 'computer-only');
     if (m === 'PATCH') await lib.setPhone((await readJson(req)).enabled === true);
     else if (m !== 'GET') throw fail(405, 'not-supported');
-    return send(res, 200, { ...lib.phone(), ip: lanAddresses()[0] ?? null, port: req.socket.localPort });
+    const addresses = lanInterfaces();
+    return send(res, 200, { ...lib.phone(), ip: addresses[0]?.address ?? null, addresses, port: req.socket.localPort });
   }
   if (name === 'albums') {
     if (id === undefined && m === 'GET') return send(res, 200, lib.list());

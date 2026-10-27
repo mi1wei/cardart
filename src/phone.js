@@ -12,34 +12,49 @@ export async function openPhoneDialog() {
   d.innerHTML = `
     <div class="mh"><h3>${t('phone-title')}</h3><button class="ibtn" type="button" data-act="close" aria-label="${t('close')}">${icon('close')}</button></div>
     <p class="dlg-text">${t('phone-help')}</p>
+    <label class="phone-network" hidden><span>${t('phone-network')}</span><select></select></label>
     <div class="qr"></div>
     <div class="ub"><code></code><button class="btn" type="button" data-act="copy">${icon('copy')}<span>${t('copy')}</span></button></div>
     <p class="note">${t('phone-note')}</p>
     <label class="tg"><span><b>${t('phone-allow')}</b><small>${t('phone-allow-help')}</small></span><input class="sw" type="checkbox"></label>
     <p class="err" hidden>${t('phone-no-lan')}</p>`;
   const sw = d.querySelector('.sw');
+  const network = d.querySelector('select');
+  sw.disabled = true;
   let info = null;
+  let saving = false;
 
   function render() {
-    const url = info.ip ? `http://${info.ip}:${info.port}/?key=${info.key}` : '';
+    const previous = network.value || info.ip;
+    const addresses = info.addresses?.length ? info.addresses : info.ip ? [{ address: info.ip, name: '' }] : [];
+    network.replaceChildren(...addresses.map(({ name, address }) => new Option(name ? `${name} (${address})` : address, address)));
+    network.value = addresses.some(({ address }) => address === previous) ? previous : addresses[0]?.address ?? '';
+    network.disabled = saving;
+    d.querySelector('.phone-network').hidden = addresses.length < 2;
+    const url = network.value ? `http://${network.value}:${info.port}/?key=${info.key}` : '';
     const on = info.enabled && !!url;
     d.classList.toggle('off', !on);
     sw.checked = info.enabled;
-    sw.disabled = !url;
+    sw.disabled = saving || !url;
     d.querySelector('.err').hidden = !!url;
     d.querySelector('code').textContent = on ? url : t('phone-link-off');
     d.querySelector('.qr').innerHTML = on ? renderSVG(url, { border: 1 }) : '';
     d.querySelector('[data-act=copy]').disabled = !on;
   }
+  network.addEventListener('change', render);
 
   // Every switch-on makes a new key on the server, so old links stop working (spec §9).
   sw.addEventListener('change', async () => {
+    saving = true;
+    sw.disabled = true;
+    network.disabled = true;
     try {
       info = await api.setPhone(sw.checked);
-      render();
     } catch (err) {
-      sw.checked = !sw.checked;
       toast(t('failed', { reason: err.message }));
+    } finally {
+      saving = false;
+      render();
     }
   });
   d.addEventListener('click', (e) => {
