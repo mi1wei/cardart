@@ -1,5 +1,6 @@
 import { api, mediaUrl } from './api.js';
 import { dialog, icon, toast } from './ui.js';
+import { t } from './i18n.js';
 
 const KEYS = { ArrowLeft: 'prev', ArrowRight: 'next', Escape: 'close' };
 
@@ -11,14 +12,14 @@ export function openLightbox({ album, index, onIndex, onAlbum, onClose }) {
   root.innerHTML = `
     <header class="lb-bar">
       <b class="lb-count"></b><span class="lb-name"></span><span class="sp"></span>
-      <button class="lb-btn" type="button" data-act="cover">${icon('star')}<span>设为封面</span></button>
-      <button class="lb-btn" type="button" data-act="original">${icon('expand')}<span>查看原图</span></button>
-      <button class="lb-btn" type="button" data-act="delete">${icon('trash')}<span>删除</span></button>
-      <button class="ibtn" type="button" data-act="close" aria-label="关闭">${icon('close')}</button>
+      <button class="lb-btn" type="button" data-act="cover">${icon('star')}<span>${t('set-cover')}</span></button>
+      <button class="lb-btn" type="button" data-act="original">${icon('expand')}<span>${t('original')}</span></button>
+      <button class="lb-btn" type="button" data-act="delete">${icon('trash')}<span>${t('delete')}</span></button>
+      <button class="ibtn" type="button" data-act="close" aria-label="${t('close')}">${icon('close')}</button>
     </header>
     <img class="lb-img" alt="">
-    <button class="ibtn lb-nav l" type="button" data-act="prev" aria-label="上一张">${icon('prev')}</button>
-    <button class="ibtn lb-nav r" type="button" data-act="next" aria-label="下一张">${icon('next')}</button>`;
+    <button class="ibtn lb-nav l" type="button" data-act="prev" aria-label="${t('prev-photo')}">${icon('prev')}</button>
+    <button class="ibtn lb-nav r" type="button" data-act="next" aria-label="${t('next-photo')}">${icon('next')}</button>`;
   const $ = (s) => root.querySelector(s);
   const img = $('.lb-img');
   img.onload = () => root.classList.remove('missing');
@@ -55,11 +56,11 @@ export function openLightbox({ album, index, onIndex, onAlbum, onClose }) {
       else if (name === 'cover') {
         show(index, await api.updateAlbum(album.id, { cover: p.id }));
         onAlbum(album);
-        toast('已设为封面');
+        toast(t('cover-set'));
       } else if (name === 'delete') {
-        const text = '删除这张照片？删除后不能恢复。';
+        const text = t('delete-photo-text');
         // Back may have closed the lightbox while the confirmation was open.
-        if (!(await dialog({ title: '删除照片', text, ok: '删除', danger: true })) || !root.isConnected) return;
+        if (!(await dialog({ title: t('delete-photo'), text, ok: t('delete'), danger: true })) || !root.isConnected) return;
         const next = await api.deletePhotos(album.id, [p.id]);
         onAlbum(next);
         if (!root.isConnected) return; // closed while deleting: the address is no longer ours
@@ -68,7 +69,7 @@ export function openLightbox({ album, index, onIndex, onAlbum, onClose }) {
         onIndex(album.photos[index].id);
       }
     } catch (err) {
-      toast(`操作失败：${err.message}`);
+      toast(t('failed', { reason: err.message }));
     }
   }
 

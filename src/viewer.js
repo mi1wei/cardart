@@ -2,11 +2,10 @@ import { mediaUrl } from './api.js';
 import { createBook } from './book/book.js';
 import { layoutPages, spreadOfPage } from './book/layout.js';
 import { fullscreenTip, icon, toast } from './ui.js';
+import { t } from './i18n.js';
 
-const HINT_OPEN = '拖动页面或点击两侧翻页；点击照片看大图';
-const HINT_CLOSED = '点击封面或向左拖动打开';
 const KEYS = { ArrowLeft: 'prev', PageUp: 'prev', ArrowRight: 'next', PageDown: 'next' };
-const DENSITY = [[1, '每页 1 张'], [2, '宽松'], [3, '紧凑']];
+const DENSITY = [1, 2, 3];
 const DRAWN = 20; // the slider shows once the album has more leaves than the book draws
 
 export function openViewer({ album, onOpenPhoto, onClose, onPerPage }) {
@@ -19,26 +18,26 @@ export function openViewer({ album, onOpenPhoto, onClose, onPerPage }) {
   root.innerHTML = `
     <div class="ab-stage"></div>
     <header class="ab-bar">
-      <button class="ab-icon" type="button" data-act="close" aria-label="关闭">${icon('close')}</button>
+      <button class="ab-icon" type="button" data-act="close" aria-label="${t('close')}">${icon('close')}</button>
       <h2 class="ab-title"></h2>
-      <label class="ab-select"><span>每页</span><select>${DENSITY.map(([v, t]) => `<option value="${v}">${t}</option>`).join('')}</select></label>
-      <button class="ab-icon" type="button" data-act="fullscreen" aria-label="全屏" aria-pressed="false">${icon('fullscreen')}</button>
-      <button class="ab-icon" type="button" data-act="cover" aria-label="合上相册" aria-pressed="false">${icon('book')}</button>
+      <label class="ab-select"><span>${t('per-page')}</span><select>${DENSITY.map((v) => `<option value="${v}">${t(`per-${v}`)}</option>`).join('')}</select></label>
+      <button class="ab-icon" type="button" data-act="fullscreen" aria-label="${t('fullscreen')}" aria-pressed="false">${icon('fullscreen')}</button>
+      <button class="ab-icon" type="button" data-act="cover" aria-label="${t('close-book')}" aria-pressed="false">${icon('book')}</button>
     </header>
     <footer class="ab-foot">
       <div class="ab-nav" data-open>
-        <button class="ab-icon ab-round" type="button" data-act="prev" aria-label="上一页">${icon('prev')}</button>
+        <button class="ab-icon ab-round" type="button" data-act="prev" aria-label="${t('prev-page')}">${icon('prev')}</button>
         <span class="ab-count" aria-live="polite"></span>
-        <button class="ab-icon ab-round" type="button" data-act="next" aria-label="下一页">${icon('next')}</button>
+        <button class="ab-icon ab-round" type="button" data-act="next" aria-label="${t('next-page')}">${icon('next')}</button>
       </div>
-      <input class="ab-slider" type="range" min="1" step="1" aria-label="跳到第几个跨页" hidden>
+      <input class="ab-slider" type="range" min="1" step="1" aria-label="${t('jump-spread')}" hidden>
       <div class="ab-nav" data-closed hidden>
-        <button class="ab-primary" type="button" data-act="cover">${icon('bookOpen')}打开相册</button>
+        <button class="ab-primary" type="button" data-act="cover">${icon('bookOpen')}${t('open-book')}</button>
       </div>
-      <p class="ab-hint">${HINT_OPEN}</p>
+      <p class="ab-hint">${t('hint-open')}</p>
     </footer>
-    <p class="ab-message" hidden>当前浏览器无法显示 3D 相册（WebGL 不可用）</p>
-    <div class="ab-rotate">${icon('phone')}<p>请横过手机查看相册</p></div>`;
+    <p class="ab-message" hidden>${t('no-webgl')}</p>
+    <div class="ab-rotate">${icon('phone')}<p>${t('rotate')}</p></div>`;
   const $ = (selector) => root.querySelector(selector);
   const stage = $('.ab-stage');
   const slider = $('.ab-slider');
@@ -58,13 +57,13 @@ export function openViewer({ album, onOpenPhoto, onClose, onPerPage }) {
   function toggleFullscreen() {
     if (!canFull) toast(fullscreenTip(), 8000);
     else if (document.fullscreenElement) document.exitFullscreen();
-    else document.documentElement.requestFullscreen().catch(() => toast('当前浏览器不能全屏'));
+    else document.documentElement.requestFullscreen().catch(() => toast(t('no-fullscreen')));
   }
 
   function onFullscreen() {
     const on = !!document.fullscreenElement;
     full.innerHTML = icon(on ? 'fullscreenExit' : 'fullscreen');
-    full.setAttribute('aria-label', on ? '退出全屏' : '全屏');
+    full.setAttribute('aria-label', t(on ? 'fullscreen-exit' : 'fullscreen'));
     full.setAttribute('aria-pressed', String(on));
   }
 
@@ -86,9 +85,9 @@ export function openViewer({ album, onOpenPhoto, onClose, onPerPage }) {
     if (!sliding) slider.value = String(s);
     const cover = $('.ab-bar [data-act=cover]');
     cover.innerHTML = icon(closed ? 'bookOpen' : 'book');
-    cover.setAttribute('aria-label', closed ? '打开相册' : '合上相册');
+    cover.setAttribute('aria-label', t(closed ? 'open-book' : 'close-book'));
     cover.setAttribute('aria-pressed', String(closed));
-    $('.ab-hint').textContent = closed ? HINT_CLOSED : HINT_OPEN;
+    $('.ab-hint').textContent = t(closed ? 'hint-closed' : 'hint-open');
   }
 
   function fail() {

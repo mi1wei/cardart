@@ -1,3 +1,5 @@
+import { t } from './i18n.js';
+
 const PATHS = {
   book: '<path d="M5 5.5A2.5 2.5 0 0 1 7.5 3H19v14H7.5A2.5 2.5 0 0 0 5 19.5z"/><path d="M5 19.5A2.5 2.5 0 0 0 7.5 22H19v-5"/>',
   bookOpen: '<path d="M12 6.5C10.5 5 8 4.5 4 4.5v13c4 0 6.5.5 8 2 1.5-1.5 4-2 8-2v-13c-4 0-6.5.5-8 2z"/><path d="M12 6.5v13"/>',
@@ -21,10 +23,7 @@ export const icon = (name) =>
   `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${PATHS[name]}</svg>`;
 
 // iPhone browsers cannot go full screen; a Home Screen web app opens without browser bars (spec §9).
-export const fullscreenTip = () =>
-  /MicroMessenger/i.test(navigator.userAgent)
-    ? '微信里不能全屏：点右上角「···」→「在 Safari 中打开」，再点分享 →「添加到主屏幕」。'
-    : 'iPhone 的浏览器不能全屏：点分享 →「添加到主屏幕」，以后从主屏幕上的「相册」图标打开就是全屏。';
+export const fullscreenTip = () => t(/MicroMessenger/i.test(navigator.userAgent) ? 'tip-wechat' : 'tip-iphone');
 
 let toastEl = null;
 export function toast(text, ms = 3000) {
@@ -38,7 +37,7 @@ export function toast(text, ms = 3000) {
 
 // Native modal <dialog>. With `value` it shows a text field and resolves to the trimmed text,
 // otherwise to true. Cancel, Esc or an empty field resolve to null.
-export function dialog({ title, text = '', value = null, ok = '确定', danger = false }) {
+export function dialog({ title, text = '', value = null, ok = t('ok'), danger = false }) {
   const d = document.createElement('dialog');
   d.className = 'dlg';
   d.innerHTML = `
@@ -47,7 +46,7 @@ export function dialog({ title, text = '', value = null, ok = '确定', danger =
       <p class="dlg-text"></p>
       <input class="dlg-input" maxlength="50" autocomplete="off">
       <div class="dlg-acts">
-        <button class="btn" type="button" data-act="cancel">取消</button>
+        <button class="btn" type="button" data-act="cancel">${t('cancel')}</button>
         <button class="btn ${danger ? 'danger' : 'pri'}" value="ok"></button>
       </div>
     </form>`;

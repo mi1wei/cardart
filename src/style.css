@@ -343,7 +343,7 @@ button {
 }
 
 .tile.missing::after {
-  content: '图片丢失';
+  content: var(--missing, '图片丢失');
   position: absolute;
   inset: 0;
   display: grid;
@@ -822,7 +822,7 @@ body:has(.ab, .lb) {
 }
 
 .lb.missing::after {
-  content: '图片丢失';
+  content: var(--missing, '图片丢失');
   position: absolute;
   inset: 0;
   display: grid;

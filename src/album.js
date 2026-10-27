@@ -2,6 +2,7 @@ import { api, mediaUrl } from './api.js';
 import { openLightbox } from './lightbox.js';
 import { close, open, swap } from './router.js';
 import { dialog, icon, toast } from './ui.js';
+import { t } from './i18n.js';
 
 const fine = matchMedia('(pointer: fine)');
 const SKIP = { duplicate: 'dup', unsupported: 'bad', 'too-large': 'big' };
@@ -24,30 +25,30 @@ export function renderAlbum(app, id) {
   app.innerHTML = `
     <main class="mgr album-page">
       <header class="bar">
-        <button class="btn ghost" type="button" data-act="back">${icon('prev')}<span>全部相册</span></button>
-        <div class="ttl"><h1><button class="title" type="button" data-act="rename" title="点击改名"></button></h1><span class="count"></span></div>
+        <button class="btn ghost" type="button" data-act="back">${icon('prev')}<span>${t('all-albums')}</span></button>
+        <div class="ttl"><h1><button class="title" type="button" data-act="rename" title="${t('rename-hint')}"></button></h1><span class="count"></span></div>
         <span class="sp"></span>
         <div class="acts normal">
-          <button class="btn" type="button" data-act="select">选择</button>
-          <button class="btn" type="button" data-act="upload">${icon('upload')}<span>上传照片</span></button>
-          <button class="btn pri" type="button" data-act="3d">${icon('book')}<span>3D 翻阅</span></button>
+          <button class="btn" type="button" data-act="select">${t('select')}</button>
+          <button class="btn" type="button" data-act="upload">${icon('upload')}<span>${t('upload-photos')}</span></button>
+          <button class="btn pri" type="button" data-act="3d">${icon('book')}<span>${t('flip-3d')}</span></button>
         </div>
         <div class="acts picking" hidden>
-          <button class="btn ghost" type="button" data-act="cancel">取消</button>
+          <button class="btn ghost" type="button" data-act="cancel">${t('cancel')}</button>
           <span class="picked"></span>
-          <button class="btn danger" type="button" data-act="delete">${icon('trash')}<span>删除</span></button>
+          <button class="btn danger" type="button" data-act="delete">${icon('trash')}<span>${t('delete')}</span></button>
         </div>
       </header>
       <div class="grid" hidden></div>
       <div class="drop" hidden>
         ${icon('upload')}
-        <b>把照片拖到这里</b>
-        <span>或 <button class="link" type="button" data-act="upload">点这里选择照片</button></span>
-        <small>支持 JPG、PNG、HEIC、WebP</small>
+        <b>${t('drop-here')}</b>
+        <span>${t('or')} <button class="link" type="button" data-act="upload">${t('choose-photos')}</button></span>
+        <small>${t('formats')}</small>
       </div>
       <div class="fab">
-        <button class="btn" type="button" data-act="upload">${icon('upload')}<span>上传</span></button>
-        <button class="btn pri" type="button" data-act="3d">${icon('book')}<span>3D 翻阅</span></button>
+        <button class="btn" type="button" data-act="upload">${icon('upload')}<span>${t('upload')}</span></button>
+        <button class="btn pri" type="button" data-act="3d">${icon('book')}<span>${t('flip-3d')}</span></button>
       </div>
       <input type="file" accept="image/*,.heic,.heif" multiple hidden>
       <div class="upload" hidden><div class="r"><b></b><span></span></div><div class="prog"><i></i></div><small></small></div>
@@ -68,8 +69,8 @@ export function renderAlbum(app, id) {
       sync();
     } catch (err) {
       if (!alive) return;
-      if (err.status === 404) main.innerHTML = '<p class="empty">相册不存在。<a href="#/">回到全部相册</a></p>';
-      else toast(`加载失败：${err.message}`);
+      if (err.status === 404) main.innerHTML = `<p class="empty">${t('album-missing')}<a href="#/albums">${t('back-to-albums')}</a></p>`;
+      else toast(t('load-failed', { reason: err.message }));
     }
   }
 
@@ -100,7 +101,7 @@ export function renderAlbum(app, id) {
           onPerPage: (perPage) =>
             api.updateAlbum(id, { perPage }).then(
               (next) => (album = next),
-              (err) => toast(`保存失败：${err.message}`),
+              (err) => toast(t('save-failed', { reason: err.message })),
             ),
         });
       });
@@ -129,21 +130,21 @@ export function renderAlbum(app, id) {
   }
 
   function tile(p, isCover) {
-    const t = document.createElement('button');
-    t.type = 'button';
-    t.className = 'tile';
-    t.dataset.id = p.id;
-    t.classList.toggle('sel', selected.has(p.id));
-    t.innerHTML = `<img alt="" loading="lazy" draggable="false" src="${mediaUrl(id, p.id, 600)}">${isCover ? '<span class="badge">封面</span>' : ''}<span class="chk">${icon('check')}</span>`;
-    t.querySelector('img').onerror = () => t.classList.add('missing');
-    return t;
+    const el = document.createElement('button');
+    el.type = 'button';
+    el.className = 'tile';
+    el.dataset.id = p.id;
+    el.classList.toggle('sel', selected.has(p.id));
+    el.innerHTML = `<img alt="" loading="lazy" draggable="false" src="${mediaUrl(id, p.id, 600)}">${isCover ? `<span class="badge">${t('cover')}</span>` : ''}<span class="chk">${icon('check')}</span>`;
+    el.querySelector('img').onerror = () => el.classList.add('missing');
+    return el;
   }
 
   function render() {
     const n = album.photos.length;
     $('.title').textContent = album.title;
-    $('.count').textContent = `${n} 张`;
-    document.title = `${album.title} · 相册`;
+    $('.count').textContent = t('photos', { n });
+    document.title = `${album.title} · ${t('app')}`;
     $('.drop').hidden = n > 0;
     grid.hidden = n === 0;
     for (const b of app.querySelectorAll('[data-act=select], [data-act="3d"]')) b.disabled = n === 0;
@@ -157,7 +158,7 @@ export function renderAlbum(app, id) {
     main.classList.toggle('selecting', selecting);
     $('.acts.normal').hidden = selecting;
     $('.acts.picking').hidden = !selecting;
-    $('.picked').textContent = `已选 ${selected.size} 张`;
+    $('.picked').textContent = t('selected', { n: selected.size });
     $('.acts.picking [data-act=delete]').disabled = selected.size === 0;
   }
 
@@ -178,7 +179,7 @@ export function renderAlbum(app, id) {
     while (queue.length && alive) {
       const file = queue.shift();
       const i = tally.total - queue.length;
-      box.querySelector('b').textContent = `正在导入 ${i} / ${tally.total}`;
+      box.querySelector('b').textContent = t('importing', { i, n: tally.total });
       box.querySelector('.r span').textContent = file.name;
       box.querySelector('.prog i').style.width = `${((i - 1) / tally.total) * 100}%`;
       try {
@@ -188,7 +189,7 @@ export function renderAlbum(app, id) {
           album = { ...album, photos: [...album.photos, res.photo] };
           if (album.photos.length === 1) render();
           else grid.append(tile(res.photo, false));
-          $('.count').textContent = `${album.photos.length} 张`;
+          $('.count').textContent = t('photos', { n: album.photos.length });
         } else tally[SKIP[res.skipped]]++;
       } catch {
         tally.fail++;
@@ -197,40 +198,40 @@ export function renderAlbum(app, id) {
     uploading = false;
     if (!alive) return;
     const skipped = tally.dup + tally.bad + tally.big;
-    const why = [tally.dup && `重复 ${tally.dup}`, tally.bad && `格式不支持 ${tally.bad}`, tally.big && `太大 ${tally.big}`]
+    const why = [tally.dup && t('dup', { n: tally.dup }), tally.bad && t('bad', { n: tally.bad }), tally.big && t('big', { n: tally.big })]
       .filter(Boolean)
-      .join('，');
-    box.querySelector('b').textContent = '导入完成';
+      .join(t('sep'));
+    box.querySelector('b').textContent = t('import-done');
     box.querySelector('.r span').textContent = '';
     box.querySelector('.prog i').style.width = '100%';
     box.querySelector('small').textContent =
-      `已导入 ${tally.done} 张` + (skipped ? `，跳过 ${skipped} 张（${why}）` : '') + (tally.fail ? `，失败 ${tally.fail} 张` : '');
+      t('imported', { n: tally.done }) + (skipped ? t('skipped', { n: skipped, why }) : '') + (tally.fail ? t('failed-n', { n: tally.fail }) : '');
     Object.assign(tally, { total: 0, done: 0, dup: 0, bad: 0, big: 0, fail: 0 });
     box.timer = setTimeout(() => (box.hidden = true), 4000);
   }
 
   async function removeSelected() {
-    const text = `删除 ${selected.size} 张照片？删除后不能恢复。`;
-    if (!(await dialog({ title: '删除照片', text, ok: '删除', danger: true }))) return;
+    const text = t('delete-photos-text', { n: selected.size });
+    if (!(await dialog({ title: t('delete-photos'), text, ok: t('delete'), danger: true }))) return;
     try {
       album = await api.deletePhotos(id, [...selected]);
       selecting = false;
       selected.clear();
       render();
     } catch (err) {
-      toast(`操作失败：${err.message}`);
+      toast(t('failed', { reason: err.message }));
     }
   }
 
   async function rename() {
-    const title = await dialog({ title: '重命名相册', value: album.title, ok: '保存' });
+    const title = await dialog({ title: t('rename-album'), value: album.title, ok: t('save') });
     if (!title || title === album.title) return;
     try {
       album = await api.updateAlbum(id, { title });
       $('.title').textContent = album.title;
-      document.title = `${album.title} · 相册`;
+      document.title = `${album.title} · ${t('app')}`;
     } catch (err) {
-      toast(`操作失败：${err.message}`);
+      toast(t('failed', { reason: err.message }));
     }
   }
 
@@ -306,7 +307,7 @@ export function renderAlbum(app, id) {
       album = await api.updateAlbum(id, { order });
       render(); // the cover badge follows the first photo
     } catch (err) {
-      toast(err.status === 409 ? '照片有变化，已刷新' : `操作失败：${err.message}`);
+      toast(err.status === 409 ? t('order-changed') : t('failed', { reason: err.message }));
       load();
     }
   }

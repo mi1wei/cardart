@@ -1,9 +1,11 @@
 import './style.css';
 import { renderAlbum } from './album.js';
+import { lang, t } from './i18n.js';
 import { start } from './router.js';
 import { fullscreenTip, icon } from './ui.js';
 import { renderWall } from './wall.js';
 
+lang(); // the cookie tells the server our language before the first request
 const app = document.querySelector('#app');
 let view = null;
 
@@ -11,7 +13,7 @@ let view = null;
 if (/MicroMessenger/i.test(navigator.userAgent)) {
   const tip = document.createElement('p');
   tip.className = 'wx-tip';
-  tip.innerHTML = `<span>${fullscreenTip()}</span><button class="ibtn" type="button" aria-label="关闭">${icon('close')}</button>`;
+  tip.innerHTML = `<span>${fullscreenTip()}</span><button class="ibtn" type="button" aria-label="${t('close')}">${icon('close')}</button>`;
   tip.querySelector('button').onclick = () => tip.remove();
   document.body.prepend(tip);
 }
