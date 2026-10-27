@@ -80,6 +80,9 @@ async function sendFile(req, res, file, headers) {
       return res.end();
     }
   }
+  // The browser may have dropped the request meanwhile (a photo scrolled away). Streaming into a closed
+  // response never finishes and would leave the file open, so close it here instead.
+  if (res.destroyed) return handle.close();
   res.writeHead(partial ? 206 : 200, {
     'Content-Type': MIME[extname(file).toLowerCase()] ?? 'application/octet-stream',
     'Content-Length': end - start + 1,
