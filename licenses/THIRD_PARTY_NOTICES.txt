@@ -1,0 +1,18 @@
+Folio - Third-party distribution materials
+
+Folio uses Electron/Chromium, Node.js, sharp/libvips, libheif-js/WASM,
+electron-updater, proper-lockfile, three.js, uqr and the Geist font.
+Their licenses are independent of Folio's offline application licenses.
+
+Run npm run notices to create the target-specific release/legal directory
+and Folio-<version>-third-party-licenses.zip. The installed production graph,
+embedded native versions, original license texts, asset hashes and pinned
+build/source references are recorded together in inventory.json.
+
+This source-tree overview is not a complete distribution notice bundle.
+Do not package it instead of the generated release/legal directory.
+Preserve Electron's original LICENSE and LICENSES.chromium.html as well.
+
+Distribution is NOT cleared by generating notices. The default review
+record is intentionally empty. See SOURCES.txt, ASSET_PROVENANCE.txt and
+docs/desktop-release.md for the required human review and source delivery.

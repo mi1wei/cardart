@@ -1,0 +1,7 @@
+# Preserve upstream notices byte-for-byte; do not reformat their whitespace.
+/licenses/vendor/* -text -whitespace
+/licenses/*.txt text eol=lf
+/licenses/*.json text eol=lf
+/src/assets/folio-mark.svg text eol=lf
+/public/favicon.svg text eol=lf
+/public/geist-OFL.txt text eol=lf

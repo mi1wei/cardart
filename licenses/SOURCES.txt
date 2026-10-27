@@ -1,0 +1,53 @@
+Folio native/WASM source and build provenance
+
+These are source REFERENCES and verbatim upstream build recipes, not a
+claim that a complete corresponding-source archive has been delivered.
+The inventory remains NOT CLEARED FOR DISTRIBUTION until qualified review
+covers source delivery, notices, modified-library replacement and codec/
+patent obligations. Public Actions Artifacts also count as distribution;
+being an Artifact rather than a Release does not make a download private.
+
+Electron 45.0.0:
+  https://github.com/electron/electron/tree/v45.0.0
+  Electron DEPS selects Chromium 156.0.8078.48 and Node.js v24.22.0.
+  https://github.com/chromium/chromium/blob/156.0.8078.48/DEPS
+  FFmpeg base revision: 9db86ce5b5b454dfc96c435f9f0723012980c37f
+  https://chromium.googlesource.com/chromium/third_party/ffmpeg/+/9db86ce5b5b454dfc96c435f9f0723012980c37f
+  Include applicable Electron/Chromium patches and build configuration;
+  the base revision alone is not a reconstruction of the shipped binary.
+  The original Electron and Chromium/FFmpeg notices accompany the report.
+
+sharp 0.35.5 / sharp-libvips npm 1.3.4 / libvips 8.18.7:
+  https://github.com/lovell/sharp/tree/v0.35.5
+  https://github.com/lovell/sharp-libvips/tree/ebb95f8add54eee8bed840e3fb587e4cbec857d7
+  The copied versions.properties and build recipes identify native source
+  versions, patches and configuration. See the upstream notices table.
+  Some upstream patch URLs are moving references. Before distribution,
+  retain the exact modified sources/patches and relevant Rust dependencies;
+  merely pointing at a mutable PR patch is not complete source delivery.
+
+libheif-js 1.23.5:
+  https://github.com/catdad-experiments/libheif-js/tree/d8ec4bc3bc5bf8055975577bccbbc7e1d7313c2d
+  This wrapper downloads the v1.23.5 libheif-emscripten build and transforms
+  its JavaScript for ES2019. Folio uses its existing WASM bundle unmodified.
+  https://github.com/catdad-experiments/libheif-emscripten/tree/5c8968a44e9c68ae677e24790d77d001ed7fe7cc
+  https://github.com/strukturag/libheif/tree/413e2a87e6a70b3eccc3a3adc5801179dd2d9e00
+  The pinned recipe enables libde265 1.0.15, disables optional AOM/OpenJPEG
+  by default and uses Emscripten 3.1.61 in the publisher's workflow.
+  https://github.com/strukturag/libde265/tree/v1.0.15
+  https://github.com/emscripten-core/emscripten/tree/3.1.61
+
+Folio changes are the JavaScript worker/queue and sharp raw-image adapter,
+not modifications to the upstream WASM/native library binaries.
+Unpacking libraries is not, on its own, proof of LGPL replaceability.
+Review the final installer/fuses/ASAR behavior and any application terms.
+
+lazy-val 1.0.5:
+  https://github.com/develar/lazy-val/tree/b69ad4119f1b19bdab13c61ee2fcc88d46b89071
+  The published package declares MIT but supplies no separate LICENSE file.
+  Its package metadata and an explicit license note are retained. Review
+  this known attribution gap; no copyright holder or year is invented.
+
+No material here grants HEVC/H.264 patent rights or legal clearance.
+Do not assert commercial redistribution compliance from npm license
+fields, a successful decode, or this inventory's generated ZIP alone.

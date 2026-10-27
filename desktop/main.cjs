@@ -235,6 +235,7 @@ async function startDesktop({ appRoot = join(__dirname, '..'), licensePublicKeyF
         catch (error) { settings = previous; await boot(); dialog.showErrorBox('Folio', error.message); }
       } },
       { label: text('打开日志', 'Open Logs'), click: () => openPath(join(profile, 'logs')) },
+      { id: 'third-party-notices', label: text('第三方声明', 'Third-party Notices'), click: () => openPath(app.isPackaged ? join(process.resourcesPath, 'legal/THIRD_PARTY_NOTICES.txt') : join(appRoot, 'licenses/THIRD_PARTY_NOTICES.txt')) },
       { label: text('下载新版', 'Download Updates'), click: () => { void shell.openExternal(RELEASES); } },
       { type: 'separator' },
       { role: 'about', label: text('关于 Folio', 'About Folio') },

@@ -37,6 +37,12 @@ npm start
 
 英文和数字用 Geist 字体（SIL Open Font License 1.1），打包在软件里，不从网上加载。许可证见 `public/geist-OFL.txt`。
 
+## 桌面内测开发与分发
+
+已加入 Electron 桌面壳、离线 JSON 授权与托盘，但 Windows/macOS 安装包、更新通道及完整发行验收尚未完成。桌面运行前需维护者按 `docs/license-issuer.md` 提供授权公钥；私钥必须保存在仓库外。CLI/Vite 保留明确开发模式，不代表桌面应用已获授权。
+
+`npm run notices` 生成当前原生目标的第三方清单与声明 ZIP。生成成功不代表已获分发许可；对应源码、LGPL 替换、编解码器及素材权利等仍需审阅。分发门槛和当前限制见 [桌面发行说明](docs/desktop-release.md)。
+
 ## 图标
 
 网页 Logo 与各平台图标共用 `src/assets/folio-mark.svg`：纯色照片页和弧形卷角，不使用阴影或渐变。修改后运行 `npm run icons` 重新生成资源，用 `npm test` 检查格式、尺寸及资源是否同步。
@@ -47,6 +53,7 @@ npm start
 | iPhone 主屏幕 | `public/apple-touch-icon.png`（180px，不透明背景） |
 | 通用应用图标 | `public/icons/folio-1024.png` |
 | macOS Dock | `public/icons/folio.icns`（含 Retina 尺寸与透明外边距） |
+| macOS 菜单栏 | `public/icons/trayTemplate.png`、`trayTemplate@2x.png`（透明单色） |
 | Windows | `public/favicon.ico`（16–256px 多尺寸，同浏览器后备图标） |
 
-当前项目是网页应用，没有原生桌面应用打包配置；`.icns` 和 `.ico` 可在后续桌面打包时使用，不会自动替换 Node 进程的系统图标。已添加到 iPhone 主屏幕的旧图标，需要删除后重新添加才能更新。
+网页与桌面壳共享这些资源；原生安装包尚待构建验收，源码 Node 进程的系统图标不会自动替换。已添加到 iPhone 主屏幕的旧图标，需要删除后重新添加才能更新。
