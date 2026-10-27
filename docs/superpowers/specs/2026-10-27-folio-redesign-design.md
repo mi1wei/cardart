@@ -1,7 +1,7 @@
 # 册页 Folio：界面改版与中英双语（设计文档）
 
 - 日期：2026-10-27
-- 状态：待确认
+- 状态：已确认（2026-10-27）
 - 基础：本地相册管理（`docs/superpowers/specs/2026-10-26-photo-album-manager-design.md`），分支 `photo-album-manager`（fb0666c）。功能以那份文档为准；本文只改样子、加主页和中英切换。本文覆盖那份文档的两处：§9 里相册墙、相册页的样子，以及「界面用中文」的假设。
 - 界面稿（已确认，双击就能打开）：`docs/superpowers/mockups/2026-10-27-folio-redesign/`
   - `home.html`：主页（选 B：居中 + 翻页视频）；
