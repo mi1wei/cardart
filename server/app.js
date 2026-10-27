@@ -252,7 +252,9 @@ async function serveStatic(root, req, res) {
   const file = resolve(root, `.${path === '/' ? '/index.html' : path}`);
   if (!file.startsWith(root + sep)) throw fail(404, 'no-page');
   const cache = path.startsWith('/assets/') ? 'public, max-age=31536000, immutable' : 'no-cache';
-  await sendFile(req, res, file, { 'Cache-Control': cache });
+  const headers = { 'Cache-Control': cache };
+  if (extname(file) === '.html') headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; media-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'";
+  await sendFile(req, res, file, headers);
 }
 
 export async function startServer({ dir, port = 5180, host = '0.0.0.0', dist, fallbackToRandomPort = false }) {
