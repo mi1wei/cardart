@@ -17,4 +17,10 @@ function parseReady(message) {
   return url.origin;
 }
 
-module.exports = { isAppURL, isAllowedPermission, parseReady };
+function isOriginalURL(target, origin) {
+  if (!isAppURL(target, origin)) return false;
+  const url = new URL(target);
+  return !url.search && !url.hash && /^\/media\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/p\d{3,}\/original$/.test(url.pathname);
+}
+
+module.exports = { isAppURL, isAllowedPermission, parseReady, isOriginalURL };

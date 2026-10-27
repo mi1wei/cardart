@@ -14,6 +14,7 @@ export function createNav(onLang) {
       <a class="logo" href="#/"><i>${icon('book')}</i><span>${t('app')}</span></a>
       <a class="nl" href="#/" data-page="home">${t('home')}</a>
       <a class="nl" href="#/albums" data-page="albums">${t('albums')}</a>
+      ${onComputer ? `<a class="nl" href="#/license" data-page="license">${t('license-manage')}</a>` : ''}
       <span class="sp"></span>
       ${onComputer ? `<button class="btn" type="button" data-act="phone">${icon('phone')}<span>${t('phone-access')}</span></button>` : ''}
       <span class="lang" role="group" aria-label="${t('language')}"><button type="button" data-lang="zh" lang="zh-CN">中</button><button type="button" data-lang="en" lang="en">EN</button></span>`;
@@ -30,6 +31,7 @@ export function createNav(onLang) {
   }
 
   el.addEventListener('click', (e) => {
+    if (e.target.closest('[data-page=license]') && document.documentElement.hasAttribute('data-busy')) { e.preventDefault(); return; }
     if (e.target.closest('[data-act=phone]')) return openPhoneDialog();
     const next = e.target.closest('[data-lang]')?.dataset.lang;
     // While photos import, the page must not be rebuilt: the rest of the queue would be lost (spec §10).

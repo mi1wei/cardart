@@ -29,6 +29,13 @@ export const TEXT = {
     'library-closed': '相册库已关闭',
     'library-corrupt': '相册库设置无法读取，原文件已保留，请检查或恢复 library.json',
     'server-stopping': '正在退出，请稍后重新打开 Folio',
+    'license-required': '当前为只读模式，请在电脑上导入有效且包含相册管理权限的许可证',
+    'license-invalid': '许可证无效，请检查文件或联系签发者',
+    'license-expired': '许可证已到期，请导入新的许可证',
+    'license-binding-unsupported': '本版本不支持设备绑定许可证，请联系签发者重新签发',
+    'license-development': '源码开发模式不需要导入许可证',
+    'license-public-key-invalid': '授权公钥无效，请检查构建配置',
+    'license-public-key-missing': '缺少授权公钥，请先提供公钥再构建桌面应用',
   },
   en: {
     app: 'Folio',
@@ -58,6 +65,13 @@ export const TEXT = {
     'library-closed': 'The library is closed.',
     'library-corrupt': 'Library settings are unreadable. The original file was preserved; check or restore library.json.',
     'server-stopping': 'Folio is shutting down. Reopen it to continue.',
+    'license-required': 'Read-only mode. Import a valid license with album management permission on the computer.',
+    'license-invalid': 'Invalid license. Check the file or contact its issuer.',
+    'license-expired': 'This license has expired. Import a renewed license.',
+    'license-binding-unsupported': 'Device-bound licenses are not supported. Ask the issuer for an unbound license.',
+    'license-development': 'Source development mode does not require a license.',
+    'license-public-key-invalid': 'The license public key is invalid. Check the build configuration.',
+    'license-public-key-missing': 'The license public key is missing. Supply it before building the desktop app.',
   },
 };
 

@@ -402,6 +402,65 @@ button {
   }
 }
 
+.license-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px max(env(safe-area-inset-right, 0px), 24px) 10px max(env(safe-area-inset-left, 0px), 24px);
+  background: var(--accent-soft);
+  color: var(--ink-2);
+  font-size: 13px;
+}
+
+.license-bar a {
+  margin-left: auto;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+:root[data-readonly="true"] [data-write] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.license-panel {
+  max-width: 720px;
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--raised);
+}
+
+.license-form {
+  display: grid;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.license-form textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--ink);
+  font: 13px/1.6 ui-monospace, monospace;
+  resize: vertical;
+}
+
+.license-form button {
+  justify-self: start;
+}
+
+.license-result[data-result="error"] {
+  color: var(--danger);
+}
+
+.license-result[data-result="success"] {
+  color: var(--accent);
+}
+
 /* Navigation */
 .nav {
   position: sticky;

@@ -1,6 +1,7 @@
 import { api, mediaUrl } from './api.js';
 import { dialog, icon, toast } from './ui.js';
 import { t } from './i18n.js';
+import { allowWrite } from './license.js';
 
 const KEYS = { ArrowLeft: 'prev', ArrowRight: 'next', Escape: 'close' };
 
@@ -12,9 +13,9 @@ export function openLightbox({ album, index, onIndex, onAlbum, onClose }) {
   root.innerHTML = `
     <header class="lb-bar">
       <b class="lb-count"></b><span class="lb-name"></span><span class="sp"></span>
-      <button class="lb-btn" type="button" data-act="cover">${icon('star')}<span>${t('set-cover')}</span></button>
+      <button class="lb-btn" type="button" data-write data-act="cover">${icon('star')}<span>${t('set-cover')}</span></button>
       <button class="lb-btn" type="button" data-act="original">${icon('expand')}<span>${t('original')}</span></button>
-      <button class="lb-btn" type="button" data-act="delete">${icon('trash')}<span>${t('delete')}</span></button>
+      <button class="lb-btn" type="button" data-write data-act="delete">${icon('trash')}<span>${t('delete')}</span></button>
       <button class="ibtn" type="button" data-act="close" aria-label="${t('close')}">${icon('close')}</button>
     </header>
     <img class="lb-img" alt="">
@@ -47,6 +48,7 @@ export function openLightbox({ album, index, onIndex, onAlbum, onClose }) {
   }
 
   async function act(name) {
+    if (['cover', 'delete'].includes(name) && !allowWrite()) return;
     const p = album.photos[index];
     try {
       if (name === 'prev') go(index - 1);

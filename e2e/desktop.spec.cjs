@@ -1,36 +1,13 @@
 const { test, expect } = require('@playwright/test');
-const { _electron } = require('playwright');
-const { generateKeyPairSync, sign } = require('node:crypto');
-const { mkdtemp, mkdir, writeFile, readFile, rm } = require('node:fs/promises');
-const { tmpdir } = require('node:os');
+const { readFile } = require('node:fs/promises');
 const { join } = require('node:path');
 const sharp = require('sharp');
+const { desktopFixture } = require('./fixtures.cjs');
 
 test('isolated desktop uses the real utility backend and a sandboxed renderer', async () => {
-  const root = await mkdtemp(join(tmpdir(), 'folio-desktop-e2e-'));
-  const profile = join(root, 'profile');
-  const library = join(root, 'library');
-  const keyFile = join(root, 'public.pem');
-  await mkdir(profile);
-  const { publicKey, privateKey } = generateKeyPairSync('ed25519');
-  await writeFile(keyFile, publicKey.export({ type: 'spki', format: 'pem' }));
-  const bytes = Buffer.from(JSON.stringify({
-    license_id: 'lic_e2e', plan: 'trial', device_id: null,
-    expires_at: new Date(Date.now() + 3600000).toISOString().replace(/\.\d{3}Z$/, 'Z'),
-    features: ['album_write'], license_version: 1,
-  }));
-  await writeFile(join(profile, 'license.json'), JSON.stringify({
-    payload: bytes.toString('base64url'), signature: sign(null, bytes, privateKey).toString('base64url'),
-  }));
-  let desktop;
+  const fixture = await desktopFixture();
   try {
-    desktop = await _electron.launch({
-      args: [join(__dirname, 'desktop-entry.cjs'), `--user-data-dir=${profile}`],
-      env: { ...process.env, ALBUM_LIBRARY: library, FOLIO_E2E_KEY_FILE: keyFile },
-      chromiumSandbox: true,
-      bypassCSP: false,
-    });
-    const page = await desktop.firstWindow();
+    const { desktop, page } = await fixture.launch();
     await expect(page.locator('.nav .logo')).toBeVisible();
     expect(await page.evaluate(() => typeof window.require)).toBe('undefined');
     const origin = new URL(page.url()).origin;
@@ -68,11 +45,68 @@ test('isolated desktop uses the real utility backend and a sandboxed renderer', 
     const corner = (12 * info.width + 16) * info.channels;
     expect(pixels[corner]).toBeGreaterThan(180);
     expect(pixels[corner + 1]).toBeLessThan(60);
-    await desktop.close();
-    desktop = null;
+    await page.goto(`${origin}/#/a/${album.id}/p/${result.photo.id}`);
+    await expect(page.locator('.lb')).toBeVisible();
+    const opened = desktop.waitForEvent('window', { timeout: 3000 });
+    await page.locator('.lb [data-act=original]').click();
+    const original = await opened;
+    await expect(original.locator('img')).toBeVisible();
+    expect(await original.evaluate(() => typeof window.require)).toBe('undefined');
+    await original.close();
+    await fixture.close();
     await expect(async () => { await fetch(origin); }).rejects.toThrow();
   } finally {
-    await desktop?.close();
-    await rm(root, { recursive: true, force: true });
+    await fixture.close();
   }
+});
+
+test('read-only desktop imports a JSON license without exposing or deleting existing albums', async () => {
+  const fixture = await desktopFixture({ license: 'missing' });
+  const { openLibrary } = await import('../server/library.js');
+  const lib = await openLibrary(fixture.library);
+  await lib.create('Existing');
+  await lib.close();
+  try {
+    const { page } = await fixture.launch();
+    await expect(page.locator('.nav .logo')).toBeVisible();
+    const origin = new URL(page.url()).origin;
+    expect((await page.request.post(`${origin}/api/albums`, { data: { title: 'Denied' } })).status()).toBe(403);
+    await expect(page.locator('.license-bar')).toBeVisible();
+    await page.goto(`${origin}/#/albums`);
+    await expect(page.locator('.folder')).toHaveCount(1);
+    await expect(page.locator('[data-act=new]').first()).toHaveAttribute('aria-disabled', 'true');
+    await page.goto(`${origin}/#/license`);
+    await expect(page.locator('#license-json')).toBeVisible();
+    await page.locator('#license-json').fill('{"payload":"bad","signature":"bad"}');
+    await page.locator('[data-act=activate-license]').click();
+    await expect(page.locator('.license-result')).toHaveAttribute('data-result', 'error');
+    expect((await (await page.request.get(`${origin}/api/license`)).json()).state).toBe('missing');
+    await page.locator('#license-json').fill(' '.repeat(8192) + JSON.stringify(fixture.envelope));
+    await page.locator('[data-act=activate-license]').click();
+    expect((await (await page.request.get(`${origin}/api/license`)).json()).state).toBe('missing');
+    await page.evaluate(() => {
+      const original = File.prototype.text;
+      window.restoreFixtureFileRead = () => { File.prototype.text = original; };
+      File.prototype.text = function () {
+        return original.call(this).then((text) => new Promise((resolve) => {
+          window.completeFixtureFileRead = () => resolve(text);
+        }));
+      };
+    });
+
+    await page.locator('#license-file').setInputFiles(fixture.licenseFile);
+    await expect(page.locator('[data-act=activate-license]')).toBeDisabled();
+    await page.waitForFunction(() => typeof window.completeFixtureFileRead === 'function');
+    await page.evaluate(() => { window.completeFixtureFileRead(); window.restoreFixtureFileRead(); });
+    await expect(page.locator('[data-act=activate-license]')).toBeEnabled();
+    await page.locator('[data-act=activate-license]').click();
+    await expect(page.locator('.license-result')).toHaveAttribute('data-result', 'success');
+    await page.goto(`${origin}/#/albums`);
+    await page.locator('[data-act=new]').first().click();
+    await page.locator('dialog .dlg-input').fill('Activated album');
+    await page.locator('dialog button[value=ok]').click();
+    await expect(page.locator('.album-page .title')).toHaveText('Activated album');
+    const albums = await (await page.request.get(`${origin}/api/albums`)).json();
+    expect(albums.map((album) => album.title)).toContain('Existing');
+  } finally { await fixture.close(); }
 });

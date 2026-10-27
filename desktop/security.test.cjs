@@ -1,6 +1,6 @@
 const assert = require('node:assert/strict');
 const { test } = require('node:test');
-const { isAppURL, isAllowedPermission, parseReady } = require('./security.cjs');
+const { isAppURL, isAllowedPermission, parseReady, isOriginalURL } = require('./security.cjs');
 
 test('only the exact local app origin is navigable', () => {
   const origin = 'http://localhost:5197';
@@ -28,4 +28,13 @@ test('backend ready messages cannot select remote or mismatched origins', () => 
     { type: 'unknown', origin: 'http://localhost:5197', port: 5197 },
     { type: 'ready', origin: 'http://localhost:5197/?key=x', port: 5197 },
   ]) assert.throws(() => parseReady(message));
+});
+
+test('only an exact original-photo path may open a controlled preview window', () => {
+  const origin = 'http://localhost:5197';
+  const path = '/media/00000000-0000-4000-8000-000000000001/p001/original';
+  assert.equal(isOriginalURL(origin + path, origin), true);
+  assert.equal(isOriginalURL('https://example.com' + path, origin), false);
+  assert.equal(isOriginalURL(origin + '/api/phone', origin), false);
+  assert.equal(isOriginalURL(origin + path + '?key=unexpected', origin), false);
 });

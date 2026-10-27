@@ -3,7 +3,7 @@ const { mkdirSync, realpathSync } = require('node:fs');
 const { readFile, writeFile, rename, rm } = require('node:fs/promises');
 const { join, isAbsolute } = require('node:path');
 const { loadSettings, saveSettings, resolveLibraryChoice } = require('./settings.cjs');
-const { isAppURL, isAllowedPermission } = require('./security.cjs');
+const { isAppURL, isAllowedPermission, isOriginalURL } = require('./security.cjs');
 const { createBackend } = require('./backend.cjs');
 const { createLog } = require('./log.cjs');
 
@@ -129,6 +129,10 @@ async function startDesktop({ appRoot = join(__dirname, '..'), licensePublicKeyF
     catch (error) {
       await backend?.stop();
       await log(`${error.code || 'STARTUP_ERROR'} ${error.message}`);
+      if (error.code?.startsWith('LICENSE_PUBLIC_KEY_')) {
+        dialog.showErrorBox('Folio', text('桌面应用缺少有效的授权公钥。请先运行签发工具并提供公钥，详见 docs/license-issuer.md。', 'Supply a valid license public key before building/running the desktop app. See docs/license-issuer.md.'));
+        await stop(); app.quit(); return null;
+      }
       const response = await dialog.showMessageBox({
         type: 'error', message: text('无法打开相册库', 'Unable to open the library'),
         detail: `${error.code || ''}: ${error.message}`,
@@ -154,12 +158,24 @@ async function startDesktop({ appRoot = join(__dirname, '..'), licensePublicKeyF
     webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true, webSecurity: true, webviewTag: false },
   });
   window.webContents.on('will-navigate', (event, target) => { if (!isAppURL(target, origin)) event.preventDefault(); });
-  window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  window.webContents.setWindowOpenHandler(({ url }) => isOriginalURL(url, origin) ? {
+    action: 'allow',
+    overrideBrowserWindowOptions: {
+      width: 960, height: 720,
+      webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true, webSecurity: true, webviewTag: false },
+    },
+  } : { action: 'deny' });
+  window.webContents.on('did-create-window', (preview) => {
+    preview.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+    preview.webContents.on('will-navigate', (event, target) => { if (!isOriginalURL(target, origin)) event.preventDefault(); });
+    preview.webContents.on('will-attach-webview', (event) => event.preventDefault());
+  });
   window.webContents.on('will-attach-webview', (event) => event.preventDefault());
   window.on('close', (event) => { if (!quitting) { event.preventDefault(); window.hide(); } });
   const openPath = (path) => { void shell.openPath(path).then((error) => { if (error) dialog.showErrorBox('Folio', error); }); };
   function setMenu() {
     const items = [
+      { id: 'license', label: text('许可证', 'License'), click: () => { showWindow(); void window.loadURL(`${origin}/#/license`); } },
       { label: text('打开相册库', 'Open Library'), click: () => openPath(settings.libraryDir) },
       { label: text('选择相册库', 'Choose Library'), async click() {
         const dir = await chooseLibrary(settings.libraryDir);

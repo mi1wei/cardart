@@ -3,6 +3,7 @@ import { openLightbox } from './lightbox.js';
 import { close, open, swap } from './router.js';
 import { dialog, icon, toast } from './ui.js';
 import { t } from './i18n.js';
+import { allowWrite, canWrite } from './license.js';
 
 const fine = matchMedia('(pointer: fine)');
 const SKIP = { duplicate: 'dup', unsupported: 'bad', 'too-large': 'big' };
@@ -25,30 +26,30 @@ export function renderAlbum(app, id) {
   app.innerHTML = `
     <main class="page album-page">
       <p class="crumb"><a href="#/albums">${t('albums')}</a><span>/</span></p>
-      <h1 class="t1"><button class="title" type="button" data-act="rename" title="${t('rename-hint')}"></button><span class="pen">${icon('pen')}</span></h1>
+      <h1 class="t1"><button class="title" type="button" data-write data-act="rename" title="${t('rename-hint')}"></button><span class="pen">${icon('pen')}</span></h1>
       <p class="sub count"></p>
       <div class="acts normal">
         <button class="btn pri" type="button" data-act="3d">${icon('book')}<span>${t('flip-3d')}</span></button>
-        <button class="btn" type="button" data-act="upload">${icon('upload')}<span>${t('upload-photos')}</span></button>
+        <button class="btn" type="button" data-write data-act="upload">${icon('upload')}<span>${t('upload-photos')}</span></button>
         <button class="btn" type="button" data-act="select">${t('select')}</button>
       </div>
       <div class="acts picking" hidden>
         <button class="btn ghost" type="button" data-act="cancel">${t('cancel')}</button>
         <span class="picked"></span>
-        <button class="btn danger" type="button" data-act="delete">${icon('trash')}<span>${t('delete')}</span></button>
+        <button class="btn danger" type="button" data-write data-act="delete">${icon('trash')}<span>${t('delete')}</span></button>
       </div>
       <div class="grid" hidden></div>
       <div class="drop" hidden>
         ${icon('upload')}
         <b>${t('drop-here')}</b>
-        <span>${t('or')} <button class="link" type="button" data-act="upload">${t('choose-photos')}</button></span>
+        <span>${t('or')} <button class="link" type="button" data-write data-act="upload">${t('choose-photos')}</button></span>
         <small>${t('formats')}</small>
       </div>
       <div class="fab">
-        <button class="btn" type="button" data-act="upload">${icon('upload')}<span>${t('upload')}</span></button>
+        <button class="btn" type="button" data-write data-act="upload">${icon('upload')}<span>${t('upload')}</span></button>
         <button class="btn pri" type="button" data-act="3d">${icon('book')}<span>${t('flip-3d')}</span></button>
       </div>
-      <input type="file" accept="image/*,.heic,.heif" multiple hidden>
+      <input type="file" data-write accept="image/*,.heic,.heif" multiple hidden>
       <div class="upload" hidden><div class="r"><b></b><span></span></div><div class="prog"><i></i></div><small></small></div>
     </main>`;
   const $ = (s) => app.querySelector(s);
@@ -163,6 +164,7 @@ export function renderAlbum(app, id) {
 
   // Uploads go one at a time (spec §7); files added meanwhile join the same run.
   function enqueue(files) {
+    if (!allowWrite()) return;
     const list = [...files];
     if (!list.length || !album) return;
     queue.push(...list);
@@ -212,6 +214,7 @@ export function renderAlbum(app, id) {
   }
 
   async function removeSelected() {
+    if (!allowWrite()) return;
     const text = t('delete-photos-text', { n: selected.size });
     if (!(await dialog({ title: t('delete-photos'), text, ok: t('delete'), danger: true }))) return;
     try {
@@ -225,6 +228,7 @@ export function renderAlbum(app, id) {
   }
 
   async function rename() {
+    if (!allowWrite()) return;
     const title = await dialog({ title: t('rename-album'), value: album.title, ok: t('save') });
     if (!title || title === album.title) return;
     try {
@@ -248,6 +252,7 @@ export function renderAlbum(app, id) {
 
   function onClick(e) {
     const act = e.target.closest('[data-act]')?.dataset.act;
+    if (['upload', 'rename', 'delete'].includes(act) && !allowWrite()) return;
     const t = e.target.closest('.tile');
     if (t && !act) return onTile(t);
     if (!album) return;
@@ -264,7 +269,7 @@ export function renderAlbum(app, id) {
   // Desktop reordering with the pointer (spec §9): a ghost follows, the others make room.
   function onPointerDown(e) {
     const t = e.target.closest('.tile');
-    if (!t || selecting || !fine.matches || e.button !== 0) return;
+    if (!t || selecting || !fine.matches || e.button !== 0 || !canWrite()) return;
     drag = { t, x0: e.clientX, y0: e.clientY, mx: -Infinity, my: -Infinity, ghost: null, before: '' };
   }
 
@@ -306,6 +311,7 @@ export function renderAlbum(app, id) {
     setTimeout(() => (suppressClick = false));
     const order = [...grid.children].map((x) => x.dataset.id);
     if (order.join() === d.before) return;
+    if (!allowWrite()) { void load(); return; }
     try {
       album = await api.updateAlbum(id, { order });
       render(); // the cover badge follows the first photo

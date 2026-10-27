@@ -3,6 +3,7 @@ import { createBook } from './book/book.js';
 import { layoutPages, spreadOfPage } from './book/layout.js';
 import { fullscreenTip, icon, toast } from './ui.js';
 import { t } from './i18n.js';
+import { allowWrite } from './license.js';
 
 const KEYS = { ArrowLeft: 'prev', PageUp: 'prev', ArrowRight: 'next', PageDown: 'next' };
 const DENSITY = [1, 2, 3];
@@ -20,7 +21,7 @@ export function openViewer({ album, onOpenPhoto, onClose, onPerPage }) {
     <header class="ab-bar">
       <button class="ab-icon" type="button" data-act="close" aria-label="${t('close')}">${icon('close')}</button>
       <h2 class="ab-title"></h2>
-      <label class="ab-select"><span>${t('per-page')}</span><select>${DENSITY.map((v) => `<option value="${v}">${t(`per-${v}`)}</option>`).join('')}</select></label>
+      <label class="ab-select"><span>${t('per-page')}</span><select data-write>${DENSITY.map((v) => `<option value="${v}">${t(`per-${v}`)}</option>`).join('')}</select></label>
       <button class="ab-icon" type="button" data-act="fullscreen" aria-label="${t('fullscreen')}" aria-pressed="false">${icon('fullscreen')}</button>
       <button class="ab-icon" type="button" data-act="cover" aria-label="${t('close-book')}" aria-pressed="false">${icon('book')}</button>
     </header>
@@ -144,6 +145,7 @@ export function openViewer({ album, onOpenPhoto, onClose, onPerPage }) {
     book?.jump(Number(slider.value));
   });
   per.addEventListener('change', () => {
+    if (!allowWrite()) { per.value = String(album.perPage); return; }
     const i = firstPhotoOf(spread);
     album = { ...album, perPage: Number(per.value) };
     build(i);
