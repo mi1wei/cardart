@@ -23,6 +23,14 @@ test('isolated desktop uses the real utility backend and a sandboxed renderer', 
     await expect(network).toHaveCount(1);
     await network.selectOption('10.9.0.1');
     await expect(page.locator('.phone code')).toHaveText(`http://10.9.0.1:${port}/?key=owned-test-key`);
+    await page.evaluate(() => {
+      Object.defineProperty(navigator.clipboard, 'writeText', {
+        configurable: true, value: async (value) => { window.folioTestCopiedLink = value; },
+      });
+    });
+    await page.locator('.phone [data-act=copy]').click();
+    expect(await page.evaluate(() => window.folioTestCopiedLink)).toBe(`http://10.9.0.1:${port}/?key=owned-test-key`);
+    await page.evaluate(() => { delete navigator.clipboard.writeText; });
     await page.locator('.phone [data-act=close]').click();
     await page.unroute('**/api/phone');
     const created = await page.request.post(`${origin}/api/albums`, { data: { title: 'Utility test' } });
