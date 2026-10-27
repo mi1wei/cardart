@@ -103,8 +103,27 @@ test('exports the shared photo-page mark to web and native icon formats', async 
     assert.equal(expected.size, 0);
   });
 
+  await t.test('menu-bar templates preserve the page curl in black on transparent pixels at both densities', async () => {
+    for (const [name, size, density] of [['trayTemplate.png', 16, 72], ['trayTemplate@2x.png', 32, 144]]) {
+      const image = await readFile(join(output, 'icons', name));
+      const metadata = await sharp(image).metadata();
+      assert.deepEqual([metadata.width, metadata.height, metadata.density], [size, size, density]);
+      const pixels = await sharp(image).ensureAlpha().raw().toBuffer();
+      const expected = await sharp(Buffer.from(mark.replaceAll('currentColor', '#000'))).resize(size).ensureAlpha().raw().toBuffer();
+      assert.equal(pixels.length, expected.length);
+      let visible = 0;
+      for (let i = 0; i < pixels.length; i += 4) {
+        assert.deepEqual([...pixels.subarray(i, i + 3)], [0, 0, 0]);
+        assert.ok(Math.abs(pixels[i + 3] - expected[i + 3]) <= 1, 'template silhouette diverged');
+        if (pixels[i + 3]) visible++;
+      }
+      assert.ok(visible > size);
+      assert.equal(pixels[3], 0);
+    }
+  });
+
   await t.test('published assets stay in sync with the shared vector source', async () => {
-    for (const name of ['favicon.svg', 'favicon.ico', 'apple-touch-icon.png', 'icons/folio-1024.png', 'icons/folio.icns']) {
+    for (const name of ['favicon.svg', 'favicon.ico', 'apple-touch-icon.png', 'icons/folio-1024.png', 'icons/folio.icns', 'icons/trayTemplate.png', 'icons/trayTemplate@2x.png']) {
       assert.deepEqual(
         await readFile(new URL(`../public/${name}`, import.meta.url)),
         await readFile(join(output, name)),

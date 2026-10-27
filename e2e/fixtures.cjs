@@ -1,4 +1,5 @@
 const { _electron } = require('playwright');
+const { expect } = require('@playwright/test');
 const { generateKeyPairSync, sign } = require('node:crypto');
 const { mkdtemp, mkdir, writeFile, rm } = require('node:fs/promises');
 const { tmpdir } = require('node:os');
@@ -30,6 +31,7 @@ async function desktopFixture({ license = 'active' } = {}) {
         env: { ...process.env, ALBUM_LIBRARY: library, FOLIO_E2E_KEY_FILE: keyFile },
         chromiumSandbox: true, bypassCSP: false,
       });
+      await expect.poll(() => desktop.evaluate(() => !!global.folioTestDesktop)).toBe(true);
       return { desktop, page: await desktop.firstWindow() };
     },
     async close() {

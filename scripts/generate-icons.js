@@ -23,6 +23,8 @@ const mac = svg(
   'translate(4 4) scale(.875)',
 );
 const png = (image, size) => sharp(Buffer.from(image)).resize(size).png().toBuffer();
+const tray = (size, density) => sharp(Buffer.from(source.replaceAll('currentColor', '#000')))
+  .resize(size).withMetadata({ density }).png().toBuffer();
 
 async function windowsIcon() {
   const sizes = [16, 24, 32, 48, 64, 128, 256];
@@ -70,5 +72,7 @@ await Promise.all([
   png(touch, 180).then((image) => writeFile(join(output, 'apple-touch-icon.png'), image)),
   png(touch, 1024).then((image) => writeFile(join(output, 'icons/folio-1024.png'), image)),
   macIcon().then((image) => writeFile(join(output, 'icons/folio.icns'), image)),
+  tray(16, 72).then((image) => writeFile(join(output, 'icons/trayTemplate.png'), image)),
+  tray(32, 144).then((image) => writeFile(join(output, 'icons/trayTemplate@2x.png'), image)),
 ]);
 console.log(`Generated Folio icons in ${output}`);
