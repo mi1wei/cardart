@@ -28,6 +28,11 @@ async function desktopFixture({ license = 'active' } = {}) {
   if (license !== 'missing') await writeFile(join(profile, 'license.json'), JSON.stringify(envelope));
   let desktop;
   async function stop() {
+    if (desktop?.context().pages().length) {
+      // Playwright closes its Node inspector immediately after app.quit(), before an async drain finishes.
+      try { await desktop.evaluate(async () => { await global.folioTestDesktop?.stop(); }); }
+      catch (error) { if (desktop.context().pages().length) throw error; }
+    }
     await desktop?.close();
     desktop = null;
   }
