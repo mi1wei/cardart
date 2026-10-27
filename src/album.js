@@ -23,22 +23,20 @@ export function renderAlbum(app, id) {
   let viewerLoading = false;
 
   app.innerHTML = `
-    <main class="mgr album-page">
-      <header class="bar">
-        <button class="btn ghost" type="button" data-act="back">${icon('prev')}<span>${t('all-albums')}</span></button>
-        <div class="ttl"><h1><button class="title" type="button" data-act="rename" title="${t('rename-hint')}"></button></h1><span class="count"></span></div>
-        <span class="sp"></span>
-        <div class="acts normal">
-          <button class="btn" type="button" data-act="select">${t('select')}</button>
-          <button class="btn" type="button" data-act="upload">${icon('upload')}<span>${t('upload-photos')}</span></button>
-          <button class="btn pri" type="button" data-act="3d">${icon('book')}<span>${t('flip-3d')}</span></button>
-        </div>
-        <div class="acts picking" hidden>
-          <button class="btn ghost" type="button" data-act="cancel">${t('cancel')}</button>
-          <span class="picked"></span>
-          <button class="btn danger" type="button" data-act="delete">${icon('trash')}<span>${t('delete')}</span></button>
-        </div>
-      </header>
+    <main class="page album-page">
+      <p class="crumb"><a href="#/albums">${t('albums')}</a><span>/</span></p>
+      <h1 class="t1"><button class="title" type="button" data-act="rename" title="${t('rename-hint')}"></button><span class="pen">${icon('pen')}</span></h1>
+      <p class="sub count"></p>
+      <div class="acts normal">
+        <button class="btn pri" type="button" data-act="3d">${icon('book')}<span>${t('flip-3d')}</span></button>
+        <button class="btn" type="button" data-act="upload">${icon('upload')}<span>${t('upload-photos')}</span></button>
+        <button class="btn" type="button" data-act="select">${t('select')}</button>
+      </div>
+      <div class="acts picking" hidden>
+        <button class="btn ghost" type="button" data-act="cancel">${t('cancel')}</button>
+        <span class="picked"></span>
+        <button class="btn danger" type="button" data-act="delete">${icon('trash')}<span>${t('delete')}</span></button>
+      </div>
       <div class="grid" hidden></div>
       <div class="drop" hidden>
         ${icon('upload')}
@@ -54,7 +52,7 @@ export function renderAlbum(app, id) {
       <div class="upload" hidden><div class="r"><b></b><span></span></div><div class="prog"><i></i></div><small></small></div>
     </main>`;
   const $ = (s) => app.querySelector(s);
-  const main = $('.mgr');
+  const main = $('.page');
   const grid = $('.grid');
   const input = $('input[type=file]');
   const box = $('.upload');
@@ -134,6 +132,7 @@ export function renderAlbum(app, id) {
     el.type = 'button';
     el.className = 'tile';
     el.dataset.id = p.id;
+    el.style.setProperty('--a', (p.w / p.h).toFixed(4));
     el.classList.toggle('sel', selected.has(p.id));
     el.innerHTML = `<img alt="" loading="lazy" draggable="false" src="${mediaUrl(id, p.id, 600)}">${isCover ? `<span class="badge">${t('cover')}</span>` : ''}<span class="chk">${icon('check')}</span>`;
     el.querySelector('img').onerror = () => el.classList.add('missing');
@@ -251,9 +250,8 @@ export function renderAlbum(app, id) {
     const act = e.target.closest('[data-act]')?.dataset.act;
     const t = e.target.closest('.tile');
     if (t && !act) return onTile(t);
-    if (!album && act !== 'back') return;
-    if (act === 'back') close('#/albums');
-    else if (act === 'upload') input.click();
+    if (!album) return;
+    if (act === 'upload') input.click();
     else if (act === 'select' || act === 'cancel') {
       selecting = act === 'select';
       selected.clear();
@@ -267,7 +265,7 @@ export function renderAlbum(app, id) {
   function onPointerDown(e) {
     const t = e.target.closest('.tile');
     if (!t || selecting || !fine.matches || e.button !== 0) return;
-    drag = { t, x0: e.clientX, y0: e.clientY, ghost: null, before: '' };
+    drag = { t, x0: e.clientX, y0: e.clientY, mx: -Infinity, my: -Infinity, ghost: null, before: '' };
   }
 
   function onPointerMove(e) {
@@ -286,10 +284,13 @@ export function renderAlbum(app, id) {
     }
     drag.ghost.style.transform = `translate(${e.clientX - drag.dx}px, ${e.clientY - drag.dy}px) rotate(-3deg)`;
     const over = document.elementFromPoint(e.clientX, e.clientY)?.closest('.tile');
-    if (over && over !== drag.t && over.parentElement === grid) {
+    // Rows re-flow after each move, so the next move waits until the pointer has gone 24 px further.
+    if (over && over !== drag.t && over.parentElement === grid && Math.hypot(e.clientX - drag.mx, e.clientY - drag.my) >= 24) {
       const kids = [...grid.children];
       if (kids.indexOf(over) > kids.indexOf(drag.t)) over.after(drag.t);
       else over.before(drag.t);
+      drag.mx = e.clientX;
+      drag.my = e.clientY;
     }
     if (e.clientY < 60) scrollBy(0, -16);
     else if (e.clientY > innerHeight - 60) scrollBy(0, 16);

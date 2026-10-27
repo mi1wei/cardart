@@ -131,25 +131,6 @@ button {
   outline-offset: 2px;
 }
 
-/* Album page frame */
-.mgr {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 0 max(env(safe-area-inset-right, 0px), 32px) 48px max(env(safe-area-inset-left, 0px), 32px);
-}
-
-.bar {
-  position: sticky;
-  top: 0;
-  z-index: 5;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 72px;
-  padding-top: env(safe-area-inset-top, 0px);
-  background: var(--bg);
-}
-
 /* Page frame and header */
 .page {
   max-width: 1280px;
@@ -874,61 +855,104 @@ button {
 }
 
 /* Album page */
-.ttl {
+.crumb {
   display: flex;
-  align-items: baseline;
-  gap: 10px;
-  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 8px;
+  color: var(--ink-3);
+  font-size: 13px;
+  line-height: 20px;
 }
 
-.ttl h1 {
+.crumb a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.crumb a:hover {
+  color: var(--ink);
+}
+
+.album-page .t1 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   min-width: 0;
-  margin: 0;
 }
 
 .title {
-  display: block;
-  max-width: 40vw;
+  min-width: 0;
   padding: 0;
   border: 0;
   background: none;
-  font-size: 20px;
-  line-height: 28px;
-  font-weight: 650;
+  font: inherit;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   cursor: text;
 }
 
-.count,
-.picked {
+.pen {
+  flex: none;
+  display: grid;
   color: var(--ink-3);
-  font-size: 13px;
-  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.pen svg {
+  width: 18px;
+  height: 18px;
+}
+
+.t1:hover .pen,
+.title:focus-visible + .pen {
+  opacity: 1;
 }
 
 .acts {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+  margin: 20px 0 24px;
 }
 
+.picked {
+  margin: 0 4px;
+  color: var(--ink-2);
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* Photos in justified rows (spec §8): free space goes to each photo in proportion to its aspect ratio, so
+   a row has one height and every photo is whole. A photo grows to at most twice the row height, so the
+   row before a panorama never turns into giant tiles. */
 .grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  --row: 190px;
+  display: flex;
+  flex-wrap: wrap;
   gap: 6px;
   user-select: none;
   -webkit-user-select: none;
 }
 
+.grid::after {
+  content: '';
+  flex: 1e6 1 0px;
+}
+
 .tile {
   position: relative;
-  aspect-ratio: 1;
+  flex: calc(var(--a) * 1000) 1 calc(var(--a) * var(--row));
+  min-width: 0;
+  max-width: calc(var(--a) * var(--row) * 2);
+  aspect-ratio: var(--a);
   padding: 0;
   overflow: hidden;
   border: 0;
-  border-radius: 6px;
+  border-radius: 8px;
   background: #e4e9ee;
   cursor: pointer;
 }
@@ -939,6 +963,13 @@ button {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  transition: transform 0.4s var(--ease-out);
+}
+
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .tile:hover img {
+    transform: scale(1.03);
+  }
 }
 
 .tile.missing img {
@@ -962,6 +993,7 @@ button {
   padding: 0 8px;
   border-radius: 999px;
   background: rgb(255 255 255 / 0.94);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.12);
   font-size: 12px;
   line-height: 20px;
   font-weight: 600;
@@ -1002,6 +1034,7 @@ button {
   width: calc(100% - 18px);
   height: calc(100% - 18px);
   border-radius: 4px;
+  transform: none;
 }
 
 .tile.sel .chk {
@@ -1024,6 +1057,27 @@ button {
   pointer-events: none;
   border-radius: 8px;
   box-shadow: 0 26px 40px -14px rgb(20 35 55 / 0.55), 0 0 0 3px #fff;
+}
+
+@media (max-width: 600px) {
+  .grid {
+    --row: 104px;
+    gap: 3px;
+  }
+
+  .tile {
+    border-radius: 4px;
+  }
+
+  .acts {
+    margin: 14px 0 18px;
+  }
+
+  /* On phones these two float at the bottom (.fab). */
+  .acts.normal [data-act='upload'],
+  .acts.normal [data-act='3d'] {
+    display: none;
+  }
 }
 
 .drop {
@@ -1485,43 +1539,8 @@ body:has(.ab, .lb) {
   }
 }
 
-/* Phones: two-column wall, three-column grid, floating buttons */
+/* Phones: floating buttons on the album page */
 @media (max-width: 600px) {
-  .mgr {
-    padding: 0 max(env(safe-area-inset-right, 0px), 14px) 120px max(env(safe-area-inset-left, 0px), 14px);
-  }
-
-  .bar {
-    min-height: 56px;
-  }
-
-  .bar .btn span,
-  .bar [data-act='upload'],
-  .bar [data-act='3d'] {
-    display: none;
-  }
-
-  .bar .btn.pri,
-  .bar .btn.danger {
-    width: 36px;
-    padding: 0;
-    justify-content: center;
-  }
-
-  .title {
-    max-width: 46vw;
-    font-size: 17px;
-  }
-
-  .grid {
-    grid-template-columns: repeat(3, 1fr);
-    gap: 2px;
-  }
-
-  .tile {
-    border-radius: 0;
-  }
-
   .fab {
     position: fixed;
     left: 0;
@@ -1536,10 +1555,14 @@ body:has(.ab, .lb) {
 
   .fab .btn {
     height: 46px;
-    padding: 0 22px;
+    padding: 0 22px 0 18px;
     font-size: 16px;
     pointer-events: auto;
     box-shadow: inset 0 0 0 1px var(--line), 0 10px 24px -10px rgb(20 35 55 / 0.5);
+  }
+
+  .fab .btn.pri {
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.14), 0 10px 24px -10px rgb(20 35 55 / 0.6);
   }
 
   .selecting .fab {
