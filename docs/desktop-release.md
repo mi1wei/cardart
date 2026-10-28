@@ -69,6 +69,12 @@ npm run smoke:package -- --app release/mac-arm64/Folio.app
 
 Windows 安装器按机器安装并请求 UAC，应用保持 `asInvoker`。安装完成不自动启动，避免提权后从另一管理员账号创建照片库；请从登录用户的开始菜单正常启动，不选择“以管理员身份运行”。NSIS/提权 helper 可以是独立的 ia32 程序，不等于应用支持 32 位；应用和原生图像模块仍必须为 x64。
 
+`node scripts/windows-installer-smoke.mjs --allow-disposable-runner` 仅允许在一次性 GitHub-hosted Windows x64 管理员 runner 上执行。它先核对当前提交的已验证候选及全部文件哈希，并拒绝已有 Folio 安装、默认用户数据、相册库、注册表、规则或运行进程；不能用它在日常电脑或 self-hosted runner 上安装测试。
+
+原生 CI 随后实际安装、从安装目录运行现有成品 smoke、同版本重装和卸载，检查 HKLM 注册、安装后不自动运行、唯一的 Private/LocalSubnet/TCP 程序规则及卸载清理。默认用户数据目录和 Pictures 相册库中只放本次自建的图片、元数据与许可文件保留标记，逐文件比较操作前后的哈希；许可标记不是有效签发文件。清理只使用本次安装的卸载器及有所有权标记的数据目录，不关闭其他进程或更改全局防火墙设置。执行结果以对应提交的 Windows CI 为准。
+
+这是 Windows Server hosted runner 的安装回归，不是 Windows 11 普通账号/UAC 提示、组织策略、手机连通性或两个不同版本的升级验收；报告中的这些人工验收项仍为未完成。候选工作流仍先要求精确分发批准，安装测试不会解除下载或公开发布门槛。
+
 默认 NSIS 进程检查可能强制结束仍在托盘运行的应用，因此本配置覆盖该检查：只查询并等待正常退出，仍在运行或无法确认时停止安装/卸载，让用户先从托盘“退出”，不由安装器终止进程。其他登录会话也需退出。此行为仍须原生 Windows 验证。
 
 防火墙钩子只管理 `io.github.mi1wei.folio - Private LAN`，限定 `Folio.exe`、TCP、Private、LocalSubnet；卸载只移除该规则，保留照片库、用户配置和授权。规则更新失败会提示，不关闭系统防火墙或放开 Public。**NSIS 编译结果以原生 CI 为准；实际监听 exe、UAC、规则幂等/组织策略和卸载保留仍须 Windows 11 真机验收，不能据此宣称手机已可连接。**
