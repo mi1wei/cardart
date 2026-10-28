@@ -89,7 +89,7 @@ Mac 只显示手动下载入口：用户确认后打开固定 Releases 页面，
 
 `desktop-checks.yml` 在 `windows-2022` x64、`macos-15-intel` x64 和 `macos-15` arm64 运行源码/桌面测试、原生构建及成品检查。只缓存 npm 下载，不跨平台复用 node_modules；普通 PR 检查不上传二进制，也不取得发布写权限。官方 Actions 固定到已核对的完整 commit SHA。
 
-Intel CI 的相册交互夹具通过 `FOLIO_E2E_SOFTWARE_GL=1` 显式使用软件 WebGL：仅在临时原生 Electron 副本内，将随包 SwiftShader 映射到 ANGLE 查找的 Vulkan 加载器名称，以 1x 比例运行并断言实际 SwiftShader renderer，保留真实 3D、翻页和全屏检查。相对框架链接保留在副本内；已安装 Electron、成品运行时、沙箱、上下文隔离和 CSP 均不改。软件路径不证明真实 GPU、Retina 性能或最低系统兼容性。
+Intel CI 的相册交互夹具通过 `FOLIO_E2E_SOFTWARE_GL=1` 显式使用软件 WebGL：仅在临时原生 Electron 副本内，将随包 SwiftShader 映射到 ANGLE 查找的 Vulkan 加载器名称，以 1x 比例运行并断言实际 SwiftShader renderer，保留真实 3D、翻页和全屏检查。软件路径用真实键盘激活可见、可用的页面按钮，避免鼠标稳定帧等待；常规硬件路径仍用鼠标，两者都检查原生全屏事件及保存结果。相对框架链接保留在副本内；已安装 Electron、成品运行时、沙箱、上下文隔离和 CSP 均不改。软件路径不证明真实 GPU、Retina 性能或最低系统兼容性。
 
 成品 package.json 记录实际 source commit 与 dirty 状态。`verify:release` 只接受与当前干净源码一致的生产包，并验证签名结构/未签名状态、真实运行与只读 DMG；不把较新 runner 当成最低系统或干净设备验收。Windows 的 `beta.yml` 必须匹配本次安装器的版本、文件名、size、SHA-512 和提权标记；blockmap 的每个 BLAKE2b-18 块都对照实际文件验证。
 

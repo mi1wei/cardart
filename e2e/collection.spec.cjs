@@ -16,6 +16,14 @@ test('background JPG and HEIC imports support dedup, pointer reorder, 3D, fullsc
   let page;
   let origin;
   let album;
+  async function activateControl(selector) {
+    const control = page.locator(selector);
+    if (softwareGL) {
+      await expect(control).toBeVisible();
+      await expect(control).toBeEnabled();
+      await control.press('Enter');
+    } else await control.click();
+  }
   try {
     ({ desktop, page } = await fixture.launch());
     origin = new URL(page.url()).origin;
@@ -86,7 +94,7 @@ test('background JPG and HEIC imports support dedup, pointer reorder, 3D, fullsc
     // Rendering can outlive an idle keepalive; retry a reset once on this read only.
     await expect.poll(async () => (await (await page.request.get(`${origin}/api/albums/${album.id}`, { maxRetries: 1 })).json()).perPage).toBe(1);
     const initial = await page.locator('.ab-count').textContent();
-    await page.locator('.ab [data-act=next]').click();
+    await activateControl('.ab [data-act=next]');
     await expect(page.locator('.ab-count')).not.toHaveText(initial);
     console.log('Owned collection phase: entering fullscreen');
     await desktop.evaluate(() => {
@@ -94,15 +102,15 @@ test('background JPG and HEIC imports support dedup, pointer reorder, 3D, fullsc
       global.folioTestDesktop.window.once('enter-full-screen', () => { global.folioTestFullscreen.entered = true; });
       global.folioTestDesktop.window.once('leave-full-screen', () => { global.folioTestFullscreen.left = true; });
     });
-    await page.locator('.ab [data-act=fullscreen]').click();
+    await activateControl('.ab [data-act=fullscreen]');
     await expect.poll(() => page.evaluate(() => !!document.fullscreenElement)).toBe(true);
     await expect.poll(() => desktop.evaluate(() => global.folioTestFullscreen.entered)).toBe(true);
     console.log('Owned collection phase: leaving fullscreen');
-    await page.locator('.ab [data-act=fullscreen]').click();
+    await activateControl('.ab [data-act=fullscreen]');
     await expect.poll(() => desktop.evaluate(() => global.folioTestFullscreen.left)).toBe(true);
     await expect.poll(() => page.evaluate(() => !!document.fullscreenElement)).toBe(false);
     console.log('Owned collection phase: fullscreen complete');
-    await page.locator('.ab-bar [data-act=close]').click();
+    await activateControl('.ab-bar [data-act=close]');
     await expect(page.locator('.ab')).toHaveCount(0);
     console.log('Owned collection phase: stopping first app');
     await fixture.stop();
@@ -120,6 +128,7 @@ test('background JPG and HEIC imports support dedup, pointer reorder, 3D, fullsc
     expect(restored.perPage).toBe(1);
     expect(restored.photos.map((photo) => photo.id)).toEqual([ids[1], ids[0], ids[2]]);
   } catch (error) {
+    console.log('Owned collection failure:', error.message?.slice(0, 2000));
     const log = await readFile(join(fixture.profile, 'logs/desktop.log'), 'utf8').catch(() => '');
     console.log('Owned collection runtime tail:', log.slice(-3000));
     if (origin && album) {
@@ -130,6 +139,9 @@ test('background JPG and HEIC imports support dedup, pointer reorder, 3D, fullsc
       } catch (probeError) {
         console.log('Owned collection fresh HTTP probe failed:', probeError.cause?.code || probeError.name);
       }
+    }
+    if (softwareGL && page && !page.isClosed()) {
+      await page.locator('.ab-bar [data-act=close]').press('Enter', { timeout: 5000 }).catch(() => {});
     }
     throw error;
   } finally { release(); await fixture.close(); }
