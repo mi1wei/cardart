@@ -47,6 +47,7 @@ jobs:
       SHARP_IGNORE_GLOBAL_LIBVIPS: "1"
       EXPECTED_PLATFORM: ${{ matrix.platform }}
       EXPECTED_ARCH: ${{ matrix.arch }}
+      FOLIO_E2E_SOFTWARE_GL: ${{ matrix.platform == 'darwin' && matrix.arch == 'x64' && '1' || '0' }}
       TARGET_BUILD: ${{ matrix.build }}
       APP_DIR: ${{ matrix.app }}
       ARTIFACT_SUFFIX: ${{ matrix.artifact }}
@@ -67,6 +68,8 @@ jobs:
       - run: npm test
       - run: npm run build
       - run: npm run test:desktop
+        env:
+          DEBUG: ${{ matrix.platform == 'darwin' && matrix.arch == 'x64' && 'pw:browser' || '' }}
       - name: Build without publishing
         run: |
           if [[ "$EXPECTED_PLATFORM" == "darwin" ]]; then

@@ -39,8 +39,11 @@ async function desktopFixture({ license = 'active' } = {}) {
   return {
     root, profile, library, keyFile, licenseFile, envelope, issueLicense, stop,
     async launch({ args = [], waitForReady = true } = {}) {
+      // Opt in only for owned CI fixtures, never for the packaged application's renderer.
+      const graphics = process.env.FOLIO_E2E_SOFTWARE_GL === '1'
+        ? ['--use-gl=angle', '--use-angle=swiftshader-webgl', '--enable-unsafe-swiftshader'] : [];
       desktop = await _electron.launch({
-        args: [join(__dirname, 'desktop-entry.cjs'), `--user-data-dir=${profile}`, ...args],
+        args: [join(__dirname, 'desktop-entry.cjs'), `--user-data-dir=${profile}`, ...graphics, ...args],
         env: { ...process.env, ALBUM_LIBRARY: library, FOLIO_E2E_KEY_FILE: keyFile },
         chromiumSandbox: true, bypassCSP: false,
       });

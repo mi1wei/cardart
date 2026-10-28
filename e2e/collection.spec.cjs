@@ -10,10 +10,14 @@ test('background JPG and HEIC imports support dedup, pointer reorder, 3D, fullsc
   const held = new Promise((resolve) => { release = resolve; });
   let entered;
   const started = new Promise((resolve) => { entered = resolve; });
+  let desktop;
+  let page;
+  let origin;
+  let album;
   try {
-    let { desktop, page } = await fixture.launch();
-    let origin = new URL(page.url()).origin;
-    const album = await (await page.request.post(`${origin}/api/albums`, { data: { title: 'Owned collection' } })).json();
+    ({ desktop, page } = await fixture.launch());
+    origin = new URL(page.url()).origin;
+    album = await (await page.request.post(`${origin}/api/albums`, { data: { title: 'Owned collection' } })).json();
     await page.goto(`${origin}/#/a/${album.id}`);
     await expect(page.locator('.album-page .title')).toHaveText('Owned collection');
     await expect(page.locator('html')).toHaveAttribute('data-readonly', 'false');
@@ -65,6 +69,14 @@ test('background JPG and HEIC imports support dedup, pointer reorder, 3D, fullsc
       throw error;
     }
     await expect(page.locator('.ab')).not.toHaveAttribute('data-error', '');
+    if (process.env.FOLIO_E2E_SOFTWARE_GL === '1') {
+      const renderer = await page.locator('.ab canvas').evaluate((canvas) => {
+        const gl = canvas.getContext('webgl2');
+        const info = gl.getExtension('WEBGL_debug_renderer_info');
+        return gl.getParameter(info ? info.UNMASKED_RENDERER_WEBGL : gl.RENDERER);
+      });
+      expect(renderer).toMatch(/SwiftShader/i);
+    }
     console.log('Owned collection phase: 3D ready');
     await page.locator('.ab select').selectOption('1');
     await expect.poll(async () => (await (await page.request.get(`${origin}/api/albums/${album.id}`)).json()).perPage).toBe(1);
@@ -102,6 +114,19 @@ test('background JPG and HEIC imports support dedup, pointer reorder, 3D, fullsc
     const restored = await (await page.request.get(`${origin}/api/albums/${album.id}`)).json();
     expect(restored.perPage).toBe(1);
     expect(restored.photos.map((photo) => photo.id)).toEqual([ids[1], ids[0], ids[2]]);
+  } catch (error) {
+    const log = await readFile(join(fixture.profile, 'logs/desktop.log'), 'utf8').catch(() => '');
+    console.log('Owned collection runtime tail:', log.slice(-3000));
+    if (origin && album) {
+      try {
+        const response = await fetch(`${origin}/api/albums/${album.id}`, { headers: { Connection: 'close' }, signal: AbortSignal.timeout(2000) });
+        const current = response.ok ? await response.json() : null;
+        console.log('Owned collection fresh HTTP probe:', JSON.stringify({ status: response.status, perPage: current?.perPage, photos: current?.photos?.length }));
+      } catch (probeError) {
+        console.log('Owned collection fresh HTTP probe failed:', probeError.cause?.code || probeError.name);
+      }
+    }
+    throw error;
   } finally { release(); await fixture.close(); }
 });
 
