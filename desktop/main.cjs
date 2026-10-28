@@ -29,6 +29,8 @@ async function startDesktop({ appRoot = join(__dirname, '..'), licensePublicKeyF
   let licenseTimer;
   let quitJob;
   let updates;
+  let choosingLibrary = false;
+  let librarySwitchJob;
   let licenseStatus = { state: 'missing', canWrite: false };
   const stateFile = join(profile, 'runtime.json');
   const settingsFile = join(profile, 'desktop.json');
@@ -49,6 +51,7 @@ async function startDesktop({ appRoot = join(__dirname, '..'), licensePublicKeyF
     hide: () => window.hide(),
     show: revealWindow,
     async stop() {
+      await librarySwitchJob?.catch(() => {});
       while (window && !window.isDestroyed() && !window.webContents.isDestroyed() &&
         window.webContents.getURL() && !window.webContents.isLoadingMainFrame()) {
         let busy;
@@ -122,10 +125,10 @@ async function startDesktop({ appRoot = join(__dirname, '..'), licensePublicKeyF
     });
     return result.canceled ? null : result.filePaths[0];
   }
-  async function boot() {
+  async function boot(explicitDir) {
     const { DEFAULT_DIR } = await import('../server/library.js');
     const choice = await resolveLibraryChoice({
-      envDir: process.env.ALBUM_LIBRARY, storedDir: settings.libraryDir,
+      envDir: explicitDir || process.env.ALBUM_LIBRARY, storedDir: settings.libraryDir,
       picturesDir: app.getPath('pictures'), legacyDir: DEFAULT_DIR,
     });
     let dir = choice.path;
@@ -284,19 +287,62 @@ async function startDesktop({ appRoot = join(__dirname, '..'), licensePublicKeyF
       click: () => { void (install ? updates.install() : download ? updates.download() : updates.check()).catch((error) => { void log(error.message); }); },
     };
   }
+  async function isImporting() {
+    if (window.isDestroyed() || window.webContents.isDestroyed() || !window.webContents.getURL() || window.webContents.isLoadingMainFrame()) return false;
+    return window.webContents.executeJavaScript('document.documentElement?.hasAttribute("data-busy") === true');
+  }
+  const waitForImport = () => dialog.showMessageBox({
+    type: 'info',
+    message: text('请等待当前导入完成，再选择相册库。', 'Wait for the current import to finish before changing libraries.'),
+  });
+  async function chooseAnotherLibrary() {
+    if (choosingLibrary || isStopping()) return;
+    choosingLibrary = true;
+    setMenu();
+    try {
+      if (await isImporting()) { await waitForImport(); return; }
+      const dir = await chooseLibrary(settings.libraryDir);
+      if (!dir || isStopping()) return;
+      window.setEnabled(false);
+      if (await isImporting()) { await waitForImport(); return; }
+      const previous = settings;
+      librarySwitchJob = (async () => {
+        await backend.stop();
+        if (isStopping()) return;
+        settings = { ...settings, libraryDir: dir };
+        try { await boot(dir); if (!isStopping()) await window.loadURL(`${origin}/`); }
+        catch (error) {
+          await backend?.stop();
+          if (isStopping()) return;
+          settings = previous;
+          try { await boot(previous.libraryDir); if (!isStopping()) await window.loadURL(`${origin}/`); }
+          catch (restoreError) {
+            await backend?.stop();
+            await dialog.showMessageBox({
+              type: 'error',
+              message: text('无法恢复原相册库，服务已停止。请退出后重试。', 'The previous library could not be restored. The service has stopped; quit and reopen Folio.'),
+              detail: restoreError.message, buttons: [text('退出', 'Quit')],
+            });
+            quit();
+            return;
+          }
+          if (!isStopping()) dialog.showErrorBox('Folio', error.message);
+        }
+      })();
+      await librarySwitchJob;
+    } catch (error) { dialog.showErrorBox('Folio', error.message); }
+    finally {
+      librarySwitchJob = null;
+      choosingLibrary = false;
+      if (!window.isDestroyed() && !isStopping()) window.setEnabled(true);
+      setMenu();
+    }
+  }
   function setMenu() {
     const items = [
       { id: 'license', label: text('许可证', 'License'), enabled: !isStopping(), click: () => { showWindow(); void window.loadURL(`${origin}/#/license`); } },
       { label: text('打开相册库', 'Open Library'), click: () => openPath(settings.libraryDir) },
-      { label: text('选择相册库', 'Choose Library'), enabled: !isStopping(), async click() {
-        const dir = await chooseLibrary(settings.libraryDir);
-        if (!dir || isStopping()) return;
-        const previous = settings;
-        await backend.stop();
-        settings = { ...settings, libraryDir: dir };
-        try { await boot(); await window.loadURL(`${origin}/`); }
-        catch (error) { settings = previous; await boot(); dialog.showErrorBox('Folio', error.message); }
-      } },
+      { id: 'choose-library', label: text('选择相册库', 'Choose Library'), enabled: !isStopping() && !choosingLibrary, click: chooseAnotherLibrary },
       { label: text('打开日志', 'Open Logs'), click: () => openPath(join(profile, 'logs')) },
       { id: 'third-party-notices', label: text('第三方声明', 'Third-party Notices'), click: () => openPath(app.isPackaged ? join(process.resourcesPath, 'legal/THIRD_PARTY_NOTICES.txt') : join(appRoot, 'licenses/THIRD_PARTY_NOTICES.txt')) },
       updateMenu(),

@@ -1,5 +1,33 @@
 const path = require('node:path');
 const { app, BrowserWindow, dialog } = require('electron');
+if (app.commandLine.hasSwitch('fixture-stop-failure')) {
+  const backend = require('../desktop/backend.cjs');
+  const createBackend = backend.createBackend;
+  backend.createBackend = (options) => {
+    const instance = createBackend(options);
+    const stop = instance.stop;
+    instance.stop = () => {
+      if (global.folioTestFailNextStop) {
+        global.folioTestFailNextStop = false;
+        return Promise.reject(new Error('Owned backend stop failure'));
+      }
+      return stop();
+    };
+    return instance;
+  };
+}
+if (app.commandLine.hasSwitch('fixture-runtime-save-failure')) {
+  const fs = require('node:fs/promises');
+  const rename = fs.rename;
+  fs.rename = async (...args) => {
+    if ((global.folioTestFailNextRuntimeSave || global.folioTestRuntimeSaveFailures > 0) && path.basename(args[1]) === 'runtime.json') {
+      global.folioTestFailNextRuntimeSave = false;
+      if (global.folioTestRuntimeSaveFailures > 0) global.folioTestRuntimeSaveFailures--;
+      throw Object.assign(new Error('Owned runtime persistence failure'), { code: 'EACCES' });
+    }
+    return rename(...args);
+  };
+}
 if (app.commandLine.hasSwitch('fixture-hold-initial-load')) {
   BrowserWindow.prototype.loadURL = () => new Promise((resolve, reject) => {
     global.folioTestInitialLoadReject = () => reject(new Error('ERR_ABORTED'));

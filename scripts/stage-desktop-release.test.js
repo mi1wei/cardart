@@ -28,6 +28,7 @@ async function fixture(t) {
   payloads.SHA256SUMS = Object.entries(payloads).map(([name, value]) => `${sha(value)}  ${name}`).join('\n') + '\n';
   for (const [name, value] of Object.entries(payloads)) await writeFile(join(directory, name), value);
   const release = {
+    id: 42,
     draft: true, target_commitish: manifest.sourceCommit, tag_name: manifest.tag,
     assets: Object.entries(payloads).map(([name, value]) => ({ name, size: Buffer.byteLength(value), digest: `sha256:${sha(value)}` })),
   };
@@ -40,9 +41,11 @@ test('a same-commit draft resumes only a missing exact-hash asset without clobbe
   const calls = [];
   await stageDraftRelease({ directory: f.directory, gh: async (args) => {
     calls.push(args);
+    if (args[0] === 'release' && args[1] === 'view') return JSON.stringify({ databaseId: 42 });
+    if (args[0] === 'api' && args[1].includes('/releases/tags/')) throw Object.assign(new Error('Published endpoint cannot resolve a draft'), { stderr: 'HTTP 404' });
     return args[0] === 'api' ? JSON.stringify(f.release) : '';
   } });
-  const mutations = calls.filter((args) => args[0] !== 'api');
+  const mutations = calls.filter((args) => ['create', 'upload', 'edit'].includes(args[1]));
   assert.deepEqual(mutations, [['release', 'upload', f.manifest.tag, join(f.directory, 'release-notes.md'), '--repo', 'mi1wei/cardart']]);
 });
 
@@ -55,9 +58,11 @@ test('a public release, another source commit or a changed existing asset is nev
   ]) {
     const calls = [];
     await assert.rejects(stageDraftRelease({ directory: f.directory, gh: async (args) => {
-      calls.push(args); return JSON.stringify(release);
+      calls.push(args);
+      if (args[0] === 'release' && args[1] === 'view') return JSON.stringify({ databaseId: 42 });
+      return JSON.stringify(release);
     } }), /public|commit|hash|immutable/i);
-    assert.ok(calls.every((args) => args[0] === 'api'));
+    assert.ok(calls.every((args) => args[0] === 'api' || args[1] === 'view'));
   }
 });
 
@@ -67,4 +72,26 @@ test('a corrupted local whitelist is rejected before making any GitHub call', as
   let requests = 0;
   await assert.rejects(stageDraftRelease({ directory: f.directory, gh: async () => { requests++; return ''; } }), /checksum|hash/i);
   assert.equal(requests, 0);
+});
+
+test('a newly created draft is resolved through the draft-capable CLI and numeric release ID', async (t) => {
+  const f = await fixture(t);
+  f.release.assets = [];
+  let created = false;
+  const result = await stageDraftRelease({ directory: f.directory, gh: async (args) => {
+    if (args[0] === 'release' && args[1] === 'view') {
+      if (!created) throw Object.assign(new Error('release not found'), { stderr: 'release not found' });
+      return JSON.stringify({ databaseId: 42 });
+    }
+    if (args[0] === 'api') {
+      if (args[1].includes('/releases/tags/')) throw Object.assign(new Error('Not Found'), { stderr: 'HTTP 404' });
+      assert.equal(args[1], 'repos/mi1wei/cardart/releases/42');
+      return JSON.stringify(f.release);
+    }
+    if (args[1] === 'create') created = true;
+    return '';
+  } });
+  assert.equal(result.created, true);
+  assert.equal(result.uploaded, 9);
+  assert.equal(result.published, false);
 });

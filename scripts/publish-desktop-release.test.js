@@ -95,15 +95,19 @@ async function publicationFixture(t, dropUploadedAcceptance = false) {
   files['release-notes.md'] = 'Owned release notes';
   files.SHA256SUMS = Object.entries(files).map(([name, value]) => `${hash(value)}  ${name}`).join('\n') + '\n';
   const release = {
+    id: 42,
     draft: true, prerelease: true, tag_name: source.tag, target_commitish: source.sourceCommit,
     assets: Object.entries(files).map(([name, value]) => ({ name, size: Buffer.byteLength(value), digest: `sha256:${hash(value)}` })),
   };
   const mutations = [];
   let uploaded;
   async function gh(args) {
+    if (args[0] === 'release' && args[1] === 'view') return JSON.stringify({ databaseId: 42 });
     if (args[0] === 'api') {
       if (args[1].includes('/environments/')) return JSON.stringify({ protection_rules: [{ type: 'required_reviewers', reviewers: [{ type: 'User', reviewer: { id: 1 } }] }] });
       if (args[1].includes('/git/ref/')) return JSON.stringify({ object: { type: 'commit', sha: source.sourceCommit } });
+      if (args[1].includes('/releases/tags/')) throw Object.assign(new Error('Published endpoint cannot resolve a draft'), { stderr: 'HTTP 404' });
+      assert.equal(args[1], 'repos/mi1wei/cardart/releases/42');
       return JSON.stringify(release);
     }
     if (args[1] === 'download') {

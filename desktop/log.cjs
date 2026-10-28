@@ -18,7 +18,7 @@ function createLog(file, { maxBytes = 1024 * 1024 } = {}) {
       }
       await appendFile(file, message, { mode: 0o600 });
     });
-    return queue;
+    return queue.catch(() => {});
   };
 }
 

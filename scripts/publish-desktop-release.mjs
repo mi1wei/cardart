@@ -7,7 +7,7 @@ import { execFile } from 'node:child_process';
 import { parseArgs, promisify } from 'node:util';
 import { releaseTargets } from './verify-release.mjs';
 import { requireDistributionApproval } from './third-party-notices.mjs';
-import { readReleaseWhitelist, releaseFileNames, releaseRepository, requireImmutableDraft } from './stage-desktop-release.mjs';
+import { readReleaseWhitelist, releaseFileNames, releaseRepository, requireImmutableDraft, resolveReleaseByTag } from './stage-desktop-release.mjs';
 
 const project = resolve(fileURLToPath(new URL('../', import.meta.url)));
 const run = promisify(execFile);
@@ -50,8 +50,9 @@ export async function publishDesktopRelease({ tag, acceptanceFile = join(project
   const record = JSON.parse(await readFile(acceptanceFile, 'utf8'));
   if (record.version !== 1 || !record.candidates?.some((entry) => entry.tag === tag)) throw new Error('Manual acceptance for this candidate must be recorded before publication');
   requirePublishProtection(JSON.parse(await gh(['api', `repos/${releaseRepository}/environments/desktop-publish`])));
-  const endpoint = `repos/${releaseRepository}/releases/tags/${tag}`;
-  let release = JSON.parse(await gh(['api', endpoint]));
+  const resolved = await resolveReleaseByTag(gh, tag);
+  const endpoint = resolved.endpoint;
+  let release = resolved.release;
   if (!release.draft) throw new Error('A public release is immutable; only an existing draft may be published');
   const names = releaseFileNames(tag.slice(1));
   if (!Array.isArray(release.assets) || release.assets.some((asset) => !names.includes(asset.name) && asset.name !== 'release-acceptance.json')) throw new Error('Unexpected draft asset outside the publication whitelist');

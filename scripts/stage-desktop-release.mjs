@@ -63,21 +63,35 @@ export function requireImmutableDraft(release, manifest, files) {
   return seen;
 }
 
+export async function resolveReleaseByTag(gh, tag) {
+  let identity;
+  try { identity = JSON.parse(await gh(['release', 'view', tag, '--repo', releaseRepository, '--json', 'databaseId'])); }
+  catch (error) {
+    if (/release not found/i.test(error.stderr || '')) error.releaseMissing = true;
+    throw error;
+  }
+  if (!Number.isSafeInteger(identity.databaseId) || identity.databaseId <= 0) throw new Error('GitHub returned an invalid release ID');
+  const endpoint = `repos/${releaseRepository}/releases/${identity.databaseId}`;
+  const release = JSON.parse(await gh(['api', endpoint]));
+  if (release.id !== identity.databaseId) throw new Error('GitHub release ID changed during lookup');
+  return { endpoint, release };
+}
+
 export async function stageDraftRelease({ directory, gh = executeGitHub } = {}) {
   const local = await readReleaseWhitelist(directory);
-  const endpoint = `repos/${releaseRepository}/releases/tags/${local.manifest.tag}`;
+  let endpoint;
   let release;
   let created = false;
-  try { release = JSON.parse(await gh(['api', endpoint])); }
+  try { ({ endpoint, release } = await resolveReleaseByTag(gh, local.manifest.tag)); }
   catch (error) {
-    if (!/HTTP 404/.test(error.stderr || '')) throw error;
+    if (!error.releaseMissing) throw error;
     await gh([
       'release', 'create', local.manifest.tag, '--repo', releaseRepository,
       '--target', local.manifest.sourceCommit, '--verify-tag', '--draft', '--prerelease',
       '--title', `Folio ${local.manifest.tag} (unsigned)`, '--notes-file', join(local.directory, 'release-notes.md'),
     ]);
     created = true;
-    release = JSON.parse(await gh(['api', endpoint]));
+    ({ endpoint, release } = await resolveReleaseByTag(gh, local.manifest.tag));
   }
   const existing = requireImmutableDraft(release, local.manifest, local.files);
   let uploaded = 0;
