@@ -180,6 +180,7 @@ export async function finishSelfTestRelease({ context, env = process.env, gh = e
     'Do not click Publish release. Keep formal legal/manual approval and public publication separate.', '', ...lines,
   ].join('\n\n');
   await gh(['api', `repos/${repository}/releases/${context.releaseId}`, '--method', 'PATCH',
+    '-f', `tag_name=${context.tag}`,
     '-f', `name=Folio ${context.version} maintainer self-test (${context.sourceCommit.slice(0, 12)})`,
     '-f', `body=${body}`, '-F', 'draft=true', '-F', 'prerelease=true', '-f', 'make_latest=false']);
   const retained = await getDraft(gh, context);
