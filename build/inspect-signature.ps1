@@ -7,4 +7,5 @@ $signature = Get-AuthenticodeSignature -LiteralPath $file.FullName
     status = $signature.Status.ToString()
     productName = $file.VersionInfo.ProductName
     productVersion = $file.VersionInfo.ProductVersion
+    fileVersion = $file.VersionInfo.FileVersion
 } | ConvertTo-Json -Compress

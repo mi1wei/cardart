@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { test } from 'node:test';
-import { verifyWindowsUpdate } from './verify-release.mjs';
+import { verifyWindowsExecutableMetadata, verifyWindowsUpdate } from './verify-release.mjs';
 
 const version = '0.1.0-beta.1';
 const name = `Folio-${version}-windows-x64-setup.exe`;
@@ -28,6 +28,29 @@ async function fixture(t) {
   await writeFile(blockmap, gzipSync(JSON.stringify(block)));
   return { installer, update, blockmap, version };
 }
+
+test('Windows native metadata accepts the builder numeric app version and the NSIS prerelease version', () => {
+  const state = { status: 'NotSigned', productName: 'Folio', productVersion: '0.1.0.0', fileVersion: version };
+  assert.doesNotThrow(() => verifyWindowsExecutableMetadata(state, {
+    file: 'Folio.exe', version, productVersion: '0.1.0.0',
+  }));
+  assert.doesNotThrow(() => verifyWindowsExecutableMetadata({ ...state, productVersion: version }, {
+    file: name, version,
+  }));
+});
+
+test('Windows native metadata still rejects stale beta identity, foreign products and any residual signature', () => {
+  const state = { status: 'NotSigned', productName: 'Folio', productVersion: version, fileVersion: version };
+  for (const changed of [
+    { fileVersion: '0.1.0-beta.0' }, { fileVersion: undefined },
+    { productVersion: '0.1.0-beta.0' }, { productName: 'Electron' },
+    { status: 'Valid' }, { status: 'HashMismatch' }, { status: 'NotTrusted' },
+  ]) {
+    assert.throws(() => verifyWindowsExecutableMetadata({ ...state, ...changed }, {
+      file: name, version,
+    }), /trust\/product metadata/i);
+  }
+});
 
 test('Windows beta metadata and every block checksum match the actual full installer bytes', async (t) => {
   const f = await fixture(t);

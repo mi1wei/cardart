@@ -6,6 +6,7 @@ const { desktopFixture } = require('./fixtures.cjs');
 
 test('background JPG and HEIC imports support dedup, pointer reorder, 3D, fullscreen and cache reconstruction', async () => {
   const softwareGL = process.env.FOLIO_E2E_SOFTWARE_GL === '1';
+  test.slow(softwareGL, 'Software WebGL initialization and drawing run on the CPU');
   const fixture = await desktopFixture({ softwareGL });
   let release;
   const held = new Promise((resolve) => { release = resolve; });
@@ -56,9 +57,11 @@ test('background JPG and HEIC imports support dedup, pointer reorder, 3D, fullsc
     await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2, { steps: 4 });
     await page.mouse.up();
     await expect.poll(async () => (await (await page.request.get(`${origin}/api/albums/${album.id}`)).json()).photos.map((photo) => photo.id)).toEqual([ids[1], ids[0], ids[2]]);
+    const rendererErrors = [];
+    page.on('pageerror', (error) => { if (rendererErrors.length < 5) rendererErrors.push(error.message.slice(0, 1000)); });
     await page.locator('.album-page .acts.normal [data-act="3d"]').click();
     console.log('Owned collection phase: opening 3D');
-    try { await expect(page.locator('.ab canvas')).toBeVisible(); }
+    try { await expect(page.locator('.ab canvas')).toBeVisible({ timeout: softwareGL ? 30000 : undefined }); }
     catch (error) {
       const viewer = await page.evaluate(() => ({
         present: !!document.querySelector('.ab'),
@@ -66,7 +69,7 @@ test('background JPG and HEIC imports support dedup, pointer reorder, 3D, fullsc
         message: document.querySelector('.ab-message')?.textContent,
       }));
       const gpu = await desktop.evaluate(({ app }) => app.getGPUFeatureStatus());
-      console.log('Owned 3D fixture diagnostics:', JSON.stringify({ viewer, gpu }));
+      console.log('Owned 3D fixture diagnostics:', JSON.stringify({ viewer, gpu, rendererErrors }));
       throw error;
     }
     await expect(page.locator('.ab')).not.toHaveAttribute('data-error', '');

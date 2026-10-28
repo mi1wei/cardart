@@ -9,6 +9,7 @@ import { gunzipSync } from 'node:zlib';
 import yaml from 'js-yaml';
 import yauzl from 'yauzl';
 import asar from '@electron/asar';
+import electronBuilder from 'electron-builder';
 import { blake2b } from '@noble/hashes/blake2.js';
 import { verifyPackage } from './verify-package.mjs';
 import { smokePackage } from './package-smoke.mjs';
@@ -57,6 +58,13 @@ export async function verifyWindowsUpdate({ installer, update, blockmap, version
       position += buffer.length;
     }
   } finally { await handle.close(); }
+}
+
+export function verifyWindowsExecutableMetadata(state, { file, version, productVersion = version, fileVersion = version }) {
+  if (state.status !== 'NotSigned' || state.productName !== 'Folio' || state.productVersion !== productVersion || state.fileVersion !== fileVersion) {
+    const actual = { status: state.status, productName: state.productName, productVersion: state.productVersion, fileVersion: state.fileVersion };
+    throw new Error(`${basename(file)}: Windows trust/product metadata differs from the expected unsigned Folio build: ${JSON.stringify(actual)}`);
+  }
 }
 
 export async function readLegalArchive(file, { version, target }) {
@@ -170,10 +178,15 @@ export async function verifyNativeRelease({ appDir, artifact, output, root = pro
       await rmdir(mount);
     }
   } else {
-    for (const file of [join(appDir, 'Folio.exe'), artifact]) {
+    // The app's PE ProductVersion is numeric; FileVersion retains the complete beta identity.
+    const appInfo = new electronBuilder.AppInfo({ metadata, config: { productName: 'Folio' } });
+    for (const [file, productVersion, fileVersion] of [
+      [join(appDir, 'Folio.exe'), appInfo.shortVersionWindows || appInfo.getVersionInWeirdWindowsForm(), appInfo.shortVersion || appInfo.buildVersion],
+      [artifact, checked.version, appInfo.buildVersion],
+    ]) {
       const result = await run('powershell.exe', ['-NoProfile', '-NonInteractive', '-File', join(root, 'build/inspect-signature.ps1'), '-Path', file]);
       const state = JSON.parse(result.stdout);
-      if (state.status !== 'NotSigned' || state.productName !== 'Folio' || state.productVersion !== checked.version) throw new Error('Windows trust/product metadata differs from the expected unsigned Folio build');
+      verifyWindowsExecutableMetadata(state, { file, version: checked.version, productVersion, fileVersion });
     }
     await verifyWindowsUpdate({
       installer: artifact, update: join(root, 'release/beta.yml'), blockmap: `${artifact}.blockmap`, version: checked.version,
