@@ -3,6 +3,7 @@ import { folder, folderClick, pocket } from './folder.js';
 import { t } from './i18n.js';
 import { open } from './router.js';
 import { dialog, icon, toast } from './ui.js';
+import { allowWrite } from './license.js';
 
 export function renderWall(app) {
   let alive = true;
@@ -13,13 +14,13 @@ export function renderWall(app) {
       <header class="ph">
         <div><h1 class="t1">${t('albums')}</h1><p class="sub" hidden></p></div>
         <span class="sp"></span>
-        <button class="btn pri" type="button" data-act="new" aria-label="${t('new-album')}">${icon('plus')}<span>${t('new-album')}</span></button>
+        <button class="btn pri" type="button" data-write data-act="new" aria-label="${t('new-album')}">${icon('plus')}<span>${t('new-album')}</span></button>
       </header>
       <div class="folders"></div>
       <div class="empty" hidden>
         <div class="pocket">${pocket('', [])}</div>
         <p>${t('no-albums')}</p>
-        <button class="btn pri" type="button" data-act="new">${icon('plus')}<span>${t('new-album')}</span></button>
+        <button class="btn pri" type="button" data-write data-act="new">${icon('plus')}<span>${t('new-album')}</span></button>
       </div>
     </main>`;
   const wall = app.querySelector('.folders');
@@ -44,6 +45,7 @@ export function renderWall(app) {
   async function onClick(e) {
     const target = e.target.closest('[data-act]');
     const act = target?.dataset.act;
+    if (['new', 'rename', 'delete'].includes(act) && !allowWrite()) return;
     const a = albums.find((x) => x.id === e.target.closest('.folder')?.dataset.id);
     if (act !== 'menu') closeMenu();
     if (!act && folderClick(e)) return;
@@ -54,7 +56,7 @@ export function renderWall(app) {
         if (!shown) {
           target.insertAdjacentHTML(
             'afterend',
-            `<div class="menu" role="menu"><button type="button" data-act="rename">${t('rename')}</button><button type="button" class="red" data-act="delete">${t('delete-album')}</button></div>`,
+            `<div class="menu" role="menu"><button type="button" data-write data-act="rename">${t('rename')}</button><button type="button" data-write class="red" data-act="delete">${t('delete-album')}</button></div>`,
           );
         }
       } else if (act === 'new') {

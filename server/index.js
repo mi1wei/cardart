@@ -8,7 +8,10 @@ const port = Number(process.env.PORT) || 5180;
 const dist = join(dirname(fileURLToPath(import.meta.url)), '..', 'dist');
 
 try {
-  const { url } = await startServer({ dir, port, dist });
+  const { url, close } = await startServer({ dir, port, dist });
+  const stop = () => { void close().catch((error) => { console.error(error); process.exitCode = 1; }); };
+  process.once('SIGINT', stop);
+  process.once('SIGTERM', stop);
   console.log(`册页已启动：${url}；相册库：${dir}\nFolio is running: ${url}; library: ${dir}`);
 } catch (err) {
   if (err.code === 'EADDRINUSE') console.error(`端口 ${port} 被占用，可以用 PORT=xxxx npm start 换一个\nPort ${port} is in use. Try PORT=xxxx npm start.`);

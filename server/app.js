@@ -2,11 +2,13 @@ import { timingSafeEqual } from 'node:crypto';
 import { open } from 'node:fs/promises';
 import http from 'node:http';
 import { networkInterfaces } from 'node:os';
+import { isIP } from 'node:net';
 import { extname, join, resolve, sep } from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import { ensureCache, importPhoto } from './importer.js';
 import { fail, isAlbumId, isPhotoId, openLibrary } from './library.js';
 import { say } from './text.js';
+import { MAX_LICENSE_BYTES } from './license.js';
 
 const LOOPBACK = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
 const MIME = {
@@ -31,16 +33,23 @@ const MIME = {
   '.txt': 'text/plain; charset=utf-8',
 };
 
-// IPv4 LAN addresses; en0 / en1 (Wi‑Fi or Ethernet on a Mac) first.
-export function lanAddresses() {
-  const rank = (name) => ['en0', 'en1'].indexOf(name) + 1 || 3;
-  return Object.entries(networkInterfaces())
-    .flatMap(([name, list]) => (list ?? []).map((a) => ({ ...a, name })))
-    .filter((a) => a.family === 'IPv4' && !a.internal && !a.address.startsWith('169.254.'))
-    .sort((a, b) => rank(a.name) - rank(b.name))
-    .map((a) => a.address);
+export function lanInterfaces(interfaces = networkInterfaces()) {
+  const seen = new Set();
+  return Object.entries(interfaces)
+    .flatMap(([name, list]) => (list ?? []).map((address) => ({ ...address, name })))
+    .filter((address) => address.family === 'IPv4' && !address.internal && isIP(address.address) === 4 &&
+      !/^(?:0\.|127\.|169\.254\.)/.test(address.address) && Number(address.address.split('.')[0]) < 224)
+    .map((address) => ({
+      ...address,
+      rank: (/utun|^tun|^tap|vpn|docker|vethernet|vmnet|tailscale|^veth|^br-/i.test(address.name) ? 2 : 0) +
+        (/^(?:10\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.)/.test(address.address) ? 0 : 1),
+    }))
+    .sort((a, b) => a.rank - b.rank)
+    .filter(({ address }) => { if (seen.has(address)) return false; seen.add(address); return true; })
+    .map(({ address, name }) => ({ address, name }));
 }
 
+export const lanAddresses = () => lanInterfaces().map(({ address }) => address);
 function send(res, status, body, headers = {}) {
   const html = typeof body === 'string';
   res.writeHead(status, {
@@ -97,15 +106,25 @@ async function sendFile(req, res, file, headers) {
 // Whatever is inside a file, it never runs as a page of this site.
 const MEDIA = { 'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': 'sandbox' };
 
-async function readJson(req) {
+async function readJson(req, limit = 1_000_000) {
   if (!String(req.headers['content-type']).startsWith('application/json')) throw fail(415, 'bad-request');
-  let raw = '';
-  for await (const chunk of req) {
-    raw += chunk;
-    if (raw.length > 1_000_000) throw fail(413, 'too-big');
+  if (Number(req.headers['content-length']) > limit) { req.resume(); throw fail(413, 'too-big'); }
+  const chunks = [];
+  let bytes = 0;
+  try {
+    for await (const chunk of req.iterator({ destroyOnReturn: false })) {
+      const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      bytes += buffer.length;
+      if (bytes > limit) throw fail(413, 'too-big');
+      chunks.push(buffer);
+    }
+  } catch (error) {
+    req.resume();
+    throw error;
   }
   let data;
   try {
+    const raw = new TextDecoder('utf-8', { fatal: true }).decode(Buffer.concat(chunks, bytes));
     data = JSON.parse(raw || '{}');
   } catch {
     throw fail(400, 'bad-request');
@@ -173,16 +192,28 @@ function gate(lib, req, res, url) {
   return { local };
 }
 
-async function api(lib, req, res, url, local) {
+async function api(lib, req, res, url, local, license) {
   const [, , name, id, sub, action] = url.pathname.split('/');
   const m = req.method;
+  if (name === 'license' && id === undefined) {
+    if (m === 'GET') return send(res, 200, license?.status() ?? { state: 'development', canWrite: true });
+    if (m !== 'POST') throw fail(405, 'not-supported');
+    if (!local) throw fail(403, 'computer-only');
+    if (!license) throw fail(409, 'license-development');
+    return send(res, 200, await license.activate(await readJson(req, MAX_LICENSE_BYTES)));
+  }
   if (name === 'phone' && id === undefined) {
     if (!local) throw fail(403, 'computer-only');
     if (m === 'PATCH') await lib.setPhone((await readJson(req)).enabled === true);
     else if (m !== 'GET') throw fail(405, 'not-supported');
-    return send(res, 200, { ...lib.phone(), ip: lanAddresses()[0] ?? null, port: req.socket.localPort });
+    const addresses = lanInterfaces();
+    return send(res, 200, { ...lib.phone(), ip: addresses[0]?.address ?? null, addresses, port: req.socket.localPort });
   }
   if (name === 'albums') {
+    if (license && !['GET', 'HEAD'].includes(m)) {
+      const state = license.status();
+      if (state.state !== 'active' || !state.canWrite) throw fail(403, 'license-required');
+    }
     if (id === undefined && m === 'GET') return send(res, 200, lib.list());
     if (id === undefined && m === 'POST') return send(res, 200, await lib.create((await readJson(req)).title));
     if (id !== undefined && sub === undefined) {
@@ -224,19 +255,19 @@ async function media(lib, req, res, pathname) {
   return sendFile(req, res, file, { ...MEDIA, 'Cache-Control': 'public, max-age=31536000, immutable' });
 }
 
-export function createHandler(lib) {
+export function createHandler(lib, { license = null } = {}) {
   return async (req, res, next) => {
     try {
       const url = new URL(req.url, 'http://local');
       const who = gate(lib, req, res, url);
       if (!who) return;
-      if (url.pathname.startsWith('/api/')) return await api(lib, req, res, url, who.local);
+      if (url.pathname.startsWith('/api/')) return await api(lib, req, res, url, who.local, license);
       if (url.pathname.startsWith('/media/')) return await media(lib, req, res, url.pathname);
-      next();
+      return await next();
     } catch (err) {
       if (!err.status) console.error(err);
       if (res.headersSent) return res.destroy();
-      send(res, err.status ?? 500, { error: say(langOf(req), err.status ? err.message : 'server-error') });
+      send(res, err.status ?? 500, { error: say(langOf(req), err.status ? err.message : 'server-error') }, err.status === 413 ? { Connection: 'close' } : {});
     }
   };
 }
@@ -252,27 +283,74 @@ async function serveStatic(root, req, res) {
   const file = resolve(root, `.${path === '/' ? '/index.html' : path}`);
   if (!file.startsWith(root + sep)) throw fail(404, 'no-page');
   const cache = path.startsWith('/assets/') ? 'public, max-age=31536000, immutable' : 'no-cache';
-  await sendFile(req, res, file, { 'Cache-Control': cache });
+  const headers = { 'Cache-Control': cache };
+  if (extname(file) === '.html') headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; media-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'";
+  await sendFile(req, res, file, headers);
 }
 
-export async function startServer({ dir, port = 5180, host = '0.0.0.0', dist }) {
-  const lib = await openLibrary(dir);
-  const handler = createHandler(lib);
+export async function startServer({ dir, port = 5180, host = '0.0.0.0', dist, fallbackToRandomPort = false, license = null }) {
   const root = resolve(dist);
-  const server = http.createServer((req, res) =>
-    handler(req, res, () =>
+  const lib = await openLibrary(dir);
+  const handler = createHandler(lib, { license });
+  const pending = new Set();
+  const writes = new Set();
+  const readers = new Set();
+  let stopping = false;
+  let closing;
+  const server = http.createServer((req, res) => {
+    if (stopping) return send(res, 503, { error: say(langOf(req), 'server-stopping') }, { Connection: 'close' });
+    const reading = ['GET', 'HEAD'].includes(req.method);
+    if (reading) {
+      readers.add(res);
+      res.once('close', () => readers.delete(res));
+    }
+    const job = handler(req, res, () =>
       serveStatic(root, req, res).catch((err) => {
         if (res.headersSent) return res.destroy();
         send(res, err.status ?? 500, page(langOf(req), err.status === 404 ? 'no-page' : 'server-error'));
       }),
-    ),
-  );
-  await new Promise((ok, bad) => {
-    server.once('error', bad);
-    server.listen(port, host, ok);
+    );
+    pending.add(job);
+    if (!reading) writes.add(job);
+    job.then(
+      () => { pending.delete(job); writes.delete(job); },
+      (error) => { pending.delete(job); writes.delete(job); res.destroy(); console.error(error); },
+    );
   });
+  const listen = (number) => new Promise((ok, bad) => {
+    const cleanup = () => { server.off('error', failed); server.off('listening', ready); };
+    const failed = (error) => { cleanup(); bad(error); };
+    const ready = () => { cleanup(); ok(); };
+    server.once('error', failed);
+    server.once('listening', ready);
+    try { server.listen(number, host); } catch (error) { failed(error); }
+  });
+  try {
+    try { await listen(port); }
+    catch (error) {
+      if (!fallbackToRandomPort || error.code !== 'EADDRINUSE') throw error;
+      await listen(0);
+    }
+  } catch (error) {
+    await lib.close();
+    throw error;
+  }
+  const actualPort = server.address().port;
   return {
-    url: `http://localhost:${server.address().port}/`,
-    close: () => new Promise((ok) => server.close(ok)),
+    url: `http://localhost:${actualPort}/`,
+    port: actualPort,
+    close() {
+      closing ??= (async () => {
+        stopping = true;
+        const stopped = new Promise((ok, bad) => server.close((error) => error ? bad(error) : ok()));
+        server.closeIdleConnections();
+        await Promise.allSettled([...writes]);
+        for (const response of readers) response.destroy();
+        await Promise.allSettled([...pending]);
+        server.closeAllConnections();
+        try { await stopped; } finally { await lib.close(); }
+      })();
+      return closing;
+    },
   };
 }

@@ -2,6 +2,31 @@
 export const TEXT = {
   zh: {
     app: '册页',
+    'license-manage': '许可证',
+    'license-title': '许可证与试用',
+    'license-help': '导入签发者提供的 JSON 许可证。本版本不绑定设备；到期后仍可查看和备份照片。',
+    'license-file': '选择 license.json 文件',
+    'license-json': '或粘贴完整 JSON',
+    'license-import': '导入许可证',
+    'license-refresh': '重新检查状态',
+    'license-readonly': '当前为只读模式。可查看照片；管理相册需要有效的许可证和相应权限。',
+    'license-unavailable': '暂时无法检查许可证，已保持只读模式。',
+    'license-computer': '请在运行 Folio 的电脑上导入许可证。',
+    'license-development': '当前为源码开发模式，不需要许可证。',
+    'license-too-large': '许可证不能超过 8KiB。',
+    'license-bad-json': '无法解析许可证，请选择或粘贴完整的 JSON 文件。',
+    'license-success': '许可证已导入。',
+    'license-wait-upload': '请等待当前导入完成，再管理许可证。',
+    'license-expires': '到期时间：',
+    'license-plan-trial': '试用',
+    'license-plan-pro': '正式授权',
+    'license-state-loading': '正在检查许可证',
+    'license-state-error': '暂时无法检查许可证',
+    'license-state-missing': '尚未导入许可证',
+    'license-state-invalid': '已保存的许可证无效',
+    'license-state-expired': '许可证已到期',
+    'license-state-active': '许可证有效',
+    'license-state-development': '源码开发模式',
     home: '首页',
     albums: '相册',
     'phone-access': '手机访问',
@@ -95,6 +120,7 @@ export const TEXT = {
     'tip-iphone': 'iPhone 的浏览器不能全屏：点分享 →「添加到主屏幕」，以后从主屏幕上的「册页」图标打开就是全屏。',
     'tip-wechat': '微信里不能全屏：点右上角「···」→「在 Safari 中打开」，再点分享 →「添加到主屏幕」。',
     'phone-title': '用手机看相册',
+    'phone-network': '选择与手机相连的网络地址',
     'phone-help': '手机和这台电脑连同一个 Wi‑Fi，用手机相机扫下面的码。',
     copy: '复制',
     copied: '已复制',
@@ -107,6 +133,31 @@ export const TEXT = {
   },
   en: {
     app: 'Folio',
+    'license-manage': 'License',
+    'license-title': 'License and trial',
+    'license-help': 'Import the JSON license supplied by its issuer. This version is not device-bound; photos remain available to view and back up after expiry.',
+    'license-file': 'Choose license.json',
+    'license-json': 'Or paste the complete JSON',
+    'license-import': 'Import license',
+    'license-refresh': 'Check status again',
+    'license-readonly': 'Read-only mode. Viewing is available; album management needs a valid license and permission.',
+    'license-unavailable': 'License status is unavailable. Read-only mode is enabled.',
+    'license-computer': 'Import the license on the computer running Folio.',
+    'license-development': 'Source development mode does not require a license.',
+    'license-too-large': 'The license must not exceed 8KiB.',
+    'license-bad-json': 'Cannot parse the license. Choose or paste the complete JSON file.',
+    'license-success': 'License imported.',
+    'license-wait-upload': 'Wait for the current import to finish before managing the license.',
+    'license-expires': 'Expires:',
+    'license-plan-trial': 'Trial',
+    'license-plan-pro': 'Pro',
+    'license-state-loading': 'Checking license',
+    'license-state-error': 'License status unavailable',
+    'license-state-missing': 'No license imported',
+    'license-state-invalid': 'Saved license is invalid',
+    'license-state-expired': 'License expired',
+    'license-state-active': 'License valid',
+    'license-state-development': 'Source development mode',
     home: 'Home',
     albums: 'Albums',
     'phone-access': 'Phone access',
@@ -201,6 +252,7 @@ export const TEXT = {
     'tip-iphone': 'iPhone browsers can\'t go full screen: tap Share → "Add to Home Screen", then open Folio from its Home Screen icon.',
     'tip-wechat': 'WeChat can\'t go full screen: tap "···" at the top right → "Open in Safari", then Share → "Add to Home Screen".',
     'phone-title': 'View on your phone',
+    'phone-network': 'Choose the address on your phone’s network',
     'phone-help': 'Connect your phone to the same Wi‑Fi as this computer, then scan the code with its camera.',
     copy: 'Copy',
     copied: 'Copied',
@@ -218,13 +270,15 @@ let current = null;
 // With site data blocked, storage access throws: the choice then lasts for this visit only.
 function stored() {
   try {
-    return localStorage.getItem('lang');
-  } catch {
-    return null;
-  }
+    const saved = localStorage.getItem('lang');
+    if (saved === 'zh' || saved === 'en') return saved;
+  } catch {}
+  try {
+    return document.cookie.split(';').map((part) => part.trim()).find((part) => /^folio_lang=(zh|en)$/.test(part))?.split('=')[1] ?? null;
+  } catch { return null; }
 }
 
-// Decided on first use: a saved choice, else the browser's first language (spec §10).
+// Cookies survive a local-server port change; localStorage is origin-specific.
 export function lang() {
   if (!current) {
     const saved = stored();

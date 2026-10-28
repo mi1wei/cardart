@@ -2,6 +2,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { acquireLibraryLock } from './library-lock.js';
 
 export const DEFAULT_DIR = join(homedir(), 'Pictures', '相册库');
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -25,6 +26,18 @@ function cleanTitle(title) {
 }
 
 export async function openLibrary(dir) {
+  await mkdir(dir, { recursive: true });
+  let lost;
+  const release = await acquireLibraryLock(dir, { onCompromised(error) { lost = error; } });
+  try {
+    return await loadLibrary(dir, release, () => { if (lost) throw lost; });
+  } catch (error) {
+    await release();
+    throw error;
+  }
+}
+
+async function loadLibrary(dir, release, assertLock) {
   const albumsDir = join(dir, 'albums');
   await mkdir(albumsDir, { recursive: true });
 
@@ -33,7 +46,7 @@ export async function openLibrary(dir) {
   try {
     settings = JSON.parse(await readFile(settingsFile, 'utf8'));
   } catch (err) {
-    if (err.code !== 'ENOENT') console.warn(`library.json 读不了，已重建：${err.message}\nlibrary.json was unreadable and has been rebuilt: ${err.message}`);
+    if (err.code !== 'ENOENT') throw Object.assign(new Error('library-corrupt'), { code: 'LIBRARY_CORRUPT', cause: err });
     settings = { version: 1, phone: { enabled: false, key: newKey() } };
     await writeJson(settingsFile, settings);
   }
@@ -58,20 +71,26 @@ export async function openLibrary(dir) {
 
   // Tasks for one album run one after another; a failed task does not block the next.
   const queues = new Map();
+  let closing;
+  let closed = false;
   function queue(id, task) {
-    const run = (queues.get(id) ?? Promise.resolve()).catch(() => {}).then(task);
+    if (closing) return Promise.reject(Object.assign(fail(503, 'library-closed'), { code: 'LIBRARY_CLOSED' }));
+    const run = (queues.get(id) ?? Promise.resolve()).catch(() => {}).then(() => { assertLock(); return task(); });
     queues.set(id, run);
     return run;
   }
 
   const albumDir = (id) => join(albumsDir, id);
   function get(id) {
+    assertLock();
     const album = isAlbumId(id) ? albums.get(id) : null;
     if (!album) throw fail(404, 'album-missing');
     return album;
   }
   // Albums are replaced, never mutated, so a reader always sees a whole snapshot.
   async function save(album) {
+    if (closed) throw Object.assign(fail(503, 'library-closed'), { code: 'LIBRARY_CLOSED' });
+    assertLock();
     await writeJson(join(albumDir(album.id), 'album.json'), album);
     albums.set(album.id, album);
     return album;
@@ -83,6 +102,10 @@ export async function openLibrary(dir) {
     get,
     save,
     queue,
+    close() {
+      closing ??= Promise.allSettled([...queues.values()]).then(async () => { closed = true; await release(); });
+      return closing;
+    },
     list() {
       return [...albums.values()]
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
@@ -99,20 +122,22 @@ export async function openLibrary(dir) {
           };
         });
     },
-    async create(title) {
-      const album = {
-        version: 1,
-        id: randomUUID(),
-        title: cleanTitle(title),
-        createdAt: new Date().toISOString(),
-        cover: null,
-        perPage: 2,
-        nextSeq: 1,
-        photos: [],
-      };
-      await mkdir(join(albumDir(album.id), 'originals'), { recursive: true });
-      await mkdir(join(albumDir(album.id), 'cache'), { recursive: true });
-      return save(album);
+    create(title) {
+      return queue('__create__', async () => {
+        const album = {
+          version: 1,
+          id: randomUUID(),
+          title: cleanTitle(title),
+          createdAt: new Date().toISOString(),
+          cover: null,
+          perPage: 2,
+          nextSeq: 1,
+          photos: [],
+        };
+        await mkdir(join(albumDir(album.id), 'originals'), { recursive: true });
+        await mkdir(join(albumDir(album.id), 'cache'), { recursive: true });
+        return save(album);
+      });
     },
     async update(id, patch) {
       get(id);
@@ -176,10 +201,12 @@ export async function openLibrary(dir) {
       });
     },
     phone: () => settings.phone,
-    async setPhone(enabled) {
-      settings = { ...settings, phone: { enabled: !!enabled, key: enabled ? newKey() : settings.phone.key } };
-      await writeJson(settingsFile, settings);
-      return settings.phone;
+    setPhone(enabled) {
+      return queue('__settings__', async () => {
+        settings = { ...settings, phone: { enabled: !!enabled, key: enabled ? newKey() : settings.phone.key } };
+        await writeJson(settingsFile, settings);
+        return settings.phone;
+      });
     },
   };
 }

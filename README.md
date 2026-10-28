@@ -4,7 +4,7 @@
 
 ## 运行
 
-需要 macOS 和 Node 20.9 以上。
+源码运行需要 macOS 和 Node 24 以上；`.nvmrc` 指定开发/CI 使用的 Node 24 LTS。
 
 ```bash
 npm install
@@ -19,7 +19,7 @@ npm start
 
 ## 语言
 
-第一次打开时跟随浏览器语言：中文系统显示中文，其他显示英文。点导航栏右边的「中 / EN」切换，每台设备各自记住。正在导入照片时不能切换。
+第一次打开时跟随浏览器语言：中文系统显示中文，其他显示英文。点导航栏右边的「中 / EN」切换，每台设备各自记住。正在导入照片时不能切换语言或相册库，以免丢失导入队列。
 
 ## 手机访问
 
@@ -36,3 +36,24 @@ npm start
 ## 字体
 
 英文和数字用 Geist 字体（SIL Open Font License 1.1），打包在软件里，不从网上加载。许可证见 `public/geist-OFL.txt`。
+
+## 桌面内测开发与分发
+
+已加入 Electron 桌面壳、离线 JSON 授权、托盘和更新协调；当前内测仅支持 Windows 11 x64 与 macOS 13+ Apple Silicon（arm64），Intel Mac 暂不支持。原生打包与技术验证以对应源码的 CI 结果为准；真机与完整发行验收尚未完成，未发布公开更新通道。桌面使用维护者提供的授权公钥；私钥必须保存在仓库外，签发见 `docs/license-issuer.md`。CLI/Vite 保留明确开发模式，不代表桌面应用已获授权。
+
+`npm run notices` 生成当前原生目标的第三方清单与声明 ZIP。生成成功不代表已获分发许可；对应源码、LGPL 替换、编解码器及素材权利等仍需审阅。分发门槛和当前限制见 [桌面发行说明](docs/desktop-release.md)。
+
+## 图标
+
+网页 Logo 与各平台图标共用 `src/assets/folio-mark.svg`：纯色照片页和弧形卷角，不使用阴影或渐变。修改后运行 `npm run icons` 重新生成资源，用 `npm test` 检查格式、尺寸及资源是否同步。
+
+| 用途 | 资源 |
+| --- | --- |
+| 浏览器标签页 | `public/favicon.svg`、`public/favicon.ico` |
+| iPhone 主屏幕 | `public/apple-touch-icon.png`（180px，不透明背景） |
+| 通用应用图标 | `public/icons/folio-1024.png` |
+| macOS Dock | `public/icons/folio.icns`（含 Retina 尺寸与透明外边距） |
+| macOS 菜单栏 | `public/icons/trayTemplate.png`、`trayTemplate@2x.png`（透明单色） |
+| Windows | `public/favicon.ico`（16–256px 多尺寸，同浏览器后备图标） |
+
+网页与桌面壳共享这些资源；原生安装包尚待构建验收，源码 Node 进程的系统图标不会自动替换。已添加到 iPhone 主屏幕的旧图标，需要删除后重新添加才能更新。

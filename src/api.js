@@ -10,6 +10,8 @@ async function call(method, path, body) {
 }
 
 export const api = {
+  license: () => call('GET', '/api/license'),
+  activateLicense: (envelope) => call('POST', '/api/license', envelope),
   albums: () => call('GET', '/api/albums'),
   album: (id) => call('GET', `/api/albums/${id}`),
   createAlbum: (title) => call('POST', '/api/albums', { title }),
