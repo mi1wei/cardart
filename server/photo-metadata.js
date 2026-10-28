@@ -48,6 +48,22 @@ function coordinate(values, ref, plus, minus, limit) {
   return value <= limit ? (ref === minus ? -value : value) : null;
 }
 
+export function isPhotoMetadata(value) {
+  if (!value || value.schemaVersion !== 1 || !['ready', 'none', 'unreadable'].includes(value.exifStatus)) return false;
+  const nullableText = (item) => item === null || (typeof item === 'string' && item.length <= 200);
+  if (!['format', 'fileModifiedAt', 'cameraMake', 'cameraModel', 'lensModel'].every((key) => nullableText(value[key])) ||
+    ![null, 'source-file', 'library-copy'].includes(value.fileTimeSource) ||
+    !(value.bytes === null || (Number.isSafeInteger(value.bytes) && value.bytes >= 0)) ||
+    !(value.orientation === null || orientation(value.orientation) !== null) ||
+    !['exposureTime', 'fNumber', 'iso', 'focalLength'].every((key) => value[key] === null || positive(value[key]) !== null)) return false;
+  const location = value.latitude === null && value.longitude === null ||
+    typeof value.latitude === 'number' && Number.isFinite(value.latitude) && Math.abs(value.latitude) <= 90 &&
+    typeof value.longitude === 'number' && Number.isFinite(value.longitude) && Math.abs(value.longitude) <= 180;
+  const time = value.takenAt;
+  return location && (time === null || time && ['DateTimeOriginal', 'CreateDate'].includes(time.source) &&
+    typeof time.raw === 'string' && typeof time.local === 'string' && nullableText(time.offset) && nullableText(time.subsecond));
+}
+
 export async function readPhotoMetadata(file, { format = null, byteLength, fileModifiedAt, fileTimeSource } = {}) {
   const result = {
     schemaVersion: 1, exifStatus: 'unreadable', format, bytes: Number.isSafeInteger(byteLength) && byteLength >= 0 ? byteLength : null,

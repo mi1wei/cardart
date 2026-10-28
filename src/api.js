@@ -1,6 +1,7 @@
-async function call(method, path, body) {
+async function call(method, path, body, { signal } = {}) {
   const res = await fetch(path, {
     method,
+    signal,
     headers: body === undefined ? {} : { 'Content-Type': 'application/json' },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
@@ -14,6 +15,7 @@ export const api = {
   activateLicense: (envelope) => call('POST', '/api/license', envelope),
   albums: () => call('GET', '/api/albums'),
   album: (id) => call('GET', `/api/albums/${id}`),
+  photoDetails: (id, photoId, options) => call('GET', `/api/albums/${id}/photos/${photoId}/details`, undefined, options),
   createAlbum: (title) => call('POST', '/api/albums', { title }),
   updateAlbum: (id, patch) => call('PATCH', `/api/albums/${id}`, patch),
   deleteAlbum: (id) => call('DELETE', `/api/albums/${id}`),
