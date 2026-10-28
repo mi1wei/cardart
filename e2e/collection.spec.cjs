@@ -16,14 +16,6 @@ test('background JPG and HEIC imports support dedup, pointer reorder, 3D, fullsc
   let page;
   let origin;
   let album;
-  async function activateControl(selector) {
-    const control = page.locator(selector);
-    if (softwareGL) {
-      await expect(control).toBeVisible();
-      await expect(control).toBeEnabled();
-      await control.press('Enter');
-    } else await control.click();
-  }
   try {
     ({ desktop, page } = await fixture.launch());
     origin = new URL(page.url()).origin;
@@ -88,13 +80,15 @@ test('background JPG and HEIC imports support dedup, pointer reorder, 3D, fullsc
         return gl.getParameter(info ? info.UNMASKED_RENDERER_WEBGL : gl.RENDERER);
       });
       expect(renderer).toMatch(/SwiftShader/i);
+      expect(await desktop.evaluate(({ app }) => app.getGPUFeatureStatus().gpu_compositing),
+        'The software fixture must retain window compositing for native fullscreen').toBe('enabled');
     }
     console.log('Owned collection phase: 3D ready');
     await page.locator('.ab select').selectOption('1');
     // Rendering can outlive an idle keepalive; retry a reset once on this read only.
     await expect.poll(async () => (await (await page.request.get(`${origin}/api/albums/${album.id}`, { maxRetries: 1 })).json()).perPage).toBe(1);
     const initial = await page.locator('.ab-count').textContent();
-    await activateControl('.ab [data-act=next]');
+    await page.locator('.ab [data-act=next]').click();
     await expect(page.locator('.ab-count')).not.toHaveText(initial);
     console.log('Owned collection phase: entering fullscreen');
     await desktop.evaluate(() => {
@@ -102,15 +96,15 @@ test('background JPG and HEIC imports support dedup, pointer reorder, 3D, fullsc
       global.folioTestDesktop.window.once('enter-full-screen', () => { global.folioTestFullscreen.entered = true; });
       global.folioTestDesktop.window.once('leave-full-screen', () => { global.folioTestFullscreen.left = true; });
     });
-    await activateControl('.ab [data-act=fullscreen]');
+    await page.locator('.ab [data-act=fullscreen]').click();
     await expect.poll(() => page.evaluate(() => !!document.fullscreenElement)).toBe(true);
     await expect.poll(() => desktop.evaluate(() => global.folioTestFullscreen.entered)).toBe(true);
     console.log('Owned collection phase: leaving fullscreen');
-    await activateControl('.ab [data-act=fullscreen]');
+    await page.locator('.ab [data-act=fullscreen]').click();
     await expect.poll(() => desktop.evaluate(() => global.folioTestFullscreen.left)).toBe(true);
     await expect.poll(() => page.evaluate(() => !!document.fullscreenElement)).toBe(false);
     console.log('Owned collection phase: fullscreen complete');
-    await activateControl('.ab-bar [data-act=close]');
+    await page.locator('.ab-bar [data-act=close]').click();
     await expect(page.locator('.ab')).toHaveCount(0);
     console.log('Owned collection phase: stopping first app');
     await fixture.stop();

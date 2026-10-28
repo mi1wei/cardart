@@ -54,7 +54,7 @@ async function desktopFixture({ license = 'active', softwareGL = false } = {}) {
         executablePath = join(bundle, 'Contents/MacOS/Electron');
       }
       const graphics = softwareGL
-        ? ['--use-gl=angle', '--use-angle=swiftshader-webgl', '--enable-unsafe-swiftshader', '--force-device-scale-factor=1'] : [];
+        ? ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--force-device-scale-factor=1'] : [];
       desktop = await _electron.launch({
         executablePath,
         args: [join(__dirname, 'desktop-entry.cjs'), `--user-data-dir=${profile}`, ...graphics, ...args],
