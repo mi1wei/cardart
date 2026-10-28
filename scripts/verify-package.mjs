@@ -127,7 +127,7 @@ export async function verifyPackage({ appDir, root = project, platform = process
   if (physical.join('\n') !== [...unpacked].sort().join('\n')) throw new Error('Unpacked resource whitelist differs from the ASAR header');
   function content(name) {
     if (!payload.includes(name)) throw new Error(`Missing app payload: ${name}`);
-    try { return asar.extractFile(archive, name, false); }
+    try { return asar.extractFile(archive, name.split('/').join(sep), false); }
     catch (cause) { throw new Error(`Missing native/unpacked app file: ${name}`, { cause }); }
   }
   const packaged = new Map();
@@ -136,7 +136,7 @@ export async function verifyPackage({ appDir, root = project, platform = process
     if (name !== `${owner}/package.json`) continue;
     let metadata;
     try { metadata = JSON.parse(content(name)); }
-    catch { throw new Error(`Unexpected/unlisted package metadata: ${name}`); }
+    catch (cause) { throw new Error(`Unexpected/unlisted package metadata: ${name}`, { cause }); }
     const id = `${metadata.name}@${metadata.version}`;
     const approved = allowedPackages.get(id);
     const expectedName = owner.slice(owner.lastIndexOf('node_modules/') + 'node_modules/'.length);

@@ -52,6 +52,7 @@ test('background JPG and HEIC imports support dedup, pointer reorder, 3D, fullsc
     await page.mouse.up();
     await expect.poll(async () => (await (await page.request.get(`${origin}/api/albums/${album.id}`)).json()).photos.map((photo) => photo.id)).toEqual([ids[1], ids[0], ids[2]]);
     await page.locator('.album-page .acts.normal [data-act="3d"]').click();
+    console.log('Owned collection phase: opening 3D');
     try { await expect(page.locator('.ab canvas')).toBeVisible(); }
     catch (error) {
       const viewer = await page.evaluate(() => ({
@@ -64,11 +65,13 @@ test('background JPG and HEIC imports support dedup, pointer reorder, 3D, fullsc
       throw error;
     }
     await expect(page.locator('.ab')).not.toHaveAttribute('data-error', '');
+    console.log('Owned collection phase: 3D ready');
     await page.locator('.ab select').selectOption('1');
     await expect.poll(async () => (await (await page.request.get(`${origin}/api/albums/${album.id}`)).json()).perPage).toBe(1);
     const initial = await page.locator('.ab-count').textContent();
     await page.locator('.ab [data-act=next]').click();
     await expect(page.locator('.ab-count')).not.toHaveText(initial);
+    console.log('Owned collection phase: entering fullscreen');
     await desktop.evaluate(() => {
       global.folioTestFullscreen = { entered: false, left: false };
       global.folioTestDesktop.window.once('enter-full-screen', () => { global.folioTestFullscreen.entered = true; });
@@ -77,14 +80,19 @@ test('background JPG and HEIC imports support dedup, pointer reorder, 3D, fullsc
     await page.locator('.ab [data-act=fullscreen]').click();
     await expect.poll(() => page.evaluate(() => !!document.fullscreenElement)).toBe(true);
     await expect.poll(() => desktop.evaluate(() => global.folioTestFullscreen.entered)).toBe(true);
+    console.log('Owned collection phase: leaving fullscreen');
     await page.locator('.ab [data-act=fullscreen]').click();
     await expect.poll(() => desktop.evaluate(() => global.folioTestFullscreen.left)).toBe(true);
     await expect.poll(() => page.evaluate(() => !!document.fullscreenElement)).toBe(false);
+    console.log('Owned collection phase: fullscreen complete');
     await page.locator('.ab-bar [data-act=close]').click();
     await expect(page.locator('.ab')).toHaveCount(0);
+    console.log('Owned collection phase: stopping first app');
     await fixture.stop();
+    console.log('Owned collection phase: first app stopped');
     for (const size of [600, 1600]) await rm(join(fixture.library, 'albums', album.id, 'cache', `${primary.id}_${size}.webp`));
     ({ desktop, page } = await fixture.launch());
+    console.log('Owned collection phase: restarted');
     origin = new URL(page.url()).origin;
     const rebuilt = await page.request.get(`${origin}/media/${album.id}/${primary.id}/600`);
     expect(rebuilt.ok()).toBe(true);

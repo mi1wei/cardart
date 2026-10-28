@@ -62,6 +62,8 @@ jobs:
       - name: Assert native host
         run: node -e 'if (process.platform !== process.env.EXPECTED_PLATFORM || process.arch !== process.env.EXPECTED_ARCH) process.exit(1)'
       - run: npm ci --include=optional
+      - name: Prepare Electron outside timed desktop tests
+        run: npx --no-install electron --version
       - run: npm test
       - run: npm run build
       - run: npm run test:desktop
