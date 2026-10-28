@@ -62,7 +62,7 @@ async function desktopFixture({ license = 'active', softwareGL = false } = {}) {
         chromiumSandbox: true, bypassCSP: false,
       });
       if (!waitForReady) return { desktop };
-      await expect.poll(() => desktop.evaluate(() => !!global.folioTestDesktop)).toBe(true);
+      await expect.poll(() => desktop.evaluate(() => !!global.folioTestDesktop), { timeout: 30000 }).toBe(true);
       const page = await desktop.firstWindow();
       const session = await desktop.context().newCDPSession(page);
       // Playwright's focus emulation masks real window hide/show events.

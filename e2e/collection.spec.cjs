@@ -6,7 +6,7 @@ const { desktopFixture } = require('./fixtures.cjs');
 
 test('background JPG and HEIC imports support dedup, pointer reorder, 3D, fullscreen and cache reconstruction', async () => {
   const softwareGL = process.env.FOLIO_E2E_SOFTWARE_GL === '1';
-  test.slow(softwareGL, 'Software WebGL initialization and drawing run on the CPU');
+  if (softwareGL) test.setTimeout(180000);
   const fixture = await desktopFixture({ softwareGL });
   let release;
   const held = new Promise((resolve) => { release = resolve; });
