@@ -95,8 +95,55 @@ Mac 只显示手动下载入口：用户确认后打开固定 Releases 页面，
 
 这些工作流与负面用例已在本地校验，但**尚未推送或运行远程 Actions**；不能据此宣称 Windows/Intel 包已生成，或能从 Actions 下载。
 
-## 尚未完成的发行前提
+## 人工验收与公开 beta 发布
+
+`licenses/desktop-acceptance.json` 默认 `candidates: []`，当前没有完整真机验收记录。**不要把本机 smoke、CI runner、模拟的 GitHub 边界测试或未签名的正常提示填成通过。**
+
+每个候选记录精确的 `tag`、40 位 `sourceCommit`，并为三个目标提供 `systems`：`target`、`os`、实际 `osVersion`、实际安装器 `installerSha256` 和 `passed`。Windows 记录 `os: "Windows 11"`；两种 Mac 必须有 `os: "macOS"`、`osVersion: "13.x"` 的最低系统验收。可以另保留较新系统的测试证据，但不能替代这三个最低目标。
+
+候选的 `checks` 需逐项完成并记录为 `true`；没有完成保持 `false`，不能用空记录或占位哈希发布：
+
+| 字段 | 必须实际确认的结果 |
+|---|---|
+| `licenseStates` / `tamperedLicenseRejected` | 缺许可、有效 trial/pro、到期只读及篡改拒绝；原图不删 |
+| `phoneReadOnly` | 手机授权 gate 与只读写入拒绝，电脑专属设置不可从 LAN 修改 |
+| `photoAndHeic` | JPG/HEIC 导入、主图/方向、去重、原图字节及缓存重建 |
+| `viewerFullscreenLanguages` | 3D 翻页、全屏、中英文及重启恢复 |
+| `trayAndExit` | 关窗后台手机访问、导入继续、托盘恢复、显式退出排空 |
+| `portAndNetworks` | 端口占用回退、多网卡/VPN 选择及正确二维码 |
+| `windowsUacFirewall` | 登录用户非提升运行；实际监听 exe 对应 Private/LocalSubnet 程序规则；Public 未放行；拒绝 UAC/组织策略有明确结果 |
+| `controlledWindowsUpgrade` | 两个递增测试包在受控 feed 下载/升级，断网/损坏拒绝/UAC 取消/导入中升级及规则不重复 |
+| `manualMacUpdate` | 下载正确芯片 DMG，先退出再覆盖，不假称有自动安装 |
+| `dataRetention` | 升级/卸载重装后原图哈希、顺序、封面和授权保留；始终先备份库 |
+| `downloadPrompts` | 干净系统不预装 Node；真实下载件保留 quarantine，记录正常逐应用确认；不可全局关闭系统保护或绕过组织策略 |
+
+不要在该记录中写私钥、真实个人许可证、用户照片、账号身份或保密审查材料。发布脚本只提取这一候选的上述必要字段，生成单独的 `release-acceptance.json`，不上传整个验收账本。
+
+公开前还需在 GitHub 仓库 Settings → Environments 配置 `desktop-publish` 的 **Required reviewers**，并按团队需要配置 `desktop-candidates` 审批。仅写工作流中的 environment 名称不够：发布脚本会读取实际保护规则，没有非空 required-reviewer 规则即停止。保护配置和审批是否可用尚未在远程验证。
+
+准备好全部真实记录及对应源码/分发审查后，从 `main` 手动运行 `desktop-publish.yml`，输入**已有 Draft beta tag**，显式勾选 `confirm_public_beta`，再由 Environment 审批。该操作将使文件公开，不是保密下载。脚本重新下载/校验精确白名单、确认远程 tag/source commit、现有资产 hash、当前法律批准和真实验收，先附加可校验的验收记录，再转为公开 Pre-release；不创建/改写 tag，不替换同名文件。
+
+第一版发布只建立通道，不能宣称尚不存在的下一版升级已通过。脚本始终记录 `publicUpdateFeedVerified: false`；后续两个已审批公开 beta 的真实 GitHub 端到端升级，还需单独验收。问题版本应停止分发并发布新修复版，不覆盖旧 tag/同版本资产，不自动降级或改写照片数据。
+
+## 当前结果与未完成项
 
 维护者已提供 `desktop/license-public.pem`；私钥继续由维护者在仓库外离线保管，见 `docs/license-issuer.md`。开发与打包只读取公钥，不以测试密钥替换生产公钥。
 
-Windows/Intel 安装器、Windows 原生安装/UAC/防火墙与升级、最低系统与手机真机、发行 CI 和公开 beta feed 的验收均尚未完成。Apple Silicon 仅有上述本地候选与自动化结果，不等于下载件的完整发行验收。
+| 项目 | 当前证据 |
+|---|---|
+| Apple Silicon 本地 DMG | 已生成，生产 fuses/原生缓存/Range/只读授权/正常退出/只读镜像运行/ad-hoc 与镜像完整性通过；不是公证或下载件验收 |
+| Windows/Intel 包与远程 CI | 配置、校验器和工作流已加入；尚未推送/运行对应原生 runner，没有这些真实安装包结果 |
+| Windows 受控升级/UAC/防火墙 | 控制流回归通过；真实安装/升级/组织策略及非提升账号尚未验证 |
+| 分发与最低系统/手机验收 | 法律审批和验收记录为空，仍然阻断分发 |
+| GitHub 发布与更新 feed | 未创建 tag、未上传 Artifacts、未创建 Draft、未公开发布或验证 feed |
+
+如需复核本地成品，先在干净已提交工作树生成 DMG，再执行：
+
+```sh
+npm run verify:release -- \
+  --app release/mac-arm64/Folio.app \
+  --artifact release/Folio-0.1.0-beta.1-macos-arm64.dmg \
+  --output release/local-native-verification-new
+```
+
+输出目录须为新的专用目录，不覆盖已有验收记录。不要把当前单平台本地候选误作已经满足完整跨平台 Done 条件。

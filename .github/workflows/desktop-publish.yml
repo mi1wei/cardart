@@ -1,0 +1,45 @@
+name: Publish approved desktop beta
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing fully accepted beta draft tag
+        type: string
+        required: true
+      confirm_public_beta:
+        description: I approve making these installers public; this is not a confidential download
+        type: boolean
+        required: true
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-release-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.repository == 'mi1wei/cardart' && github.ref == 'refs/heads/main' && inputs.confirm_public_beta
+    runs-on: ubuntu-latest
+    environment: desktop-publish
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci --include=optional
+      - name: Verify protected reviewers, exact files and manual acceptance, then publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: node scripts/publish-desktop-release.mjs --tag "$RELEASE_TAG" --acceptance licenses/desktop-acceptance.json --confirm-public-beta

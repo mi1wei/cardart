@@ -10,6 +10,15 @@ export const releaseRepository = 'mi1wei/cardart';
 const run = promisify(execFile);
 const executeGitHub = async (args) => (await run('gh', args)).stdout;
 
+export function releaseFileNames(version) {
+  return [
+    `Folio-${version}-macos-arm64.dmg`, `Folio-${version}-macos-x64.dmg`,
+    `Folio-${version}-windows-x64-setup.exe`, `Folio-${version}-windows-x64-setup.exe.blockmap`,
+    `Folio-${version}-third-party-licenses.zip`, 'beta.yml',
+    'release-manifest.json', 'release-notes.md', 'SHA256SUMS',
+  ];
+}
+
 export async function readReleaseWhitelist(directory) {
   if (!directory) throw new Error('An explicit release whitelist directory is required');
   directory = resolve(directory);
@@ -17,11 +26,7 @@ export async function readReleaseWhitelist(directory) {
   validateReleaseIdentity(manifest);
   if (manifest.schemaVersion !== 1 || manifest.distributionApproved !== true) throw new Error('Release distribution review is incomplete');
   const { version } = manifest;
-  const artifacts = new Set([
-    `Folio-${version}-macos-arm64.dmg`, `Folio-${version}-macos-x64.dmg`,
-    `Folio-${version}-windows-x64-setup.exe`, `Folio-${version}-windows-x64-setup.exe.blockmap`,
-    `Folio-${version}-third-party-licenses.zip`, 'beta.yml',
-  ]);
+  const artifacts = new Set(releaseFileNames(version).slice(0, 6));
   if (manifest.artifacts?.length !== artifacts.size || new Set(manifest.artifacts.map((file) => file.name)).size !== artifacts.size ||
     manifest.artifacts.some((file) => !artifacts.has(file.name))) throw new Error('Release artifact whitelist is incomplete or unexpected');
   const names = new Set([...artifacts, 'release-manifest.json', 'release-notes.md', 'SHA256SUMS']);
