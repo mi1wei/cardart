@@ -8,6 +8,7 @@ import sharp from 'sharp';
 import { fail } from './library.js';
 import { decodeHeic } from './heic.js';
 import { MAX_BYTES } from './image-limits.js';
+import { readPhotoMetadata } from './photo-metadata.js';
 
 // Cached file handles prevent Windows from deleting regenerated previews.
 if (process.platform === 'win32') sharp.cache({ files: 0 });
@@ -47,7 +48,7 @@ export async function makeCache(original, cacheDir, id) {
   }
 }
 
-export async function importPhoto(lib, albumId, req, rawName) {
+export async function importPhoto(lib, albumId, req, rawName, { lastModified } = {}) {
   lib.get(albumId);
   const name = basename(String(rawName ?? '')).slice(0, 200) || 'photo';
   if (Number(req.headers?.['content-length']) > MAX_BYTES) {
@@ -85,6 +86,7 @@ export async function importPhoto(lib, albumId, req, rawName) {
     const id = `p${String(album.nextSeq).padStart(3, '0')}`;
     const { format, compression } = await sharp(tmp).metadata().catch(() => ({}));
     const ext = format === 'heif' && compression === 'av1' ? '.avif' : RASTER[format];
+    const metadata = ext ? await readPhotoMetadata(tmp, { format, byteLength: bytes, fileModifiedAt: lastModified, fileTimeSource: 'source-file' }) : null;
     let size;
     try {
       if (!ext) throw new Error('not a photo');
@@ -95,7 +97,7 @@ export async function importPhoto(lib, albumId, req, rawName) {
     }
     const file = `${id}${ext}`;
     await rename(tmp, join(dir, 'originals', file));
-    const photo = { id, file, name, w: size.w, h: size.h, sha256 };
+    const photo = { id, file, name, w: size.w, h: size.h, sha256, metadata };
     await lib.save({ ...album, nextSeq: album.nextSeq + 1, photos: [...album.photos, photo] });
     return { photo };
   });

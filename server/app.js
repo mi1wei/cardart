@@ -226,7 +226,9 @@ async function api(lib, req, res, url, local, license) {
     }
     if (sub === 'photos' && action === undefined && m === 'POST') {
       if (req.headers['x-album-upload'] !== '1') throw fail(403, 'upload-header');
-      return send(res, 200, await importPhoto(lib, id, req, url.searchParams.get('name')));
+      const modified = url.searchParams.get('lastModified');
+      const lastModified = /^(0|[1-9]\d{0,14})$/.test(modified ?? '') ? Number(modified) : undefined;
+      return send(res, 200, await importPhoto(lib, id, req, url.searchParams.get('name'), { lastModified }));
     }
     if (sub === 'photos' && action === 'delete' && m === 'POST') {
       return send(res, 200, await lib.deletePhotos(id, (await readJson(req)).ids));

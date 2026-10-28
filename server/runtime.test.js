@@ -8,6 +8,7 @@ import { test } from 'node:test';
 import sharp from 'sharp';
 import { startServer } from './app.js';
 import { openLibrary } from './library.js';
+import { photoBytes } from '../tests/fixtures/photo-metadata.cjs';
 
 async function fixture(t) {
   const root = await mkdtemp(join(tmpdir(), 'folio-runtime-'));
@@ -78,6 +79,26 @@ test('shutdown finishes an already accepted photo upload before releasing its li
   const reopened = await openLibrary(f.dir);
   try { assert.equal(reopened.get(album.id).photos.length, 1); }
   finally { await reopened.close(); }
+});
+
+test('photo upload carries valid source file time but ignores malformed optional timestamps', async (t) => {
+  const f = await fixture(t);
+  const runtime = await f.start();
+  const bytes = await photoBytes();
+  for (const [value, expected] of [['1577934245000', 'source-file'], ['1e3', 'library-copy']]) {
+    const album = await (await fetch(`${runtime.url}api/albums`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: 'Source time' }),
+    })).json();
+    const response = await fetch(`${runtime.url}api/albums/${album.id}/photos?name=image.jpg&lastModified=${value}`, {
+      method: 'POST', headers: { 'X-Album-Upload': '1' }, body: bytes,
+    });
+    assert.equal(response.status, 200);
+    const { photo } = await response.json();
+    assert.ok(photo.metadata);
+    assert.equal(photo.metadata.fileTimeSource, expected);
+    if (expected === 'source-file') assert.equal(photo.metadata.fileModifiedAt, '2020-01-02T03:04:05.000Z');
+    assert.equal(photo.metadata.takenAt.raw, '2026:08:15 09:30:00');
+  }
 });
 
 test('a paused read-only video transfer cannot prevent shutdown or keep the library locked', async (t) => {

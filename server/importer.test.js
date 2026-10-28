@@ -10,6 +10,7 @@ import sharp from 'sharp';
 import { decodeHeic } from './heic.js';
 import { importPhoto, ensureCache } from './importer.js';
 import { openLibrary } from './library.js';
+import { photoBytes } from '../tests/fixtures/photo-metadata.cjs';
 
 const photos = fileURLToPath(new URL('../tests/fixtures/photos/', import.meta.url));
 const palette = {
@@ -85,4 +86,65 @@ test('import preserves HEIC bytes, detects its format rather than extension, ded
   const metadata = await sharp(cache).metadata();
   assert.deepEqual([metadata.format, metadata.width, metadata.height], ['webp', 48, 64]);
   assert.deepEqual(await readFile(original), bytes);
+});
+
+test('imported original properties survive restart, reordering, cover changes and cache reconstruction', async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), 'folio-import-metadata-'));
+  const lib = await openLibrary(dir);
+  t.after(async () => { await lib.close(); await rm(dir, { recursive: true, force: true }); });
+  const album = await lib.create('Original properties');
+  const bytes = await photoBytes();
+  const request = () => Object.assign(Readable.from([bytes]), { headers: { 'content-length': bytes.length } });
+  const { photo } = await importPhoto(lib, album.id, request(), 'misnamed.png', { lastModified: Date.parse('2020-01-02T03:04:05.000Z') });
+  assert.ok(photo?.metadata);
+  assert.equal(photo.file, 'p001.jpg');
+  assert.deepEqual([photo.w, photo.h], [8, 12]);
+  assert.equal(photo.metadata.takenAt.raw, '2026:08:15 09:30:00');
+  assert.equal(photo.metadata.cameraModel, 'Synthetic Camera');
+  assert.equal(photo.metadata.bytes, bytes.length);
+  assert.equal(photo.metadata.fileModifiedAt, '2020-01-02T03:04:05.000Z');
+  assert.equal(photo.metadata.fileTimeSource, 'source-file');
+  const original = join(lib.albumDir(album.id), 'originals', photo.file);
+  assert.deepEqual(await readFile(original), bytes);
+  assert.equal(photo.sha256, createHash('sha256').update(bytes).digest('hex'));
+  assert.deepEqual(await importPhoto(lib, album.id, request(), 'duplicate.jpg'), { skipped: 'duplicate' });
+  const otherBytes = await photoBytes({ format: 'png', exif: null });
+  const other = (await importPhoto(lib, album.id, Readable.from([otherBytes]), 'other.png')).photo;
+  await lib.update(album.id, { order: [other.id, photo.id], cover: other.id });
+  await lib.deletePhotos(album.id, [other.id]);
+  assert.deepEqual(lib.get(album.id).photos[0].metadata, photo.metadata);
+  const saved = JSON.parse(await readFile(join(lib.albumDir(album.id), 'album.json'), 'utf8'));
+  assert.equal(saved.version, 1);
+  assert.deepEqual(saved.photos[0].metadata, photo.metadata);
+  await lib.close();
+  const reopened = await openLibrary(dir);
+  try {
+    const restored = reopened.get(album.id).photos[0];
+    assert.deepEqual(restored.metadata, photo.metadata);
+    for (const size of [600, 1600]) await rm(join(reopened.albumDir(album.id), 'cache', `${photo.id}_${size}.webp`));
+    const cache = await ensureCache(reopened, album.id, restored, 1600);
+    const info = await sharp(cache).metadata();
+    assert.deepEqual([info.width, info.height], [8, 12]);
+    assert.equal(info.exif, undefined);
+    assert.deepEqual(await readFile(original), bytes);
+    assert.deepEqual(restored.metadata, photo.metadata);
+  } finally { await reopened.close(); }
+});
+
+test('unreadable EXIF and invalid source file time do not reject an otherwise valid image', async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), 'folio-import-bad-exif-'));
+  const lib = await openLibrary(dir);
+  t.after(async () => { await lib.close(); await rm(dir, { recursive: true, force: true }); });
+  const album = await lib.create('Damaged metadata');
+  const bytes = await photoBytes();
+  const offset = bytes.indexOf(Buffer.from('Exif\0\0II'));
+  assert.ok(offset > 0);
+  bytes.writeUInt32LE(0xffffffff, offset + 10);
+  const { photo } = await importPhoto(lib, album.id, Readable.from([bytes]), 'valid-image.jpg', { lastModified: 'tomorrow' });
+  assert.ok(photo?.metadata);
+  assert.equal(photo.metadata.exifStatus, 'unreadable');
+  assert.equal(photo.metadata.takenAt, null);
+  assert.equal(photo.metadata.fileTimeSource, 'library-copy');
+  assert.deepEqual(await readFile(join(lib.albumDir(album.id), 'originals', photo.file)), bytes);
+  assert.equal((await sharp(await ensureCache(lib, album.id, photo, 600)).metadata()).format, 'webp');
 });

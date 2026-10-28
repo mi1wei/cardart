@@ -21,7 +21,8 @@ export const api = {
   phone: () => call('GET', '/api/phone'),
   setPhone: (enabled) => call('PATCH', '/api/phone', { enabled }),
   async upload(id, file) {
-    const res = await fetch(`/api/albums/${id}/photos?name=${encodeURIComponent(file.name)}`, {
+    const time = Number.isSafeInteger(file.lastModified) && file.lastModified >= 0 ? `&lastModified=${file.lastModified}` : '';
+    const res = await fetch(`/api/albums/${id}/photos?name=${encodeURIComponent(file.name)}${time}`, {
       method: 'POST',
       headers: { 'X-Album-Upload': '1' },
       body: file,
