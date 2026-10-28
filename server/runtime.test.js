@@ -80,6 +80,44 @@ test('shutdown finishes an already accepted photo upload before releasing its li
   finally { await reopened.close(); }
 });
 
+test('a paused read-only video transfer cannot prevent shutdown or keep the library locked', async (t) => {
+  const f = await fixture(t);
+  await writeFile(join(f.dist, 'large.mp4'), Buffer.alloc(32 * 1024 * 1024));
+  const runtime = await f.start();
+  const request = http.get(`${runtime.url}large.mp4`);
+  const [response] = await once(request, 'response');
+  response.pause();
+  const closing = runtime.close();
+  try {
+    const finished = await Promise.race([
+      closing.then(() => true),
+      new Promise((resolve) => setTimeout(() => resolve(false), 1000).unref()),
+    ]);
+    assert.equal(finished, true, 'read-only backpressure must not block safe shutdown');
+  } finally { response.destroy(); request.destroy(); await closing; }
+  const reopened = await openLibrary(f.dir);
+  await reopened.close();
+});
+
+test('an unfinished GET body with no remaining handler work cannot strand shutdown', async (t) => {
+  const f = await fixture(t);
+  const runtime = await f.start();
+  const request = http.request(`${runtime.url}api/albums`, { method: 'GET', headers: { 'Content-Length': 10 } });
+  request.on('error', () => {});
+  request.flushHeaders();
+  const [response] = await once(request, 'response');
+  response.resume();
+  await once(response, 'end');
+  const closing = runtime.close();
+  try {
+    const finished = await Promise.race([
+      closing.then(() => true),
+      new Promise((resolve) => setTimeout(() => resolve(false), 1000).unref()),
+    ]);
+    assert.equal(finished, true, 'an unfinished GET body must not outlive all admitted work');
+  } finally { request.destroy(); await closing; }
+});
+
 test('language falls back to the Folio cookie when this origin has no saved preference', async () => {
   const keys = ['document', 'localStorage', 'navigator'];
   const original = keys.map((key) => Object.getOwnPropertyDescriptor(globalThis, key));

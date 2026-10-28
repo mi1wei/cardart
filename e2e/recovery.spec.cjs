@@ -50,6 +50,7 @@ test('a second desktop reopens the existing window while a CLI writer is rejecte
     await run(require('electron'), [join(__dirname, 'desktop-entry.cjs'), `--user-data-dir=${fixture.profile}`], {
       env: { ...process.env, ALBUM_LIBRARY: fixture.library, FOLIO_E2E_KEY_FILE: fixture.keyFile }, timeout: 15000,
     });
+
     await expect.poll(() => desktop.evaluate(() => global.folioTestDesktop.window.isVisible())).toBe(true);
     expect(await desktop.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(1);
     expect(JSON.parse(await readFile(join(fixture.profile, 'runtime.json'), 'utf8')).servicePid).toBe(before.servicePid);
@@ -57,6 +58,24 @@ test('a second desktop reopens the existing window while a CLI writer is rejecte
       env: { ...process.env, ALBUM_LIBRARY: fixture.library }, timeout: 15000,
     })).rejects.toMatchObject({ code: 1, stderr: expect.stringContaining('LIBRARY_IN_USE') });
     expect((await page.request.get(`${before.origin}/api/albums`)).status()).toBe(200);
+  } finally { await fixture.close(); }
+});
+
+test('a profile-scoped quit command exits the running desktop through its normal drain path', async () => {
+  const fixture = await desktopFixture();
+  try {
+    const { desktop, page } = await fixture.launch();
+    const origin = new URL(page.url()).origin;
+    const closed = desktop.waitForEvent('close', { timeout: 5000 });
+    await run(require('electron'), [join(__dirname, 'desktop-entry.cjs'), `--user-data-dir=${fixture.profile}`, '--quit'], {
+      env: { ...process.env, ALBUM_LIBRARY: fixture.library, FOLIO_E2E_KEY_FILE: fixture.keyFile }, timeout: 15000,
+    });
+    await closed;
+    await expect(readFile(join(fixture.profile, 'runtime.json'))).rejects.toMatchObject({ code: 'ENOENT' });
+    await expect(fetch(origin)).rejects.toThrow();
+    const { openLibrary } = await import('../server/library.js');
+    const lib = await openLibrary(fixture.library);
+    await lib.close();
   } finally { await fixture.close(); }
 });
 

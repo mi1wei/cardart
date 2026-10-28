@@ -1,5 +1,10 @@
 const path = require('node:path');
-const { dialog } = require('electron');
+const { app, BrowserWindow, dialog } = require('electron');
+if (app.commandLine.hasSwitch('fixture-hold-initial-load')) {
+  BrowserWindow.prototype.loadURL = () => new Promise((resolve, reject) => {
+    global.folioTestInitialLoadReject = () => reject(new Error('ERR_ABORTED'));
+  });
+}
 global.folioTestNotices = [];
 const showMessageBox = dialog.showMessageBox;
 dialog.showMessageBox = (...args) => {

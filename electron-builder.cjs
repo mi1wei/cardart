@@ -71,7 +71,7 @@ module.exports = {
       NSLocalNetworkUsageDescription: 'Folio uses the local network to let your phone view and upload photos. 册页需要访问局域网，让手机查看和上传照片。',
     },
   },
-  dmg: { sign: false },
+  dmg: { sign: false, writeUpdateInfo: false },
   publish: { provider: 'github', owner: 'mi1wei', repo: 'cardart', channel: 'beta', releaseType: 'prerelease' },
   async beforePack(context) {
     const root = context.packager.projectDir;

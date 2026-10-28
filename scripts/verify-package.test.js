@@ -49,11 +49,14 @@ async function fixture(t, { platform = 'darwin', arch = 'arm64', extra = {}, add
   await file(join(source, 'package.json'), metadata);
   await file(join(root, 'desktop/license-public.pem'), pem);
   await file(join(source, 'desktop/license-public.pem'), pem);
-  for (const path of ['desktop/main.cjs', 'desktop/service.cjs', 'server/app.js', 'server/heic-worker.cjs', 'server/license.js', 'server/license-store.js', 'node_modules/sharp/lib/index.js', 'node_modules/libheif-js/wasm-bundle.js', 'node_modules/libheif-js/libheif-wasm/libheif-bundle.js']) {
+  for (const path of ['desktop/main.cjs', 'desktop/service.cjs', 'server/app.js', 'server/heic-worker.cjs', 'server/license.js', 'server/license-store.js', 'node_modules/sharp/dist/index.cjs', 'node_modules/sharp/dist/index.mjs', 'node_modules/libheif-js/wasm-bundle.js', 'node_modules/libheif-js/libheif-wasm/libheif-bundle.js']) {
     await file(join(source, path), '/* structural fixture */');
   }
-  for (const pkg of packages) await file(join(source, pkg.location, 'package.json'), { name: pkg.name, version: pkg.version });
-  const addon = `${packages[1].location}/lib/sharp-${native}.node`;
+  for (const pkg of packages) await file(join(source, pkg.location, 'package.json'), {
+    name: pkg.name, version: pkg.version,
+    ...(pkg.name === 'sharp' ? { main: './dist/index.cjs', exports: { '.': { import: { default: './dist/index.mjs' }, require: { default: './dist/index.cjs' } } } } : {}),
+  });
+  const addon = `${packages[1].location}/lib/sharp-${native}-${packages[1].version}.node`;
   const vips = `${packages[2].location}/lib/${platform === 'darwin' ? 'libvips-cpp.8.18.7.dylib' : 'libvips-42.dll'}`;
   await file(join(source, addon), binary(platform, addonArch));
   await file(join(source, vips), binary(platform, arch));
@@ -80,6 +83,8 @@ async function fixture(t, { platform = 'darwin', arch = 'arm64', extra = {}, add
   if (platform === 'darwin') {
     await file(join(root, 'public/icons/folio.icns'), 'owned application icon fixture');
     await file(join(resources, 'icon.icns'), 'owned application icon fixture');
+    await mkdir(join(root, 'node_modules/electron/dist/Electron.app/Contents/Resources/en.lproj'), { recursive: true });
+    await mkdir(join(resources, 'en.lproj'));
   }
   await mkdir(resources, { recursive: true });
   await asar.createPackageWithOptions(source, join(resources, 'app.asar'), {
@@ -112,6 +117,16 @@ test('missing web content and missing unpacked native binaries fail verification
   await f.file(join(f.resources, 'web/index.html'), '<!doctype html><title>Folio</title>');
   await rm(join(f.resources, 'app.asar.unpacked', f.addon));
   await assert.rejects(verifyPackage(f), /native|unpacked|sharp.*node/i);
+});
+
+test('macOS retains upstream locale directories without admitting injected files or invented locales', async (t) => {
+  const f = await fixture(t);
+  await verifyPackage(f);
+  await f.file(join(f.resources, 'en.lproj/extra.txt'), 'unexpected resource');
+  await assert.rejects(verifyPackage(f), /resource/i);
+  await rm(join(f.resources, 'en.lproj/extra.txt'));
+  await mkdir(join(f.resources, 'invented.lproj'));
+  await assert.rejects(verifyPackage(f), /unexpected.*resource/i);
 });
 
 test('user data, private key filenames, test entry points and unlisted dependencies are never valid app payload', async (t) => {

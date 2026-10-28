@@ -1,6 +1,6 @@
 # Folio 桌面内测发行准备
 
-目前尚未生成或验收 Windows/macOS 安装包。本文件先记录第三方分发门槛；不能把源码测试通过当成安装器或发行验收通过。
+已在本机生成 Apple Silicon 的本地 ad-hoc DMG 候选，并检查生产 fuses、原生缓存、只读授权和退出；Windows/Intel 安装器及完整发行验收尚未完成。本文件中的本机结果不等于干净系统、quarantine、真机或分发许可验收通过。
 
 ## 第三方材料
 
@@ -36,7 +36,7 @@ npm run notices -- --require-distribution-approval
 
 ## 原生安装器配置与校验
 
-已加入 `electron-builder.cjs`、固定私网规则的 NSIS 钩子和 ASAR/原生架构/fuses/资源校验器。**配置准备不等于已生成或安装验收通过。**本机实际构建已在缺少维护者授权公钥时正确停止，没有生成 DMG/NSIS，也没有改动本机防火墙。
+已加入 `electron-builder.cjs`、固定私网规则的 NSIS 钩子和 ASAR/原生架构/fuses/资源校验器。维护者提供真实授权公钥后，本机已生成 `release/Folio-0.1.0-beta.1-macos-arm64.dmg`；未生成 NSIS，也没有改动本机防火墙。**本地生成不等于全部平台安装验收或分发批准。**
 
 准备真实公钥后，仅在对应的原生机器/runner 执行：
 
@@ -58,7 +58,12 @@ npm run package:desktop -- --win nsis --x64
 ```sh
 npm run verify:package -- --app release/mac-arm64/Folio.app --platform darwin --arch arm64
 npm run verify:package -- --app release/win-unpacked --platform win32 --arch x64
+npm run smoke:package -- --app release/mac-arm64/Folio.app
 ```
+
+黑盒 smoke 不开启 inspector，使用临时中文/空格库和 profile，以真实 utility process/Worker 重建 PNG/primary-HEIC 缓存，检查原图、Range 视频及缺许可时拒绝写入，再验证端口关闭和库锁释放。macOS 测试进程使用 Chromium 的 mock-keychain 参数，避免自动化接触用户钥匙串；不改变生产 fuses 或正常启动参数，真实钥匙串/系统提示仍需人工验收。它不会读取生产私钥或签发真实许可。普通 `npm test` 跳过依赖实包的单个用例；原生流水线通过 `FOLIO_PACKAGE_APP` 显式运行。
+
+应用支持 `--user-data-dir=<绝对路径> --quit` 正常退出指定 profile 的现有实例；没有实例时不启动服务。该命令通过已有本机单实例机制走统一 drain，不依赖调试端口或强杀。显式退出时，加载中的空页面不执行需等页面完成加载的 JavaScript；已进入导入的页面仍等待完整队列完成。
 
 `FOLIO_DESKTOP_INTERNAL_TEST=1` 仅是**构建时**自动化 profile，输出 `release/internal/`；它只允许主进程 inspector，其他 fuses/资源/公钥规则不放宽，不能作为外发下载件。外发包必须关闭该模式并通过默认校验。该开关不是运行时授权、公钥或更新源后门。
 
@@ -70,6 +75,6 @@ Windows 安装器按机器安装并请求 UAC，应用保持 `asInvoker`。安�
 
 ## 尚未完成的发行前提
 
-维护者仍需自行在仓库外离线保管私钥，仅提供 `desktop/license-public.pem`；见 `docs/license-issuer.md`。不生成占位生产公钥，也不以测试密钥发布安装包。
+维护者已提供 `desktop/license-public.pem`；私钥继续由维护者在仓库外离线保管，见 `docs/license-issuer.md`。开发与打包只读取公钥，不以测试密钥替换生产公钥。
 
 Windows 原生安装/UAC/防火墙与更新、两种 Mac DMG、最低系统与手机真机、发行 CI 和公开 beta feed 的验收均尚未完成；后续实施将在这里补齐实际命令和验收记录。

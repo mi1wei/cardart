@@ -23,6 +23,33 @@ test('tray close keeps HTTP alive, reopens the same window and never hides witho
   } finally { await fixture.close(); }
 });
 
+test('quit during document loading does not wait forever for a renderer script that cannot execute yet', async () => {
+  const fixture = await desktopFixture();
+  let release;
+  const held = new Promise((resolve) => { release = resolve; });
+  let entered;
+  const started = new Promise((resolve) => { entered = resolve; });
+  let navigation;
+  try {
+    const { desktop, page } = await fixture.launch();
+    const origin = new URL(page.url()).origin;
+    await page.route('**/*pending-document*', async (route) => {
+      entered();
+      await held;
+      await route.continue().catch(() => {});
+    });
+    navigation = page.goto(`${origin}/?pending-document`).catch(() => {});
+    await started;
+    const closed = desktop.waitForEvent('close', { timeout: 5000 });
+    await desktop.evaluate(({ app }) => { app.quit(); });
+    await closed;
+    await expect(fetch(origin)).rejects.toThrow();
+    const { openLibrary } = await import('../server/library.js');
+    const lib = await openLibrary(fixture.library);
+    await lib.close();
+  } finally { release(); await navigation; await fixture.close(); }
+});
+
 test('explicit quit waits for the entire local upload queue before releasing the port and library', async () => {
   const fixture = await desktopFixture();
   let release;

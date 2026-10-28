@@ -293,10 +293,17 @@ export async function startServer({ dir, port = 5180, host = '0.0.0.0', dist, fa
   const lib = await openLibrary(dir);
   const handler = createHandler(lib, { license });
   const pending = new Set();
+  const writes = new Set();
+  const readers = new Set();
   let stopping = false;
   let closing;
   const server = http.createServer((req, res) => {
     if (stopping) return send(res, 503, { error: say(langOf(req), 'server-stopping') }, { Connection: 'close' });
+    const reading = ['GET', 'HEAD'].includes(req.method);
+    if (reading) {
+      readers.add(res);
+      res.once('close', () => readers.delete(res));
+    }
     const job = handler(req, res, () =>
       serveStatic(root, req, res).catch((err) => {
         if (res.headersSent) return res.destroy();
@@ -304,9 +311,10 @@ export async function startServer({ dir, port = 5180, host = '0.0.0.0', dist, fa
       }),
     );
     pending.add(job);
+    if (!reading) writes.add(job);
     job.then(
-      () => pending.delete(job),
-      (error) => { pending.delete(job); res.destroy(); console.error(error); },
+      () => { pending.delete(job); writes.delete(job); },
+      (error) => { pending.delete(job); writes.delete(job); res.destroy(); console.error(error); },
     );
   });
   const listen = (number) => new Promise((ok, bad) => {
@@ -336,8 +344,10 @@ export async function startServer({ dir, port = 5180, host = '0.0.0.0', dist, fa
         stopping = true;
         const stopped = new Promise((ok, bad) => server.close((error) => error ? bad(error) : ok()));
         server.closeIdleConnections();
+        await Promise.allSettled([...writes]);
+        for (const response of readers) response.destroy();
         await Promise.allSettled([...pending]);
-        server.closeIdleConnections();
+        server.closeAllConnections();
         try { await stopped; } finally { await lib.close(); }
       })();
       return closing;

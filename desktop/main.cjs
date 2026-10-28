@@ -19,7 +19,8 @@ async function startDesktop({ appRoot = join(__dirname, '..'), licensePublicKeyF
   const profile = selectedProfile || join(app.getPath('appData'), 'Folio');
   mkdirSync(profile, { recursive: true, mode: 0o700 });
   app.setPath('userData', realpathSync(profile));
-  if (!app.requestSingleInstanceLock()) { app.quit(); return null; }
+  const quitRequested = app.commandLine.hasSwitch('quit');
+  if (!app.requestSingleInstanceLock({ command: quitRequested ? 'quit' : 'show' }) || quitRequested) { app.quit(); return null; }
   let backend;
   let window;
   let origin;
@@ -46,7 +47,8 @@ async function startDesktop({ appRoot = join(__dirname, '..'), licensePublicKeyF
     hide: () => window.hide(),
     show: revealWindow,
     async stop() {
-      while (window && !window.isDestroyed() && !window.webContents.isDestroyed()) {
+      while (window && !window.isDestroyed() && !window.webContents.isDestroyed() &&
+        window.webContents.getURL() && !window.webContents.isLoadingMainFrame()) {
         let busy;
         try { busy = await window.webContents.executeJavaScript('document.documentElement?.hasAttribute("data-busy") === true'); }
         catch { break; }
@@ -82,6 +84,7 @@ async function startDesktop({ appRoot = join(__dirname, '..'), licensePublicKeyF
   function stop() { return lifecycle.requestShutdown({ reason: 'quit' }); }
   function quit() {
     if (lifecycle.reason === 'update' || quitJob) return;
+    void log('Folio explicit quit requested');
     quitJob = stop().then(() => app.quit()).catch(async (error) => {
       await log(error.message);
       const { response } = await dialog.showMessageBox({
@@ -93,7 +96,11 @@ async function startDesktop({ appRoot = join(__dirname, '..'), licensePublicKeyF
       if (response === 1) app.exit(1);
     });
   }
-  app.on('second-instance', showWindow);
+  app.on('second-instance', (event, argv, directory, data) => {
+    void log(`Folio second-instance command: ${data?.command === 'quit' ? 'quit' : 'show'}`);
+    if (data?.command === 'quit') quit();
+    else showWindow();
+  });
   app.on('activate', showWindow);
   app.on('before-quit', (event) => {
     if (lifecycle.state === 'quitting') return;
@@ -199,6 +206,7 @@ async function startDesktop({ appRoot = join(__dirname, '..'), licensePublicKeyF
     callback(isAllowedPermission(permission, details.requestingUrl || contents.getURL(), origin));
   });
   const langCookie = await session.defaultSession.cookies.get({ url: origin, name: 'folio_lang' });
+  if (isStopping()) return null;
   if (['zh', 'en'].includes(langCookie[0]?.value)) language = langCookie[0].value;
   window = new BrowserWindow({
     width: 1180, height: 800, minWidth: 720, minHeight: 480,
@@ -276,7 +284,9 @@ async function startDesktop({ appRoot = join(__dirname, '..'), licensePublicKeyF
     }
   });
   window.once('ready-to-show', showWindow);
-  await window.loadURL(`${origin}/`);
+  try { await window.loadURL(`${origin}/`); }
+  catch (error) { if (!isStopping()) throw error; }
+  if (isStopping()) return null;
   return { window, tray, showWindow, stop, requestShutdown: lifecycle.requestShutdown, get origin() { return origin; } };
 }
 

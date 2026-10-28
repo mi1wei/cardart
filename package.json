@@ -13,6 +13,7 @@
     "notices": "node scripts/third-party-notices.mjs",
     "package:desktop": "npm run build && electron-builder --config electron-builder.cjs --publish never",
     "verify:package": "node scripts/verify-package.mjs",
+    "smoke:package": "node scripts/package-smoke.mjs",
     "test": "node --test \"scripts/*.test.js\" \"server/*.test.js\" \"desktop/*.test.cjs\"",
     "build": "vite build",
     "preview": "vite preview",

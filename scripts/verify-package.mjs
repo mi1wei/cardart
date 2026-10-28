@@ -94,9 +94,16 @@ export async function verifyPackage({ appDir, root = project, platform = process
   const expected = await json(join(root, 'package.json'));
   const key = await publicKey(root);
   const allowedTop = new Set(['app.asar', 'app.asar.unpacked', 'web', 'legal', ...(platform === 'darwin' ? ['icon.icns', 'LICENSE.electron.txt', 'LICENSES.chromium.html'] : ['app-update.yml', 'elevate.exe'])]);
+  const electronResources = join(root, 'node_modules/electron/dist/Electron.app/Contents/Resources');
+  const locales = platform === 'darwin' ? new Set((await readdir(electronResources, { withFileTypes: true }))
+    .filter((entry) => entry.isDirectory() && entry.name.endsWith('.lproj')).map((entry) => entry.name)) : new Set();
   if ((await lstat(resources)).isSymbolicLink()) throw new Error('Unexpected resources directory symlink');
   for (const entry of await readdir(resources, { withFileTypes: true })) {
     if (entry.isSymbolicLink()) throw new Error(`Unexpected application resource symlink: ${entry.name}`);
+    if (entry.isDirectory() && locales.has(entry.name)) {
+      await sameTree(join(electronResources, entry.name), join(resources, entry.name), `resource ${entry.name}`);
+      continue;
+    }
     if (!allowedTop.has(entry.name)) throw new Error(`Unexpected application resource: ${entry.name}`);
   }
   const inventory = await json(join(resources, 'legal/inventory.json'));
@@ -144,12 +151,17 @@ export async function verifyPackage({ appDir, root = project, platform = process
   const physical = await filesIn(join(resources, 'app.asar.unpacked'));
   if (physical.join('\n') !== [...unpacked].sort().join('\n')) throw new Error('Unpacked resource whitelist differs from the ASAR header');
   const native = `${platform}-${arch}`;
-  const addon = `node_modules/@img/sharp-${native}/lib/sharp-${native}.node`;
+  const nativePackage = JSON.parse(content(`node_modules/@img/sharp-${native}/package.json`));
+  const addon = `node_modules/@img/sharp-${native}/lib/sharp-${native}-${nativePackage.version}.node`;
   architecture(content(addon), platform, arch, addon);
   const vips = payload.filter((name) => name.startsWith(`node_modules/@img/sharp-libvips-${native}/lib/`) && /\.(dll|dylib)$/.test(name));
   if (!vips.length) throw new Error('Missing unpacked native libvips binary');
   for (const name of payload.filter((name) => /\.(node|dll|dylib)$/.test(name))) architecture(content(name), platform, arch, name);
-  for (const name of ['node_modules/sharp/lib/index.js', 'node_modules/libheif-js/wasm-bundle.js', 'node_modules/libheif-js/libheif-wasm/libheif-bundle.js']) content(name);
+  const sharpPackage = JSON.parse(content('node_modules/sharp/package.json'));
+  const sharpEntries = [sharpPackage.main, sharpPackage.exports?.['.']?.import?.default, sharpPackage.exports?.['.']?.require?.default];
+  if (!sharpEntries[0]) throw new Error('Missing sharp package entry point');
+  for (const entry of sharpEntries.filter(Boolean)) content(`node_modules/sharp/${entry.replace(/^\.\//, '')}`);
+  for (const name of ['node_modules/libheif-js/wasm-bundle.js', 'node_modules/libheif-js/libheif-wasm/libheif-bundle.js']) content(name);
   const web = await sameTree(join(root, 'dist'), join(resources, 'web'), 'web');
   if (!web.includes('index.html')) throw new Error('Missing web/index.html');
   for (const name of web) if (!permittedWeb(name)) throw new Error(`Unexpected web resource: ${name}`);

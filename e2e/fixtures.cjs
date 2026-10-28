@@ -38,12 +38,13 @@ async function desktopFixture({ license = 'active' } = {}) {
   }
   return {
     root, profile, library, keyFile, licenseFile, envelope, issueLicense, stop,
-    async launch() {
+    async launch({ args = [], waitForReady = true } = {}) {
       desktop = await _electron.launch({
-        args: [join(__dirname, 'desktop-entry.cjs'), `--user-data-dir=${profile}`],
+        args: [join(__dirname, 'desktop-entry.cjs'), `--user-data-dir=${profile}`, ...args],
         env: { ...process.env, ALBUM_LIBRARY: library, FOLIO_E2E_KEY_FILE: keyFile },
         chromiumSandbox: true, bypassCSP: false,
       });
+      if (!waitForReady) return { desktop };
       await expect.poll(() => desktop.evaluate(() => !!global.folioTestDesktop)).toBe(true);
       const page = await desktop.firstWindow();
       const session = await desktop.context().newCDPSession(page);
