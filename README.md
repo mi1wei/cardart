@@ -39,7 +39,7 @@ npm start
 
 ## 桌面内测开发与分发
 
-已加入 Electron 桌面壳、离线 JSON 授权、托盘和更新协调；Apple Silicon 本地 DMG 已构建验证。Windows/Intel 包、远程 CI、真机与完整发行验收尚未完成，未发布公开更新通道。桌面使用维护者提供的授权公钥；私钥必须保存在仓库外，签发见 `docs/license-issuer.md`。CLI/Vite 保留明确开发模式，不代表桌面应用已获授权。
+已加入 Electron 桌面壳、离线 JSON 授权、托盘和更新协调；当前内测仅支持 Windows 11 x64 与 macOS 13+ Apple Silicon（arm64），Intel Mac 暂不支持。原生打包与技术验证以对应源码的 CI 结果为准；真机与完整发行验收尚未完成，未发布公开更新通道。桌面使用维护者提供的授权公钥；私钥必须保存在仓库外，签发见 `docs/license-issuer.md`。CLI/Vite 保留明确开发模式，不代表桌面应用已获授权。
 
 `npm run notices` 生成当前原生目标的第三方清单与声明 ZIP。生成成功不代表已获分发许可；对应源码、LGPL 替换、编解码器及素材权利等仍需审阅。分发门槛和当前限制见 [桌面发行说明](docs/desktop-release.md)。
 

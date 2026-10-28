@@ -40,7 +40,7 @@ export async function createReleaseManifest({ input, output, root = project, ver
     if (candidates.some((candidate) => candidate.report.target === report.target)) throw new Error('Duplicate candidate target');
     candidates.push({ folder, report });
   }
-  if (candidates.length !== 3 || releaseTargets.some((target) => !candidates.some((entry) => entry.report.target === target))) throw new Error('All three native target candidates are required');
+  if (candidates.length !== releaseTargets.length || releaseTargets.some((target) => !candidates.some((entry) => entry.report.target === target))) throw new Error('Exactly the supported native target candidates are required');
   candidates.sort((a, b) => a.report.target.localeCompare(b.report.target, 'en'));
   for (const candidate of candidates) candidate.legal = await verifyCandidateFiles({ ...candidate, root, version, tag, sourceCommit });
   await mkdir(dirname(output), { recursive: true });
@@ -80,7 +80,7 @@ export async function createReleaseManifest({ input, output, root = project, ver
       `# Folio ${version} (unsigned beta)`, '',
       `Source commit: ${sourceCommit}`, '',
       'Windows x64: unsigned per-machine NSIS; UAC and unknown-publisher/SmartScreen prompts may apply.',
-      'macOS Intel/Apple Silicon: separate ad-hoc DMGs; not notarized. Do not disable system protections.',
+      'macOS Apple Silicon (arm64): ad-hoc DMG; not notarized. Intel Macs are not currently supported. Do not disable system protections.',
       'Obtain a signed Folio JSON license privately. No valid license or expiry means read-only; originals are preserved.',
       'Closing the window keeps the tray/service alive; choose Quit to stop phone access.',
       'Windows updates require separate download/install confirmation. Mac updates are manual replacement after Quit.',

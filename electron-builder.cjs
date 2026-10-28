@@ -61,7 +61,7 @@ module.exports = {
     installerLanguages: ['en_US', 'zh_CN'],
   },
   mac: {
-    target: ['dmg'],
+    target: [{ target: 'dmg', arch: ['arm64'] }],
     icon: 'public/icons/folio.icns',
     artifactName: 'Folio-${version}-macos-${arch}.${ext}',
     minimumSystemVersion: '13.0',

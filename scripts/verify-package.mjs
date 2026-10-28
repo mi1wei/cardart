@@ -9,7 +9,7 @@ import yaml from 'js-yaml';
 import { parseLicensePublicKey } from '../server/license.js';
 
 const project = resolve(fileURLToPath(new URL('../', import.meta.url)));
-const targets = new Set(['darwin-arm64', 'darwin-x64', 'win32-x64']);
+const targets = new Set(['darwin-arm64', 'win32-x64']);
 const hash = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const json = async (file) => JSON.parse(await readFile(file, 'utf8'));
 

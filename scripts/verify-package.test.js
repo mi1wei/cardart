@@ -110,13 +110,19 @@ async function fixture(t, { platform = 'darwin', arch = 'arm64', extra = {}, add
   return { root, source, appDir, resources, fuseFile, privateKey, addon, platform, arch, file };
 }
 
-test('package verification accepts the three thin target layouts without treating fixtures as runtime acceptance', async (t) => {
-  for (const [platform, arch] of [['darwin', 'arm64'], ['darwin', 'x64'], ['win32', 'x64']]) {
+test('package verification accepts the supported thin target layouts without treating fixtures as runtime acceptance', async (t) => {
+  for (const [platform, arch] of [['darwin', 'arm64'], ['win32', 'x64']]) {
     const f = await fixture(t, { platform, arch });
     const result = await verifyPackage(f);
     assert.equal(result.version, '0.1.0-beta.1');
     assert.equal(result.target, `${platform}-${arch}`);
   }
+});
+
+test('Intel macOS packages and source builds are explicitly unsupported while support is deferred', async (t) => {
+  const f = await fixture(t, { platform: 'darwin', arch: 'x64' });
+  await assert.rejects(verifyPackage(f), /unsupported package target/i);
+  await assert.rejects(validateSourceInputs(f), /unsupported installer target/i);
 });
 
 test('host-native ASAR list separators do not change the canonical archive contents', async (t) => {

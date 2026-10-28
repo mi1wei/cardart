@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { validateAcceptance, requirePublishProtection, publishDesktopRelease } from './publish-desktop-release.mjs';
 
-const targets = ['darwin-arm64', 'darwin-x64', 'win32-x64'];
+const targets = ['darwin-arm64', 'win32-x64'];
 const checks = {
   licenseStates: true, tamperedLicenseRejected: true, phoneReadOnly: true, photoAndHeic: true,
   viewerFullscreenLanguages: true, trayAndExit: true, portAndNetworks: true, windowsUacFirewall: true,
@@ -29,7 +29,7 @@ const record = { version: 1, candidates: [entry] };
 test('publication acceptance binds every minimum-system result and manual check to these exact installers', () => {
   const accepted = validateAcceptance({ manifest, record });
   assert.equal(accepted.sourceCommit, manifest.sourceCommit);
-  assert.equal(accepted.systems.length, 3);
+  assert.equal(accepted.systems.length, 2);
   assert.equal(accepted.publicUpdateFeedVerified, false);
   assert.throws(() => validateAcceptance({ manifest, record: { version: 1, candidates: [] } }), /acceptance/i);
   assert.throws(() => validateAcceptance({ manifest, record: { version: 1, candidates: [{ ...entry, checks: { ...checks, windowsUacFirewall: false } }] } }), /windowsUacFirewall|acceptance/i);
@@ -39,6 +39,14 @@ test('publication acceptance binds every minimum-system result and manual check 
   assert.throws(() => validateAcceptance({ manifest, record: { version: 1, candidates: [{
     ...entry, systems: [{ ...entry.systems[0], osVersion: '15.0' }, ...entry.systems.slice(1)],
   }] } }), /minimum|13/i);
+});
+
+test('manual acceptance rejects a legacy Intel target instead of extending the supported release', () => {
+  const intel = { ...entry.systems[0], target: 'darwin-x64', installerSha256: '3'.repeat(64) };
+  const legacy = { ...manifest, artifacts: [...manifest.artifacts, { target: intel.target, role: 'installer', sha256: intel.installerSha256 }] };
+  assert.throws(() => validateAcceptance({
+    manifest: legacy, record: { version: 1, candidates: [{ ...entry, systems: [...entry.systems, intel] }] },
+  }), /target/i);
 });
 
 test('an absent or empty reviewer protection rule is not a protected publication environment', () => {
@@ -66,7 +74,6 @@ async function publicationFixture(t, dropUploadedAcceptance = false) {
   const version = manifest.version;
   const files = {
     [`Folio-${version}-macos-arm64.dmg`]: 'Owned ARM fixture',
-    [`Folio-${version}-macos-x64.dmg`]: 'Owned Intel fixture',
     [`Folio-${version}-windows-x64-setup.exe`]: 'Owned Windows fixture',
     [`Folio-${version}-windows-x64-setup.exe.blockmap`]: 'Owned blockmap fixture',
     [`Folio-${version}-third-party-licenses.zip`]: 'Owned legal fixture',
@@ -75,7 +82,7 @@ async function publicationFixture(t, dropUploadedAcceptance = false) {
   const hash = (value) => createHash('sha256').update(value).digest('hex');
   const declarations = Object.entries(files).map(([name, value], i) => ({
     name, size: Buffer.byteLength(value), sha256: hash(value),
-    ...(i < 3 ? { target: targets[i], role: 'installer' } : {}),
+    ...(i < 2 ? { target: targets[i], role: 'installer' } : {}),
   }));
   const source = {
     ...manifest, schemaVersion: 1, distributionApproved: true, notarized: false,

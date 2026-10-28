@@ -26,12 +26,6 @@ jobs:
             build: --win nsis --x64
             app: release/win-unpacked
             artifact: windows-x64-setup.exe
-          - runner: macos-15-intel
-            platform: darwin
-            arch: x64
-            build: --mac dmg --x64
-            app: release/mac/Folio.app
-            artifact: macos-x64.dmg
           - runner: macos-15
             platform: darwin
             arch: arm64
@@ -47,7 +41,6 @@ jobs:
       SHARP_IGNORE_GLOBAL_LIBVIPS: "1"
       EXPECTED_PLATFORM: ${{ matrix.platform }}
       EXPECTED_ARCH: ${{ matrix.arch }}
-      FOLIO_E2E_SOFTWARE_GL: ${{ matrix.platform == 'darwin' && matrix.arch == 'x64' && '1' || '0' }}
       TARGET_BUILD: ${{ matrix.build }}
       APP_DIR: ${{ matrix.app }}
       ARTIFACT_SUFFIX: ${{ matrix.artifact }}

@@ -31,7 +31,7 @@ async function fixture(t) {
   await mkdir(input);
   await mkdir(join(root, 'licenses'));
   const approvals = [];
-  const targets = ['darwin-arm64', 'darwin-x64', 'win32-x64'];
+  const targets = ['darwin-arm64', 'win32-x64'];
   const reports = [];
   for (const target of targets) {
     const folder = join(input, target);
@@ -77,14 +77,14 @@ async function fixture(t) {
   return { root, input, output, version, tag, sourceCommit: commit, reports };
 }
 
-test('aggregation creates exactly three installers, one combined legal ZIP and verified Windows update files', async (t) => {
+test('aggregation creates only Windows x64 and Apple Silicon installers with combined legal and update files', async (t) => {
   const f = await fixture(t);
   const manifest = await createReleaseManifest(f);
   assert.equal(manifest.sourceCommit, commit);
   assert.equal(manifest.notarized, false);
-  assert.equal(manifest.artifacts.filter((file) => file.role === 'installer').length, 3);
+  assert.equal(manifest.artifacts.filter((file) => file.role === 'installer').length, 2);
   assert.deepEqual((await readdir(f.output)).sort(), [
-    `Folio-${version}-macos-arm64.dmg`, `Folio-${version}-macos-x64.dmg`,
+    `Folio-${version}-macos-arm64.dmg`,
     `Folio-${version}-third-party-licenses.zip`,
     `Folio-${version}-windows-x64-setup.exe`, `Folio-${version}-windows-x64-setup.exe.blockmap`,
     'SHA256SUMS', 'beta.yml', 'release-manifest.json', 'release-notes.md',
@@ -94,11 +94,19 @@ test('aggregation creates exactly three installers, one combined legal ZIP and v
   assert.match(sums, /release-manifest\.json/);
 });
 
+test('a deferred Intel candidate cannot join the supported release targets', async (t) => {
+  const f = await fixture(t);
+  const folder = join(f.input, 'darwin-x64');
+  await mkdir(folder);
+  await writeFile(join(folder, 'candidate-report.json'), JSON.stringify({ ...f.reports[0].report, target: 'darwin-x64' }));
+  await assert.rejects(createReleaseManifest(f), /target/i);
+});
+
 test('a missing architecture, stale commit or duplicate target cannot become a release candidate', async (t) => {
   const f = await fixture(t);
   const [first, second] = f.reports;
   await rm(join(first.folder, 'candidate-report.json'));
-  await assert.rejects(createReleaseManifest(f), /missing|three|target/i);
+  await assert.rejects(createReleaseManifest(f), /missing|target/i);
   await writeFile(join(first.folder, 'candidate-report.json'), JSON.stringify({ ...first.report, sourceCommit: 'b'.repeat(40) }));
   await assert.rejects(createReleaseManifest(f), /commit/i);
   await writeFile(join(first.folder, 'candidate-report.json'), JSON.stringify({ ...second.report }));

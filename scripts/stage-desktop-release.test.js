@@ -6,21 +6,22 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { stageDraftRelease } from './stage-desktop-release.mjs';
 
-async function fixture(t) {
+async function fixture(t, { includeIntel = false } = {}) {
   const directory = await mkdtemp(join(tmpdir(), 'folio-draft-fixture-'));
   t.after(() => rm(directory, { recursive: true, force: true }));
   const version = '0.1.0-beta.1';
   const payloads = {
     [`Folio-${version}-macos-arm64.dmg`]: 'owned arm64 fixture',
-    [`Folio-${version}-macos-x64.dmg`]: 'owned x64 fixture',
     [`Folio-${version}-windows-x64-setup.exe`]: 'owned Windows fixture',
     [`Folio-${version}-windows-x64-setup.exe.blockmap`]: 'owned blockmap fixture',
     [`Folio-${version}-third-party-licenses.zip`]: 'owned legal fixture',
     'beta.yml': 'owned beta fixture',
   };
+  if (includeIntel) payloads[`Folio-${version}-macos-x64.dmg`] = 'owned deferred Intel fixture';
   const sha = (value) => createHash('sha256').update(value).digest('hex');
   const manifest = {
     schemaVersion: 1, version, tag: `v${version}`, sourceCommit: 'a'.repeat(40), distributionApproved: true,
+    targets: ['darwin-arm64', 'win32-x64', ...(includeIntel ? ['darwin-x64'] : [])].map((target) => ({ target })),
     artifacts: Object.entries(payloads).map(([name, value]) => ({ name, size: Buffer.byteLength(value), sha256: sha(value) })),
   };
   payloads['release-manifest.json'] = JSON.stringify(manifest);
@@ -74,6 +75,13 @@ test('a corrupted local whitelist is rejected before making any GitHub call', as
   assert.equal(requests, 0);
 });
 
+test('an old whitelist containing an Intel installer is rejected before any GitHub call', async (t) => {
+  const f = await fixture(t, { includeIntel: true });
+  let requests = 0;
+  await assert.rejects(stageDraftRelease({ directory: f.directory, gh: async () => { requests++; return ''; } }), /target|whitelist|unexpected/i);
+  assert.equal(requests, 0);
+});
+
 test('a newly created draft is resolved through the draft-capable CLI and numeric release ID', async (t) => {
   const f = await fixture(t);
   f.release.assets = [];
@@ -92,6 +100,6 @@ test('a newly created draft is resolved through the draft-capable CLI and numeri
     return '';
   } });
   assert.equal(result.created, true);
-  assert.equal(result.uploaded, 9);
+  assert.equal(result.uploaded, 8);
   assert.equal(result.published, false);
 });

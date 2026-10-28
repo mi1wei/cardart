@@ -1,12 +1,11 @@
 const { _electron } = require('playwright');
 const { expect } = require('@playwright/test');
 const { generateKeyPairSync, sign } = require('node:crypto');
-const { constants } = require('node:fs');
-const { cp, mkdtemp, mkdir, realpath, symlink, writeFile, rm } = require('node:fs/promises');
+const { mkdtemp, mkdir, writeFile, rm } = require('node:fs/promises');
 const { tmpdir } = require('node:os');
-const { dirname, join, resolve, sep } = require('node:path');
+const { join } = require('node:path');
 
-async function desktopFixture({ license = 'active', softwareGL = false } = {}) {
+async function desktopFixture({ license = 'active' } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'folio-desktop-e2e-'));
   const profile = join(root, 'Profile with spaces');
   const library = join(root, '\u76f8\u518c\u5e93 with spaces');
@@ -28,7 +27,6 @@ async function desktopFixture({ license = 'active', softwareGL = false } = {}) {
   await writeFile(licenseFile, JSON.stringify(envelope));
   if (license !== 'missing') await writeFile(join(profile, 'license.json'), JSON.stringify(envelope));
   let desktop;
-  let executablePath;
   async function stop() {
     if (desktop?.context().pages().length) {
       // Playwright closes its Node inspector immediately after app.quit(), before an async drain finishes.
@@ -41,23 +39,8 @@ async function desktopFixture({ license = 'active', softwareGL = false } = {}) {
   return {
     root, profile, library, keyFile, licenseFile, envelope, issueLicense, stop,
     async launch({ args = [], waitForReady = true } = {}) {
-      if (softwareGL && !executablePath) {
-        if (process.platform !== 'darwin') throw new Error('The software WebGL fixture requires macOS');
-        // ANGLE expects a Vulkan loader name; alias the bundled ICD only in an owned copy.
-        const bundle = join(root, 'Software Electron.app');
-        await cp(resolve(dirname(require('electron')), '../..'), bundle, {
-          recursive: true, verbatimSymlinks: true, mode: constants.COPYFILE_FICLONE,
-        });
-        const libraries = await realpath(join(bundle, 'Contents/Frameworks/Electron Framework.framework/Libraries'));
-        if (!libraries.startsWith(await realpath(bundle) + sep)) throw new Error('The copied runtime escaped its owned bundle');
-        await symlink('libvk_swiftshader.dylib', join(libraries, 'libvulkan.dylib'));
-        executablePath = join(bundle, 'Contents/MacOS/Electron');
-      }
-      const graphics = softwareGL
-        ? ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--force-device-scale-factor=1'] : [];
       desktop = await _electron.launch({
-        executablePath,
-        args: [join(__dirname, 'desktop-entry.cjs'), `--user-data-dir=${profile}`, ...graphics, ...args],
+        args: [join(__dirname, 'desktop-entry.cjs'), `--user-data-dir=${profile}`, ...args],
         env: { ...process.env, ALBUM_LIBRARY: library, FOLIO_E2E_KEY_FILE: keyFile },
         chromiumSandbox: true, bypassCSP: false,
       });

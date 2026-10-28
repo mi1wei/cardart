@@ -3,7 +3,7 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFile } from 'node:child_process';
 import { parseArgs, promisify } from 'node:util';
-import { fileDigest } from './verify-release.mjs';
+import { fileDigest, releaseTargets } from './verify-release.mjs';
 import { validateReleaseIdentity } from './create-release-manifest.mjs';
 
 export const releaseRepository = 'mi1wei/cardart';
@@ -12,7 +12,7 @@ const executeGitHub = async (args) => (await run('gh', args)).stdout;
 
 export function releaseFileNames(version) {
   return [
-    `Folio-${version}-macos-arm64.dmg`, `Folio-${version}-macos-x64.dmg`,
+    `Folio-${version}-macos-arm64.dmg`,
     `Folio-${version}-windows-x64-setup.exe`, `Folio-${version}-windows-x64-setup.exe.blockmap`,
     `Folio-${version}-third-party-licenses.zip`, 'beta.yml',
     'release-manifest.json', 'release-notes.md', 'SHA256SUMS',
@@ -25,8 +25,10 @@ export async function readReleaseWhitelist(directory) {
   const manifest = JSON.parse(await readFile(join(directory, 'release-manifest.json'), 'utf8'));
   validateReleaseIdentity(manifest);
   if (manifest.schemaVersion !== 1 || manifest.distributionApproved !== true) throw new Error('Release distribution review is incomplete');
+  if (!Array.isArray(manifest.targets) || manifest.targets.length !== releaseTargets.length ||
+    releaseTargets.some((target) => !manifest.targets.some((entry) => entry.target === target))) throw new Error('Release must contain exactly the supported native targets');
   const { version } = manifest;
-  const artifacts = new Set(releaseFileNames(version).slice(0, 6));
+  const artifacts = new Set(releaseFileNames(version).slice(0, -3));
   if (manifest.artifacts?.length !== artifacts.size || new Set(manifest.artifacts.map((file) => file.name)).size !== artifacts.size ||
     manifest.artifacts.some((file) => !artifacts.has(file.name))) throw new Error('Release artifact whitelist is incomplete or unexpected');
   const names = new Set([...artifacts, 'release-manifest.json', 'release-notes.md', 'SHA256SUMS']);

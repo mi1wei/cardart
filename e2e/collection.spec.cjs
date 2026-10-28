@@ -5,9 +5,7 @@ const sharp = require('sharp');
 const { desktopFixture } = require('./fixtures.cjs');
 
 test('background JPG and HEIC imports support dedup, pointer reorder, 3D, fullscreen and cache reconstruction', async () => {
-  const softwareGL = process.env.FOLIO_E2E_SOFTWARE_GL === '1';
-  if (softwareGL) test.setTimeout(180000);
-  const fixture = await desktopFixture({ softwareGL });
+  const fixture = await desktopFixture();
   let release;
   const held = new Promise((resolve) => { release = resolve; });
   let entered;
@@ -61,7 +59,7 @@ test('background JPG and HEIC imports support dedup, pointer reorder, 3D, fullsc
     page.on('pageerror', (error) => { if (rendererErrors.length < 5) rendererErrors.push(error.message.slice(0, 1000)); });
     await page.locator('.album-page .acts.normal [data-act="3d"]').click();
     console.log('Owned collection phase: opening 3D');
-    try { await expect(page.locator('.ab canvas')).toBeVisible({ timeout: softwareGL ? 30000 : undefined }); }
+    try { await expect(page.locator('.ab canvas')).toBeVisible(); }
     catch (error) {
       const viewer = await page.evaluate(() => ({
         present: !!document.querySelector('.ab'),
@@ -73,16 +71,6 @@ test('background JPG and HEIC imports support dedup, pointer reorder, 3D, fullsc
       throw error;
     }
     await expect(page.locator('.ab')).not.toHaveAttribute('data-error', '');
-    if (softwareGL) {
-      const renderer = await page.locator('.ab canvas').evaluate((canvas) => {
-        const gl = canvas.getContext('webgl2');
-        const info = gl.getExtension('WEBGL_debug_renderer_info');
-        return gl.getParameter(info ? info.UNMASKED_RENDERER_WEBGL : gl.RENDERER);
-      });
-      expect(renderer).toMatch(/SwiftShader/i);
-      expect(await desktop.evaluate(({ app }) => app.getGPUFeatureStatus().gpu_compositing),
-        'The software fixture must retain window compositing for native fullscreen').toBe('enabled');
-    }
     console.log('Owned collection phase: 3D ready');
     await page.locator('.ab select').selectOption('1');
     // Rendering can outlive an idle keepalive; retry a reset once on this read only.
@@ -133,9 +121,6 @@ test('background JPG and HEIC imports support dedup, pointer reorder, 3D, fullsc
       } catch (probeError) {
         console.log('Owned collection fresh HTTP probe failed:', probeError.cause?.code || probeError.name);
       }
-    }
-    if (softwareGL && page && !page.isClosed()) {
-      await page.locator('.ab-bar [data-act=close]').press('Enter', { timeout: 5000 }).catch(() => {});
     }
     throw error;
   } finally { release(); await fixture.close(); }

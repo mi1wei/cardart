@@ -22,7 +22,8 @@ export function validateAcceptance({ manifest, record }) {
   const entry = record?.version === 1 && record.candidates?.find((value) => value.tag === manifest.tag && value.sourceCommit === manifest.sourceCommit);
   if (!entry) throw new Error('Exact candidate manual acceptance is required');
   for (const name of acceptanceChecks) if (entry.checks?.[name] !== true) throw new Error(`Manual acceptance is incomplete: ${name}`);
-  if (!Array.isArray(entry.systems) || entry.systems.length !== 3 || new Set(entry.systems.map((system) => system.target)).size !== 3) throw new Error('Manual acceptance requires all three minimum-system targets');
+  if (!Array.isArray(entry.systems) || entry.systems.length !== releaseTargets.length ||
+    new Set(entry.systems.map((system) => system.target)).size !== releaseTargets.length) throw new Error('Manual acceptance requires exactly the supported minimum-system targets');
   const systems = releaseTargets.map((target) => {
     const system = entry.systems.find((system) => system.target === target);
     const installer = manifest.artifacts.find((artifact) => artifact.target === target && artifact.role === 'installer');

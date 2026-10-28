@@ -18,7 +18,7 @@ import { requireDistributionApproval } from './third-party-notices.mjs';
 const project = resolve(fileURLToPath(new URL('../', import.meta.url)));
 const run = promisify(execFile);
 const digest = (bytes) => createHash('sha256').update(bytes).digest('hex');
-export const releaseTargets = ['darwin-arm64', 'darwin-x64', 'win32-x64'];
+export const releaseTargets = ['darwin-arm64', 'win32-x64'];
 
 export async function fileDigest(file) {
   const info = await lstat(file);

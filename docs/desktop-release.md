@@ -1,6 +1,6 @@
 # Folio 桌面内测发行准备
 
-已在本机生成 Apple Silicon 的本地 ad-hoc DMG 候选，并检查生产 fuses、原生缓存、只读授权和退出；三平台技术检查以对应源码提交的 Actions 结果为准，完整发行仍受分发审查和人工验收阻断。本机或 CI 结果不等于干净系统、quarantine、真机或分发许可验收通过。
+当前桌面内测仅支持 **Windows 11 x64 和 macOS 13+ Apple Silicon（arm64）**，Intel Mac 暂不支持，也不参与构建、候选汇总或发布验收。已在本机生成 Apple Silicon 的本地 ad-hoc DMG 候选；两个目标的技术检查以对应源码提交的 Actions 结果为准，完整发行仍受分发审查和人工验收阻断。本机或 CI 结果不等于干净系统、quarantine、真机或分发许可验收通过。
 
 ## 第三方材料
 
@@ -38,20 +38,18 @@ npm run notices -- --require-distribution-approval
 
 ## 原生安装器配置与校验
 
-已加入 `electron-builder.cjs`、固定私网规则的 NSIS 钩子和 ASAR/原生架构/fuses/资源校验器。维护者提供真实授权公钥后，本机已生成 `release/Folio-0.1.0-beta.1-macos-arm64.dmg`；未生成 NSIS，也没有改动本机防火墙。**本地生成不等于全部平台安装验收或分发批准。**
+已加入 `electron-builder.cjs`、固定私网规则的 NSIS 钩子和 ASAR/原生架构/fuses/资源校验器。维护者提供真实授权公钥后，本机已生成 Apple Silicon DMG，Windows 原生 CI 也已编译 NSIS 并校验成品；没有改动本机防火墙。**技术构建通过不等于两个目标的真实安装验收或分发批准。**
 
 准备真实公钥后，仅在对应的原生机器/runner 执行：
 
 ```sh
 # Apple Silicon
 npm run package:desktop -- --mac dmg --arm64
-# Intel Mac，不以 Rosetta 验证替代
-npm run package:desktop -- --mac dmg --x64
 # Windows x64
 npm run package:desktop -- --win nsis --x64
 ```
 
-三个命令不是在同一台 Mac 上交叉构建。依赖按当前平台执行 `npm ci --include=optional`，并设置 `SHARP_IGNORE_GLOBAL_LIBVIPS=1`。构建脚本始终 `--publish never`，禁用证书自动发现；Windows 未签名，Mac 仅本地 ad-hoc，不公证。
+这两个命令分别在对应原生平台执行，不在同一台 Mac 上交叉构建。依赖按当前平台执行 `npm ci --include=optional`，并设置 `SHARP_IGNORE_GLOBAL_LIBVIPS=1`。构建脚本始终 `--publish never`，禁用证书自动发现；Windows 未签名，Mac 仅本地 ad-hoc，不公证。配置与资源校验器均拒绝 macOS x64 安装器目标。
 
 构建前校验固定公钥和原生目标；完成全部 target 后检查真实文件内容，包括 ASAR 白名单、原生模块解包/架构、WASM 文件、web/legal 与输入一致、原始 Electron 声明、公钥、图标、更新 feed 和 fuses。使用最终阶段而不是只依赖 `afterSign`：未签名 Windows 会跳过该事件，NSIS 的提权 helper 也在后续才写入解包目录。
 
@@ -81,29 +79,29 @@ Windows 安装版启动后只检查固定 GitHub beta 更新源；不会自动�
 
 更新文件的 SHA-512 由 electron-updater 保留校验；未签名内测没有 Authenticode 发行者认证，校验和不能替代它。下载未通过校验、版本不匹配或 drain 失败都不能启动安装器。若退出已经开始再失败，不恢复编辑或假称服务仍可用；保留相册/授权并提供明确的退出提示。
 
-Mac 只显示手动下载入口：用户确认后打开固定 Releases 页面，下载匹配芯片的 DMG，先从托盘退出再覆盖应用。不会初始化 Squirrel.Mac 或自动安装，也不生成 Mac 更新元数据。源码开发不联系真实 Windows feed。
+Mac 只显示手动下载入口：用户确认后打开固定 Releases 页面，下载 Apple Silicon（arm64）DMG，先从托盘退出再覆盖应用；当前没有 Intel 下载件。不会初始化 Squirrel.Mac 或自动安装，也不生成 Mac 更新元数据。源码开发不联系真实 Windows feed。
 
 控制流、主进程/托盘菜单及 Mac 只读入口已有自动化测试；**两个递增 Windows 安装包的受控下载/损坏校验/升级/UAC 取消/照片授权保留尚未原生验收**。GitHub 公共 feed 也没有发布或实测，不以这些源码测试代替上述结果。
 
 ## 原生 CI 与候选白名单
 
-`desktop-checks.yml` 在 `windows-2022` x64、`macos-15-intel` x64 和 `macos-15` arm64 运行源码/桌面测试、原生构建及成品检查。只缓存 npm 下载，不跨平台复用 node_modules；普通 PR 检查不上传二进制，也不取得发布写权限。官方 Actions 固定到已核对的完整 commit SHA。
+`desktop-checks.yml` 在 `windows-2022` x64 和 `macos-15` arm64 运行源码/桌面测试、原生构建及成品检查。只缓存 npm 下载，不跨平台复用 node_modules；普通 PR 检查不上传二进制，也不取得发布写权限。官方 Actions 固定到已核对的完整 commit SHA。
 
-Intel CI 的相册交互夹具通过 `FOLIO_E2E_SOFTWARE_GL=1` 显式使用 SwiftShader 完整驱动模式：仅在临时原生 Electron 副本内，将随包 SwiftShader 映射到 ANGLE 查找的 Vulkan 加载器名称，以 1x 比例运行，同时断言实际 SwiftShader renderer 和启用的窗口合成；不使用关闭窗口合成的 WebGL-only 回退模式。保留与硬件路径相同的真实鼠标、3D、翻页、原生全屏事件及保存检查。相对框架链接保留在副本内；已安装 Electron、成品运行时、沙箱、上下文隔离和 CSP 均不改。软件路径不证明真实 GPU、Retina 性能或最低系统兼容性。
+两个目标均运行完整桌面测试，包括真实鼠标、3D、翻页、原生全屏事件和保存检查。Intel 专用的软件渲染副本、驱动参数与延长时限已移除；沙箱、上下文隔离和 CSP 保持开启。暂缓支持不代表此前 Intel 虚拟机的全屏超时已修复，后续恢复支持须重新原生验收。
 
 成品 package.json 记录实际 source commit 与 dirty 状态。`verify:release` 只接受与当前干净源码一致的生产包，并验证签名结构/未签名状态、真实运行与只读 DMG；不把较新 runner 当成最低系统或干净设备验收。Windows 的 `beta.yml` 必须匹配本次安装器的版本、文件名、size、SHA-512 和提权标记；blockmap 的每个 BLAKE2b-18 块都对照实际文件验证。
 
-`desktop-release.yml` 仅构建已存在且版本一致的 beta tag。每个原生目标通过精确输入的分发审查后才允许上传 Actions Artifact；法律门槛未通过时不会泄露可下载产物。汇总必须收到三个目标，拒绝旧 commit、缺架构、重复目标、哈希变化或多余文件；将三套 legal 材料合成一个 ZIP，并生成 `SHA256SUMS`、`release-manifest.json` 和下载说明。
+`desktop-release.yml` 仅构建已存在且版本一致的 beta tag。每个原生目标通过精确输入的分发审查后才允许上传 Actions Artifact；法律门槛未通过时不会泄露可下载产物。汇总必须且只能收到 `win32-x64` 和 `darwin-arm64` 两个目标，拒绝旧 commit、缺架构、重复目标、额外 Intel 目标、哈希变化或多余文件；将两套 legal 材料合成一个 ZIP，并生成 `SHA256SUMS`、`release-manifest.json` 和下载说明。草稿和公开发布白名单也只接受这两个安装器。
 
 只有汇总 job 有 Release 写权限，且 builder 始终 `--publish never`。草稿阶段只上传白名单，重试只补同 tag/commit 下缺少的文件；已有公开版本、不同源 commit 或不同哈希的同名资产均拒绝覆盖。草稿不是已发布的 updater feed。请为 `desktop-candidates` 配置适当的 GitHub Environment 审批，最终公开发布还需独立保护。
 
-这些工作流已在真实原生 runner 上运行，具体技术状态以每个提交的 Actions 结果为准；配置校验或单个平台通过不能代替三平台成品检查。PR 不上传安装器，分发门槛未通过时也不能从候选流程下载二进制。
+这些工作流已在真实原生 runner 上运行，具体技术状态以每个提交的 Actions 结果为准；配置校验或单个平台通过不能代替两个受支持目标的成品检查。PR 不上传安装器，分发门槛未通过时也不能从候选流程下载二进制。
 
 ## 人工验收与公开 beta 发布
 
 `licenses/desktop-acceptance.json` 默认 `candidates: []`，当前没有完整真机验收记录。**不要把本机 smoke、CI runner、模拟的 GitHub 边界测试或未签名的正常提示填成通过。**
 
-每个候选记录精确的 `tag`、40 位 `sourceCommit`，并为三个目标提供 `systems`：`target`、`os`、实际 `osVersion`、实际安装器 `installerSha256` 和 `passed`。Windows 记录 `os: "Windows 11"`；两种 Mac 必须有 `os: "macOS"`、`osVersion: "13.x"` 的最低系统验收。可以另保留较新系统的测试证据，但不能替代这三个最低目标。
+每个候选记录精确的 `tag`、40 位 `sourceCommit`，并为 `win32-x64`、`darwin-arm64` 两个目标提供 `systems`：`target`、`os`、实际 `osVersion`、实际安装器 `installerSha256` 和 `passed`。Windows 记录 `os: "Windows 11"`；Apple Silicon 必须有 `os: "macOS"`、`osVersion: "13.x"` 的最低系统验收。可以另保留较新系统的测试证据，但不能替代这两个最低目标；当前验收记录不接受额外 Intel 目标。
 
 候选的 `checks` 需逐项完成并记录为 `true`；没有完成保持 `false`，不能用空记录或占位哈希发布：
 
@@ -136,7 +134,8 @@ Intel CI 的相册交互夹具通过 `FOLIO_E2E_SOFTWARE_GL=1` 显式使用 Swif
 | 项目 | 当前证据 |
 |---|---|
 | Apple Silicon 本地 DMG | 已生成，生产 fuses/原生缓存/Range/只读授权/正常退出/只读镜像运行/ad-hoc 与镜像完整性通过；不是公证或下载件验收 |
-| Windows/Intel 包与远程 CI | 已运行真实原生 PR 流程；技术状态以提交对应的 Actions 结果为准，PR 不上传安装器，不替代真机验收 |
+| Windows/Apple Silicon 包与远程 CI | 已运行真实原生 PR 流程；技术状态以提交对应的 Actions 结果为准，PR 不上传安装器，不替代真机验收 |
+| Intel Mac | 暂不支持，不参与本轮构建、发布或验收；历史失败没有被当作已修复 |
 | Windows 受控升级/UAC/防火墙 | 控制流回归通过；真实安装/升级/组织策略及非提升账号尚未验证 |
 | 分发与最低系统/手机验收 | 法律审批和验收记录为空，仍然阻断分发 |
 | GitHub 发布与更新 feed | 未创建 tag、未上传 Artifacts、未创建 Draft、未公开发布或验证 feed |
