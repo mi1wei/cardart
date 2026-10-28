@@ -164,7 +164,7 @@ test('changed candidates or conflicting existing assets cannot be uploaded or ov
   assert.equal(f.uploaded.size, 0);
 });
 
-test('draft completion requires both exact target bundles and proofs and never publishes', async () => {
+test('draft completion retains its tag, requires both exact target proofs and never publishes', async () => {
   const release = draft();
   const proofs = new Map();
   for (const [index, target] of ['darwin-arm64', 'win32-x64'].entries()) {
@@ -180,12 +180,16 @@ test('draft completion requires both exact target bundles and proofs and never p
   const writes = [];
   const gh = async (args) => {
     if (args[1].includes('/releases/assets/')) return proofs.get(Number(args[1].split('/').at(-1)));
-    if (args.includes('PATCH')) writes.push(args);
+    if (args.includes('PATCH')) {
+      writes.push(args);
+      release.tag_name = args.find((arg) => arg.startsWith('tag_name='))?.slice('tag_name='.length) || 'untagged-fixture';
+    }
     return JSON.stringify(release);
   };
   const result = await finishSelfTestRelease({ context, env, gh });
   assert.ok(result);
   assert.equal(result.published, false);
+  assert.equal(release.tag_name, context.tag);
   assert.equal(writes.length, 1);
   assert.ok(writes[0].includes('draft=true'));
   const removed = release.assets.pop();
