@@ -8,6 +8,7 @@ const { createBackend } = require('./backend.cjs');
 const { createLog } = require('./log.cjs');
 const { createLifecycle } = require('./lifecycle.cjs');
 const { createTray } = require('./tray.cjs');
+const { createUpdateController } = require('./updater.cjs');
 
 const RELEASES = 'https://github.com/mi1wei/cardart/releases';
 
@@ -27,6 +28,7 @@ async function startDesktop({ appRoot = join(__dirname, '..'), licensePublicKeyF
   let tray;
   let licenseTimer;
   let quitJob;
+  let updates;
   let licenseStatus = { state: 'missing', canWrite: false };
   const stateFile = join(profile, 'runtime.json');
   const settingsFile = join(profile, 'desktop.json');
@@ -229,6 +231,59 @@ async function startDesktop({ appRoot = join(__dirname, '..'), licensePublicKeyF
   window.webContents.on('will-attach-webview', (event) => event.preventDefault());
   window.on('close', lifecycle.onClose);
   const openPath = (path) => { void shell.openPath(path).then((error) => { if (error) dialog.showErrorBox('Folio', error); }); };
+  async function showUpdateDialog({ kind, version, terminal }) {
+    const messages = {
+      manual: [text('手动更新 Folio', 'Update Folio manually'), text('请下载匹配芯片的 DMG，先从托盘退出 Folio，再覆盖应用。此未公证版本不自动安装。', 'Download the DMG for your chip, quit Folio from the tray, then replace the app. This non-notarized version does not install updates automatically.')],
+      development: [text('开发模式不检查在线更新', 'Online updates are disabled in development'), text('Windows 自动更新仅用于安装版；源码运行不会联系真实更新源。', 'Windows automatic updates are available only in the packaged app. Source runs do not contact the update feed.')],
+      available: [text(`Folio ${version} 可供下载`, `Folio ${version} is available`), text('请从更新菜单选择下载。不会自动下载或安装。', 'Choose Download from the update menu. Nothing is downloaded or installed automatically.')],
+      current: [text('当前没有可用更新', 'No update is currently available'), ''],
+      download: [text(`下载 Folio ${version}？`, `Download Folio ${version}?`), text('下载后仍需确认安装；普通关窗或退出不会安装更新。', 'Installation requires a separate confirmation. Closing or quitting normally will not install the update.')],
+      install: [text(`安装 Folio ${version}？`, `Install Folio ${version}?`), text('当前导入将先完成，然后安全关闭相册服务并运行安装器，可能需要 UAC。取消 UAC 后可重新打开旧版。', 'Current imports finish first, then the library stops safely before the installer runs. UAC may be required; if declined, reopen the previous version.')],
+      error: [text('未能完成更新', 'The update could not be completed'), terminal
+        ? text('退出已开始，服务可能已停止，不能恢复编辑。强制退出可能丢失未完成导入。', 'Shutdown has started and the service may have stopped. Editing cannot resume; forcing quit may lose unfinished imports.')
+        : text('原有相册和授权会保留。请检查网络或日志后重试；不会安装未完成校验的文件。', 'Your albums and license are preserved. Check the network or logs and retry. Unverified files will not be installed.')],
+    };
+    const [message, detail] = messages[kind];
+    const confirm = ['manual', 'download', 'install'].includes(kind);
+    const buttons = terminal
+      ? [text('保留窗口', 'Keep Window'), text('强制退出', 'Force Quit')]
+      : confirm ? [kind === 'manual' ? text('打开下载页', 'Open Downloads') : kind === 'download' ? text('下载', 'Download') : text('安装', 'Install'), text('取消', 'Cancel')]
+        : [text('好', 'OK')];
+    const result = await dialog.showMessageBox(window, { type: kind === 'error' ? 'warning' : confirm ? 'question' : 'info', message, detail, buttons, defaultId: confirm ? 1 : 0, cancelId: confirm ? 1 : 0 });
+    if (terminal && result.response === 1) app.exit(1);
+    return confirm && result.response === 0;
+  }
+  let updater;
+  if (process.platform === 'win32' && app.isPackaged) {
+    updater = require('electron-updater').autoUpdater;
+    updater.logger = { info: (message) => { void log(message); }, warn: (message) => { void log(message); }, error: (message) => { void log(message); }, debug: () => {} };
+  }
+  updates = createUpdateController({
+    platform: process.platform, packaged: app.isPackaged, updater,
+    requestShutdown: lifecycle.requestShutdown, showDialog: showUpdateDialog,
+    openReleasePage: () => shell.openExternal(RELEASES),
+    log: (message) => { void log(message); },
+    onChange(status) {
+      if (window.isDestroyed()) return;
+      window.setProgressBar(status.phase === 'downloading' ? (status.percent || 0) / 100 : -1);
+      setMenu();
+    },
+  });
+  function updateMenu() {
+    const state = updates?.status() || { phase: 'idle' };
+    const download = state.phase === 'available' || (state.phase === 'error' && state.retry === 'download');
+    const install = state.phase === 'downloaded';
+    const label = download ? text(`下载更新 ${state.version}`, `Download Update ${state.version}`)
+      : install ? text(`安装更新 ${state.version}`, `Install Update ${state.version}`)
+        : state.phase === 'checking' ? text('正在检查更新…', 'Checking for Updates…')
+          : state.phase === 'downloading' ? text(`正在下载 ${Math.floor(state.percent || 0)}%`, `Downloading ${Math.floor(state.percent || 0)}%`)
+            : state.phase === 'manual' ? text('下载新版', 'Download Updates') : text('检查更新', 'Check for Updates');
+    return {
+      id: 'updates', label,
+      enabled: !isStopping() && !['checking', 'downloading', 'installing'].includes(state.phase) && !state.terminal,
+      click: () => { void (install ? updates.install() : download ? updates.download() : updates.check()).catch((error) => { void log(error.message); }); },
+    };
+  }
   function setMenu() {
     const items = [
       { id: 'license', label: text('许可证', 'License'), enabled: !isStopping(), click: () => { showWindow(); void window.loadURL(`${origin}/#/license`); } },
@@ -244,7 +299,7 @@ async function startDesktop({ appRoot = join(__dirname, '..'), licensePublicKeyF
       } },
       { label: text('打开日志', 'Open Logs'), click: () => openPath(join(profile, 'logs')) },
       { id: 'third-party-notices', label: text('第三方声明', 'Third-party Notices'), click: () => openPath(app.isPackaged ? join(process.resourcesPath, 'legal/THIRD_PARTY_NOTICES.txt') : join(appRoot, 'licenses/THIRD_PARTY_NOTICES.txt')) },
-      { label: text('下载新版', 'Download Updates'), click: () => { void shell.openExternal(RELEASES); } },
+      updateMenu(),
       { type: 'separator' },
       { role: 'about', label: text('关于 Folio', 'About Folio') },
       { role: 'quit', id: 'quit', label: text('退出', 'Quit') },
@@ -287,6 +342,7 @@ async function startDesktop({ appRoot = join(__dirname, '..'), licensePublicKeyF
   try { await window.loadURL(`${origin}/`); }
   catch (error) { if (!isStopping()) throw error; }
   if (isStopping()) return null;
+  if (process.platform === 'win32' && app.isPackaged) void updates.check({ interactive: false });
   return { window, tray, showWindow, stop, requestShutdown: lifecycle.requestShutdown, get origin() { return origin; } };
 }
 
