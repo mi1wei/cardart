@@ -100,6 +100,9 @@ jobs:
             --artifact "release/Folio-$RELEASE_VERSION-$ARTIFACT_SUFFIX" \
             --tag "$RELEASE_TAG" --commit "$SOURCE_COMMIT" \
             --require-distribution-approval
+      - name: Verify Windows install, reinstall, removal and data preservation
+        if: matrix.platform == 'win32'
+        run: node scripts/windows-installer-smoke.mjs --allow-disposable-runner
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: folio-candidate-${{ matrix.platform }}-${{ matrix.arch }}

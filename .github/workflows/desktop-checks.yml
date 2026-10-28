@@ -72,4 +72,7 @@ jobs:
         run: |
           VERSION="$(node -p "require('./package.json').version")"
           node scripts/verify-release.mjs --app "$APP_DIR" --artifact "release/Folio-$VERSION-$ARTIFACT_SUFFIX"
+      - name: Verify Windows install, reinstall, removal and data preservation
+        if: matrix.platform == 'win32'
+        run: node scripts/windows-installer-smoke.mjs --allow-disposable-runner
       # No binary uploads from pull requests or unapproved technical checks.
