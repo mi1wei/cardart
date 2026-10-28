@@ -52,4 +52,5 @@ test('discovery does not hide filesystem errors by choosing an empty library', a
   const legacyDir = join(root, 'not-a-directory');
   await writeFile(legacyDir, 'blocked');
   await assert.rejects(resolveLibraryChoice({ legacyDir, picturesDir: join(root, 'Pictures') }), { code: 'ENOTDIR' });
+  await assert.rejects(resolveLibraryChoice({ legacyDir: join(legacyDir, 'child'), picturesDir: join(root, 'Pictures') }), { code: 'ENOTDIR' });
 });

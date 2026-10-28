@@ -9,6 +9,9 @@ import { fail } from './library.js';
 import { decodeHeic } from './heic.js';
 import { MAX_BYTES } from './image-limits.js';
 
+// Cached file handles prevent Windows from deleting regenerated previews.
+if (process.platform === 'win32') sharp.cache({ files: 0 });
+
 export { MAX_BYTES } from './image-limits.js';
 // Originals are named by what they really are; other formats (SVG, PDF…) are not photos.
 const RASTER = { jpeg: '.jpg', png: '.png', webp: '.webp', gif: '.gif', tiff: '.tif', heif: '.heic' };

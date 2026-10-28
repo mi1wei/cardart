@@ -25,7 +25,7 @@ function binary(platform, arch, fuses = false) {
   return fuses ? Buffer.concat([header, Buffer.from('dL7pKGdnNz796PbbjQWNKmHXBZaB9tsX'), Buffer.from([1, 8]), Buffer.from('01001100')]) : header;
 }
 
-async function fixture(t, { platform = 'darwin', arch = 'arm64', extra = {}, addonArch = arch } = {}) {
+async function fixture(t, { platform = 'darwin', arch = 'arm64', extra = {}, addonArch = arch, relocateDependency = false, relocatedVersion = '7.8.5' } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'folio-package-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   const source = join(root, 'payload');
@@ -44,6 +44,7 @@ async function fixture(t, { platform = 'darwin', arch = 'arm64', extra = {}, add
     { name: `@img/sharp-libvips-${native}`, version: '1.3.4', location: `node_modules/@img/sharp-libvips-${native}` },
     { name: 'libheif-js', version: '1.23.5', location: 'node_modules/libheif-js' },
   ];
+  if (relocateDependency) packages.push({ name: 'semver', version: '7.8.5', location: 'node_modules/semver' });
   const metadata = { name: 'folio', version: '0.1.0-beta.1', type: 'module', main: 'desktop/main.cjs', dependencies: { sharp: '0.35.5', 'libheif-js': '1.23.5' } };
   await file(join(root, 'package.json'), metadata);
   await file(join(source, 'package.json'), metadata);
@@ -52,10 +53,13 @@ async function fixture(t, { platform = 'darwin', arch = 'arm64', extra = {}, add
   for (const path of ['desktop/main.cjs', 'desktop/service.cjs', 'server/app.js', 'server/heic-worker.cjs', 'server/license.js', 'server/license-store.js', 'node_modules/sharp/dist/index.cjs', 'node_modules/sharp/dist/index.mjs', 'node_modules/libheif-js/wasm-bundle.js', 'node_modules/libheif-js/libheif-wasm/libheif-bundle.js']) {
     await file(join(source, path), '/* structural fixture */');
   }
-  for (const pkg of packages) await file(join(source, pkg.location, 'package.json'), {
-    name: pkg.name, version: pkg.version,
-    ...(pkg.name === 'sharp' ? { main: './dist/index.cjs', exports: { '.': { import: { default: './dist/index.mjs' }, require: { default: './dist/index.cjs' } } } } : {}),
-  });
+  for (const pkg of packages) {
+    const relocated = relocateDependency && pkg.name === 'semver';
+    await file(join(source, relocated ? 'node_modules/sharp/node_modules/semver' : pkg.location, 'package.json'), {
+      name: pkg.name, version: relocated ? relocatedVersion : pkg.version,
+      ...(pkg.name === 'sharp' ? { main: './dist/index.cjs', exports: { '.': { import: { default: './dist/index.mjs' }, require: { default: './dist/index.cjs' } } } } : {}),
+    });
+  }
   const addon = `${packages[1].location}/lib/sharp-${native}-${packages[1].version}.node`;
   const vips = `${packages[2].location}/lib/${platform === 'darwin' ? 'libvips-cpp.8.18.7.dylib' : 'libvips-42.dll'}`;
   await file(join(source, addon), binary(platform, addonArch));
@@ -108,6 +112,26 @@ test('package verification accepts the three thin target layouts without treatin
     assert.equal(result.version, '0.1.0-beta.1');
     assert.equal(result.target, `${platform}-${arch}`);
   }
+});
+
+test('host-native ASAR list separators do not change the canonical archive contents', async (t) => {
+  const f = await fixture(t);
+  const list = asar.listPackage;
+  asar.listPackage = (...args) => list(...args).map((name) => name.replaceAll('/', '\\'));
+  try { await verifyPackage(f); }
+  finally { asar.listPackage = list; }
+});
+
+test('a collector-relocated dependency must retain an approved identity and version', async (t) => {
+  const valid = await fixture(t, { relocateDependency: true });
+  await verifyPackage(valid);
+  const changed = await fixture(t, { relocateDependency: true, relocatedVersion: '999.0.0' });
+  await assert.rejects(verifyPackage(changed), /unlisted|dependency|version/i);
+});
+
+test('an unlisted package cannot pretend to be an approved package by changing only package.json', async (t) => {
+  const f = await fixture(t, { extra: { 'node_modules/not-shipped/package.json': { name: 'sharp', version: '0.35.5' } } });
+  await assert.rejects(verifyPackage(f), /unlisted|package|unexpected/i);
 });
 
 test('missing web content and missing unpacked native binaries fail verification', async (t) => {

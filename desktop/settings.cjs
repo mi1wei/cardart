@@ -39,7 +39,14 @@ async function saveSettings(file, value) {
 async function statOrMissing(path) {
   try { return await stat(path); }
   catch (error) {
-    if (error.code === 'ENOENT') return null;
+    if (error.code === 'ENOENT') {
+      const parent = dirname(path);
+      if (parent !== path) {
+        const info = await statOrMissing(parent);
+        if (info && !info.isDirectory()) throw Object.assign(new Error('Library path contains a non-directory component'), { code: 'ENOTDIR', path: parent });
+      }
+      return null;
+    }
     throw error;
   }
 }

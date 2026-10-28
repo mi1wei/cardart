@@ -52,7 +52,17 @@ test('background JPG and HEIC imports support dedup, pointer reorder, 3D, fullsc
     await page.mouse.up();
     await expect.poll(async () => (await (await page.request.get(`${origin}/api/albums/${album.id}`)).json()).photos.map((photo) => photo.id)).toEqual([ids[1], ids[0], ids[2]]);
     await page.locator('.album-page .acts.normal [data-act="3d"]').click();
-    await expect(page.locator('.ab canvas')).toBeVisible();
+    try { await expect(page.locator('.ab canvas')).toBeVisible(); }
+    catch (error) {
+      const viewer = await page.evaluate(() => ({
+        present: !!document.querySelector('.ab'),
+        webglError: document.querySelector('.ab')?.hasAttribute('data-error'),
+        message: document.querySelector('.ab-message')?.textContent,
+      }));
+      const gpu = await desktop.evaluate(({ app }) => app.getGPUFeatureStatus());
+      console.log('Owned 3D fixture diagnostics:', JSON.stringify({ viewer, gpu }));
+      throw error;
+    }
     await expect(page.locator('.ab')).not.toHaveAttribute('data-error', '');
     await page.locator('.ab select').selectOption('1');
     await expect.poll(async () => (await (await page.request.get(`${origin}/api/albums/${album.id}`)).json()).perPage).toBe(1);

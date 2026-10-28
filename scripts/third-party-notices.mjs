@@ -155,8 +155,8 @@ export async function generateNotices({ root = project, runtime } = {}) {
   }
   const electronDir = join(root, 'node_modules/electron');
   const electron = await json(join(electronDir, 'package.json'));
-  const version = (await readFile(join(electronDir, 'dist/version'), 'utf8')).trim();
   runtime ??= await inspectRuntime();
+  const version = (await readFile(join(electronDir, 'dist/version'), 'utf8')).trim();
   if ((runtime.platform && runtime.platform !== process.platform) || (runtime.arch && runtime.arch !== process.arch)) throw new Error('Electron runtime architecture/platform differs from the native target');
   runtime = Object.fromEntries(['electron', 'chrome', 'node', 'v8'].map((name) => [name, runtime[name]]));
   if (version !== electron.version || runtime.electron !== version ||

@@ -85,6 +85,16 @@ function permittedWeb(file) {
     /^assets\/home-book-[A-Za-z0-9_-]+\.(jpg|mp4)$/.test(file);
 }
 
+function* archiveFiles(files, prefix = '') {
+  for (const [part, info] of Object.entries(files)) {
+    if (!part || part === '.' || part === '..' || /[\\/]/.test(part)) throw new Error(`Forbidden archive path component: ${part}`);
+    const name = prefix ? `${prefix}/${part}` : part;
+    if (Object.hasOwn(info, 'link')) throw new Error(`Unexpected archive link: ${name}`);
+    if (info.files) yield* archiveFiles(info.files, name);
+    else yield [name, info];
+  }
+}
+
 export async function verifyPackage({ appDir, root = project, platform = process.platform, arch = process.arch, internalTest = false, requireInstallerResources = true } = {}) {
   if (!targets.has(`${platform}-${arch}`)) throw new Error(`Unsupported package target: ${platform}-${arch}`);
   if (!appDir) throw new Error('An explicit packaged application directory is required');
@@ -108,35 +118,45 @@ export async function verifyPackage({ appDir, root = project, platform = process
   }
   const inventory = await json(join(resources, 'legal/inventory.json'));
   if (inventory.version !== expected.version || inventory.target !== `${platform}-${arch}` || !Array.isArray(inventory.packages)) throw new Error('Legal inventory version/target differs from the package');
-  const allowedPackages = new Set(inventory.packages.map((pkg) => pkg.location));
+  const allowedPackages = new Map(inventory.packages.map((pkg) => [`${pkg.name}@${pkg.version}`, pkg]));
   asar.uncache(archive);
-  const unpacked = new Set();
-  const payload = [];
-  for (const raw of asar.listPackage(archive, { isPack: false })) {
-    const name = raw.replace(/^\//, '');
-    if (name.includes('\\') || name.split('/').some((part) => part === '..' || !part)) throw new Error(`Forbidden archive path: ${name}`);
-    const info = asar.statFile(archive, name, false);
-    if (info.link) throw new Error(`Unexpected archive link: ${name}`);
-    if (info.files) continue;
+  const entries = [...archiveFiles(asar.getRawHeader(archive).header.files)];
+  const payload = entries.map(([name]) => name);
+  const unpacked = new Set(entries.filter(([, info]) => info.unpacked).map(([name]) => name));
+  const physical = await filesIn(join(resources, 'app.asar.unpacked'));
+  if (physical.join('\n') !== [...unpacked].sort().join('\n')) throw new Error('Unpacked resource whitelist differs from the ASAR header');
+  function content(name) {
+    if (!payload.includes(name)) throw new Error(`Missing app payload: ${name}`);
+    try { return asar.extractFile(archive, name, false); }
+    catch (cause) { throw new Error(`Missing native/unpacked app file: ${name}`, { cause }); }
+  }
+  const packaged = new Map();
+  for (const name of payload.filter((name) => name.startsWith('node_modules/') && name.endsWith('/package.json'))) {
+    const owner = ownerOf(name);
+    if (name !== `${owner}/package.json`) continue;
+    let metadata;
+    try { metadata = JSON.parse(content(name)); }
+    catch { throw new Error(`Unexpected/unlisted package metadata: ${name}`); }
+    const id = `${metadata.name}@${metadata.version}`;
+    const approved = allowedPackages.get(id);
+    const expectedName = owner.slice(owner.lastIndexOf('node_modules/') + 'node_modules/'.length);
+    if (!approved || metadata.name !== expectedName || (approved.license && metadata.license !== approved.license)) throw new Error(`Unexpected/unlisted dependency identity/version: ${name}`);
+    packaged.set(owner, { ...metadata, id });
+  }
+  for (const [name, info] of entries) {
     if (name !== 'desktop/license-public.pem' && (
       /\.(pem|p12|pfx|key|crt|cer)$/i.test(name) ||
       /(?:^|\/)(?:\.env(?:\..*)?|library\.json|album\.json|license\.json|runtime\.json|desktop\.json)$/.test(name) ||
       /\.test\.(js|cjs|mjs)$/.test(name)
     )) throw new Error(`Forbidden app payload: ${name}`);
     const nodeModule = name.startsWith('node_modules/');
-    if (nodeModule ? !allowedPackages.has(ownerOf(name)) : !(
+    const dependency = packaged.get(ownerOf(name));
+    if (nodeModule ? !dependency : !(
       name === 'package.json' || name === 'desktop/license-public.pem' ||
       /^desktop\/[A-Za-z0-9-]+\.cjs$/.test(name) || /^server\/[A-Za-z0-9-]+\.(js|cjs)$/.test(name)
     )) throw new Error(`Unexpected/unlisted app payload: ${name}`);
-    const nativeModule = /^node_modules\/(sharp|@img\/[^/]+|libheif-js)\//.test(name);
+    const nativeModule = dependency && (['sharp', 'libheif-js'].includes(dependency.name) || dependency.name.startsWith('@img/'));
     if (nativeModule && !info.unpacked) throw new Error(`Native/WASM package must be unpacked: ${name}`);
-    if (info.unpacked) unpacked.add(name);
-    payload.push(name);
-  }
-  function content(name) {
-    if (!payload.includes(name)) throw new Error(`Missing app payload: ${name}`);
-    try { return asar.extractFile(archive, name, false); }
-    catch (cause) { throw new Error(`Missing native/unpacked app file: ${name}`, { cause }); }
   }
   const metadata = JSON.parse(content('package.json'));
   if (metadata.version !== expected.version || metadata.main !== 'desktop/main.cjs' || metadata.type !== 'module') throw new Error('Packaged entry point/version is invalid');
@@ -145,11 +165,8 @@ export async function verifyPackage({ appDir, root = project, platform = process
   parseLicensePublicKey(packedKey);
   if (hash(packedKey) !== hash(key)) throw new Error('Packaged license public key differs from the maintainer source key');
   for (const pkg of inventory.packages) {
-    const actual = JSON.parse(content(`${pkg.location}/package.json`));
-    if (actual.name !== pkg.name || actual.version !== pkg.version) throw new Error(`Packaged dependency differs from legal inventory: ${pkg.name}`);
+    if (![...packaged.values()].some((actual) => actual.id === `${pkg.name}@${pkg.version}`)) throw new Error(`Packaged dependency differs from legal inventory: ${pkg.name}@${pkg.version}`);
   }
-  const physical = await filesIn(join(resources, 'app.asar.unpacked'));
-  if (physical.join('\n') !== [...unpacked].sort().join('\n')) throw new Error('Unpacked resource whitelist differs from the ASAR header');
   const native = `${platform}-${arch}`;
   const nativePackage = JSON.parse(content(`node_modules/@img/sharp-${native}/package.json`));
   const addon = `node_modules/@img/sharp-${native}/lib/sharp-${native}-${nativePackage.version}.node`;
