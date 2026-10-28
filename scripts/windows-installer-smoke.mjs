@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { execFile } from 'node:child_process';
-import { lstat, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { constants } from 'node:fs';
+import { copyFile, lstat, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve, win32 } from 'node:path';
 import { Readable } from 'node:stream';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -102,10 +103,13 @@ export async function smokeWindowsInstaller({ confirmed = false } = {}) {
     await assert.rejects(lstat(directory), { code: 'ENOENT' });
   }
   const uninstaller = join(before.installDir, 'Uninstall Folio.exe');
+  const guardCopy = join(project, 'release/uninstall-running-guard.exe');
+  assert.ok(!/[\s"]/.test(guardCopy), 'Uninstaller guard requires the whitespace-free hosted CI workspace');
   const owner = randomUUID();
   const marker = '.folio-installer-smoke-owner';
   const owned = [];
   let attempted = false;
+  let guardCopyOwned = false;
   let failure;
   async function uninstall() {
     await run(uninstaller, ['/allusers', '/S'], { timeout: 120000, windowsHide: true });
@@ -145,8 +149,34 @@ export async function smokeWindowsInstaller({ confirmed = false } = {}) {
     await run(installer, ['/S'], { timeout: 120000, windowsHide: true });
     validateInstallationState(await snapshot(), { phase: 'installed', version });
     await preserved();
+    await copyFile(uninstaller, guardCopy, constants.COPYFILE_EXCL);
+    guardCopyOwned = true;
     console.log('Owned Windows installer phase: installed application smoke');
-    const smoke = await smokePackage({ appDir: before.installDir, platform: 'win32' });
+    const smoke = await smokePackage({
+      appDir: before.installDir, platform: 'win32',
+      whileRunning: async ({ pid, servicePid, origin }) => {
+        const initial = await snapshot();
+        assert.ok(initial.running.includes(pid) && initial.running.includes(servicePid), 'Owned installed main and backend must both be running');
+        const albums = await (await fetch(`${origin}/api/albums`, { signal: AbortSignal.timeout(10000) })).json();
+        const installedHashes = await treeHashes(before.installDir);
+        for (const [phase, command, args, options] of [
+          ['running installer guard', installer, ['/S'], {}],
+          // _?= must be last and unquoted, avoiding the uninstaller's asynchronous self-copy.
+          ['running uninstaller guard', guardCopy, ['/allusers', '/S', `_?=${before.installDir}`], { windowsVerbatimArguments: true }],
+        ]) {
+          console.log(`Owned Windows installer phase: ${phase}`);
+          await assert.rejects(run(command, args, { timeout: 30000, windowsHide: true, ...options }), { code: 2 }, 'Running application must cause an explicit installer abort');
+          const current = await snapshot();
+          assert.ok(current.running.includes(pid) && current.running.includes(servicePid), 'Installer must not kill the owned main or backend');
+          assert.deepEqual({ ...current, running: [] }, { ...initial, running: [] }, 'Rejected installation must not change installed state or firewall rules');
+          const response = await fetch(`${origin}/api/albums`, { signal: AbortSignal.timeout(10000) });
+          assert.equal(response.status, 200);
+          assert.deepEqual(await response.json(), albums, 'Owned backend must remain available with the same library');
+          assert.deepEqual(await treeHashes(before.installDir), installedHashes, 'Rejected installation must not change installed files');
+          await preserved();
+        }
+      },
+    });
     console.log('Owned Windows installer phase: same-version reinstall');
     await run(installer, ['/S'], { timeout: 120000, windowsHide: true });
     validateInstallationState(await snapshot(), { phase: 'installed', version });
@@ -157,6 +187,7 @@ export async function smokeWindowsInstaller({ confirmed = false } = {}) {
     return {
       target: 'win32-x64', version, sourceCommit, scope: 'disposable-hosted-runner',
       installed: true, sameVersionReinstalled: true, uninstalled: true,
+      runningInstallBlocked: true, runningUninstallBlocked: true,
       privateLocalSubnetRule: true, ruleRemoved: true, userDataPreserved: true, smoke,
       windows11UacAccepted: false, twoVersionUpgradeAccepted: false,
     };
@@ -171,6 +202,9 @@ export async function smokeWindowsInstaller({ confirmed = false } = {}) {
         if (await readFile(join(directory, marker), 'utf8') !== owner) throw new Error('Refusing to clean unowned installer fixture data');
         await rm(directory, { recursive: true, force: true });
       } catch (error) { cleanupErrors.push(error); }
+    }
+    if (guardCopyOwned) {
+      try { await rm(guardCopy); } catch (error) { cleanupErrors.push(error); }
     }
     if (cleanupErrors.length) {
       if (!failure) throw new AggregateError(cleanupErrors, 'Owned installer cleanup failed');

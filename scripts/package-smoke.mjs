@@ -22,7 +22,7 @@ async function until(read, timeout = 30000) {
   throw new Error(`Packaged application did not reach the expected state: ${last?.message || 'timed out'}`);
 }
 
-export async function smokePackage({ appDir, platform = process.platform } = {}) {
+export async function smokePackage({ appDir, platform = process.platform, whileRunning } = {}) {
   if (!appDir || !['darwin', 'win32'].includes(platform) || platform !== process.platform) throw new Error('Package smoke requires an explicit app on its native platform');
   appDir = resolve(appDir);
   const executable = platform === 'darwin' ? join(appDir, 'Contents/MacOS/Folio') : join(appDir, 'Folio.exe');
@@ -93,6 +93,7 @@ export async function smokePackage({ appDir, platform = process.platform } = {})
     const range = await request(`/assets/${video}`, { headers: { Range: 'bytes=0-31' } });
     assert.equal(range.status, 206);
     assert.equal((await range.arrayBuffer()).byteLength, 32);
+    await whileRunning?.({ pid: child.pid, servicePid, origin });
     await promisify(execFile)(executable, [`--user-data-dir=${profile}`, '--quit'], { cwd: root, env, timeout: 10000 });
     const stopped = await Promise.race([exited, delay(15000, undefined, { ref: false }).then(() => { throw new Error('Packaged application did not complete explicit quit'); })]);
     assert.equal(stopped.code, 0, `Abnormal packaged-app exit: ${JSON.stringify(stopped)}`);
