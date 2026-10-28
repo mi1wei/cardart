@@ -83,6 +83,18 @@ Mac 只显示手动下载入口：用户确认后打开固定 Releases 页面，
 
 控制流、主进程/托盘菜单及 Mac 只读入口已有自动化测试；**两个递增 Windows 安装包的受控下载/损坏校验/升级/UAC 取消/照片授权保留尚未原生验收**。GitHub 公共 feed 也没有发布或实测，不以这些源码测试代替上述结果。
 
+## 原生 CI 与候选白名单
+
+`desktop-checks.yml` 在 `windows-2022` x64、`macos-15-intel` x64 和 `macos-15` arm64 运行源码/桌面测试、原生构建及成品检查。只缓存 npm 下载，不跨平台复用 node_modules；普通 PR 检查不上传二进制，也不取得发布写权限。官方 Actions 固定到已核对的完整 commit SHA。
+
+成品 package.json 记录实际 source commit 与 dirty 状态。`verify:release` 只接受与当前干净源码一致的生产包，并验证签名结构/未签名状态、真实运行与只读 DMG；不把较新 runner 当成最低系统或干净设备验收。Windows 的 `beta.yml` 必须匹配本次安装器的版本、文件名、size、SHA-512 和提权标记；blockmap 的每个 BLAKE2b-18 块都对照实际文件验证。
+
+`desktop-release.yml` 仅构建已存在且版本一致的 beta tag。每个原生目标通过精确输入的分发审查后才允许上传 Actions Artifact；法律门槛未通过时不会泄露可下载产物。汇总必须收到三个目标，拒绝旧 commit、缺架构、重复目标、哈希变化或多余文件；将三套 legal 材料合成一个 ZIP，并生成 `SHA256SUMS`、`release-manifest.json` 和下载说明。
+
+只有汇总 job 有 Release 写权限，且 builder 始终 `--publish never`。草稿阶段只上传白名单，重试只补同 tag/commit 下缺少的文件；已有公开版本、不同源 commit 或不同哈希的同名资产均拒绝覆盖。草稿不是已发布的 updater feed。请为 `desktop-candidates` 配置适当的 GitHub Environment 审批，最终公开发布还需独立保护。
+
+这些工作流与负面用例已在本地校验，但**尚未推送或运行远程 Actions**；不能据此宣称 Windows/Intel 包已生成，或能从 Actions 下载。
+
 ## 尚未完成的发行前提
 
 维护者已提供 `desktop/license-public.pem`；私钥继续由维护者在仓库外离线保管，见 `docs/license-issuer.md`。开发与打包只读取公钥，不以测试密钥替换生产公钥。

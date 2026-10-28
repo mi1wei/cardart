@@ -14,6 +14,8 @@
     "package:desktop": "npm run build && electron-builder --config electron-builder.cjs --publish never",
     "verify:package": "node scripts/verify-package.mjs",
     "smoke:package": "node scripts/package-smoke.mjs",
+    "verify:release": "node scripts/verify-release.mjs",
+    "manifest:release": "node scripts/create-release-manifest.mjs",
     "test": "node --test \"scripts/*.test.js\" \"server/*.test.js\" \"desktop/*.test.cjs\"",
     "build": "vite build",
     "preview": "vite preview",
@@ -37,6 +39,7 @@
     "yauzl": "3.4.0",
     "@electron/asar": "3.4.1",
     "@electron/fuses": "1.8.0",
+    "@noble/hashes": "1.8.0",
     "js-yaml": "4.3.2"
   }
 }

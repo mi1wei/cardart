@@ -1,15 +1,18 @@
 const { join } = require('node:path');
-const { execFile } = require('node:child_process');
+const { execFile, execFileSync } = require('node:child_process');
 const { promisify } = require('node:util');
 const { Arch } = require('electron-builder');
 
 process.env.CSC_IDENTITY_AUTO_DISCOVERY = 'false';
 const internalTest = process.env.FOLIO_DESKTOP_INTERNAL_TEST === '1';
 const packed = [];
+const sourceCommit = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+const dirty = !!execFileSync('git', ['status', '--porcelain', '--untracked-files=normal'], { encoding: 'utf8' }).trim();
 
 module.exports = {
   appId: 'io.github.mi1wei.folio',
   productName: 'Folio',
+  extraMetadata: { folioBuild: { sourceCommit, dirty } },
   directories: { output: internalTest ? 'release/internal' : 'release' },
   files: [
     'desktop/**/*', 'server/**/*', 'package.json',
