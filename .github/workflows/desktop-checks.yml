@@ -10,11 +10,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: desktop-checks-${{ github.ref }}
+  group: desktop-checks-${{ github.event_name == 'workflow_dispatch' && github.run_id || github.ref }}
   cancel-in-progress: true
 
 jobs:
   native:
+    if: github.event_name != 'workflow_dispatch'
     name: ${{ matrix.platform }}-${{ matrix.arch }}
     strategy:
       fail-fast: false
@@ -76,3 +77,126 @@ jobs:
         if: matrix.platform == 'win32'
         run: node scripts/windows-installer-smoke.mjs --allow-disposable-runner
       # No binary uploads from pull requests or unapproved technical checks.
+
+  self-test-prepare:
+    if: github.event_name == 'workflow_dispatch' && github.repository == 'mi1wei/cardart'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.draft.outputs.version }}
+      source_commit: ${{ steps.draft.outputs.source_commit }}
+      tag: ${{ steps.draft.outputs.tag }}
+      release_id: ${{ steps.draft.outputs.release_id }}
+      url: ${{ steps.draft.outputs.url }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+      - name: Pin main and create an unpublished maintainer draft
+        id: draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/maintainer-self-test.mjs prepare --confirm-maintainer-self-test
+
+  self-test-native:
+    needs: self-test-prepare
+    name: Self-test ${{ matrix.platform }}-${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-2022
+            platform: win32
+            arch: x64
+            build: --win nsis --x64
+            app: release/win-unpacked
+            artifact: windows-x64-setup.exe
+          - runner: macos-15
+            platform: darwin
+            arch: arm64
+            build: --mac dmg --arm64
+            app: release/mac-arm64/Folio.app
+            artifact: macos-arm64.dmg
+    runs-on: ${{ matrix.runner }}
+    # Manual trusted-main builds only; the write token is exported only to the upload step.
+    permissions:
+      contents: write
+    defaults:
+      run:
+        shell: bash
+        working-directory: source
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      SHARP_IGNORE_GLOBAL_LIBVIPS: "1"
+      EXPECTED_PLATFORM: ${{ matrix.platform }}
+      EXPECTED_ARCH: ${{ matrix.arch }}
+      TARGET_BUILD: ${{ matrix.build }}
+      APP_DIR: ${{ matrix.app }}
+      ARTIFACT_SUFFIX: ${{ matrix.artifact }}
+      SELF_TEST_VERSION: ${{ needs.self-test-prepare.outputs.version }}
+      SELF_TEST_SOURCE_COMMIT: ${{ needs.self-test-prepare.outputs.source_commit }}
+      SELF_TEST_TAG: ${{ needs.self-test-prepare.outputs.tag }}
+      SELF_TEST_RELEASE_ID: ${{ needs.self-test-prepare.outputs.release_id }}
+      SELF_TEST_URL: ${{ needs.self-test-prepare.outputs.url }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.self-test-prepare.outputs.source_commit }}
+          path: source
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: tools
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+          architecture: ${{ matrix.arch }}
+          cache: npm
+          cache-dependency-path: source/package-lock.json
+      - name: Assert native host
+        run: node -e 'if (process.platform !== process.env.EXPECTED_PLATFORM || process.arch !== process.env.EXPECTED_ARCH) process.exit(1)'
+      - run: npm ci --include=optional
+      - run: npx --no-install electron --version
+      - run: npm test
+      - run: npm run build
+      - run: npm run test:desktop
+      - name: Build the pinned main source without publishing
+        run: npm run package:desktop -- $TARGET_BUILD
+      - name: Verify the actual unsigned or ad-hoc candidate
+        run: node scripts/verify-release.mjs --app "$APP_DIR" --artifact "release/Folio-$SELF_TEST_VERSION-$ARTIFACT_SUFFIX"
+      - name: Verify Windows installation and running-application protection
+        if: matrix.platform == 'win32'
+        run: node scripts/windows-installer-smoke.mjs --allow-disposable-runner
+      - name: Upload verified maintainer-only self-test bundle
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node ../tools/scripts/maintainer-self-test.mjs upload --root . --target "$EXPECTED_PLATFORM-$EXPECTED_ARCH" --confirm-maintainer-self-test
+
+  self-test-finish:
+    needs: [self-test-prepare, self-test-native]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      SELF_TEST_VERSION: ${{ needs.self-test-prepare.outputs.version }}
+      SELF_TEST_SOURCE_COMMIT: ${{ needs.self-test-prepare.outputs.source_commit }}
+      SELF_TEST_TAG: ${{ needs.self-test-prepare.outputs.tag }}
+      SELF_TEST_RELEASE_ID: ${{ needs.self-test-prepare.outputs.release_id }}
+      SELF_TEST_URL: ${{ needs.self-test-prepare.outputs.url }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+      - name: Verify both bundles and retain the unpublished draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/maintainer-self-test.mjs finish --confirm-maintainer-self-test

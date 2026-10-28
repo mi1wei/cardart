@@ -2,6 +2,23 @@
 
 当前桌面内测仅支持 **Windows 11 x64 和 macOS 13+ Apple Silicon（arm64）**，Intel Mac 暂不支持，也不参与构建、候选汇总或发布验收。已在本机生成 Apple Silicon 的本地 ad-hoc DMG 候选；两个目标的技术检查以对应源码提交的 Actions 结果为准，完整发行仍受分发审查和人工验收阻断。本机或 CI 结果不等于干净系统、quarantine、真机或分发许可验收通过。
 
+## 维护者直接下载自测包
+
+在 GitHub **Actions → Desktop checks → Run workflow** 手动触发。工作流固定解析一次 `main` 的完整提交，分别运行 Windows x64/Apple Silicon 的源码、桌面、原生打包和严格成品检查；Windows 还运行安装、运行中保护、重装及卸载测试。无需在自己的电脑编译。
+
+成功后打开运行摘要中的 **Maintainer-only self-test download**，用有仓库写权限的账号登录，下载未公开 Draft Release 中对应平台的 ZIP：
+
+- `Folio-<版本>-self-test-win32-x64.zip`：解压后运行 Windows 安装器。
+- `Folio-<版本>-self-test-darwin-arm64.zip`：解压后打开 Apple Silicon DMG。
+
+同名 `.zip.json` 是来源与 SHA-256 校验信息，不是安装器。ZIP 同时包含精确候选报告、声明材料、`SHA256SUMS` 和 `self-test.json`；后者明确 `distributionApproved: false`。许可证需自行签发并单独导入，不会附带私钥或真实激活文件。
+
+这些草稿只供维护者自测，不公开、不设为 latest、不进入公开更新 feed；**不要点击 Publish release**。普通 PR/main push 检查仍不上传二进制。自测标识使用独立的 `self-test-` 前缀，不创建正式 `v...` 发行版本。部分构建失败时草稿可能不完整，应等待两个目标及完成任务均成功；需要新包时重新手动触发，不覆盖旧资产。
+
+仅手动自测专用任务有草稿创建/上传权限，`GH_TOKEN` 只传给相应步骤，不传给源码构建命令。工具代码与固定 main 源码分目录检出，保持成品源提交清晰。上线验证时可选择已审阅的工作流分支，打包源码仍固定来自 main；日常使用选择 main。
+
+仓库是公开的，Actions Artifacts 不是仅维护者可见的下载渠道，所以个人自测使用草稿资产而不是公开 Artifacts。此入口不修改 `distribution-review.json`、人工验收记录或正式候选/发布脚本；给其他人分发及公开发布仍走后文的实际审查与审批。
+
 ## 第三方材料
 
 ```sh
@@ -32,7 +49,7 @@ Windows 的 Sharp addon 与 libvips DLL 同在 `@img/sharp-win32-x64`，按其 `
 npm run notices -- --require-distribution-approval
 ```
 
-缺少批准、输入摘要变化、缺少原始声明/构建材料、未知许可或版本、素材 hash 不匹配均返回非零。不同平台的清单分别审阅，不能用一个目标的批准冒充全部目标。公开仓库的 Actions Artifacts 也不能视为私密分发；上传可下载产物和公开 Release 都必须经过分发门槛。
+缺少批准、输入摘要变化、缺少原始声明/构建材料、未知许可或版本、素材 hash 不匹配均返回非零。不同平台的清单分别审阅，不能用一个目标的批准冒充全部目标。公开仓库的 Actions Artifacts 也不能视为私密分发；对外提供下载和公开 Release 都必须经过分发门槛。上文维护者自测草稿是独立的未批准自测入口，不代表审查已经通过。
 
 应用菜单的“第三方声明”在未激活/过期时仍可使用。正式资源必须指向生成的 `release/legal/`，不能用源码目录中的概述替代；Electron 自带声明也不能删除。
 
@@ -103,7 +120,7 @@ Mac 只显示手动下载入口：用户确认后打开固定 Releases 页面，
 
 只有汇总 job 有 Release 写权限，且 builder 始终 `--publish never`。草稿阶段只上传白名单，重试只补同 tag/commit 下缺少的文件；已有公开版本、不同源 commit 或不同哈希的同名资产均拒绝覆盖。草稿不是已发布的 updater feed。请为 `desktop-candidates` 配置适当的 GitHub Environment 审批，最终公开发布还需独立保护。
 
-这些工作流已在真实原生 runner 上运行，具体技术状态以每个提交的 Actions 结果为准；配置校验或单个平台通过不能代替两个受支持目标的成品检查。PR 不上传安装器，分发门槛未通过时也不能从候选流程下载二进制。
+这些工作流已在真实原生 runner 上运行，具体技术状态以每个提交的 Actions 结果为准；配置校验或单个平台通过不能代替两个受支持目标的成品检查。PR 不上传安装器，分发门槛未通过时也不能从正式 Desktop candidate 流程下载二进制。维护者个人自测使用前述独立草稿入口。
 
 ## 人工验收与公开 beta 发布
 
@@ -146,7 +163,7 @@ Mac 只显示手动下载入口：用户确认后打开固定 Releases 页面，
 | Intel Mac | 暂不支持，不参与本轮构建、发布或验收；历史失败没有被当作已修复 |
 | Windows 受控升级/UAC/防火墙 | 控制流回归通过；真实安装/升级/组织策略及非提升账号尚未验证 |
 | 分发与最低系统/手机验收 | 法律审批和验收记录为空，仍然阻断分发 |
-| GitHub 发布与更新 feed | 未创建 tag、未上传 Artifacts、未创建 Draft、未公开发布或验证 feed |
+| GitHub 发布与更新 feed | 正式候选/公开更新 feed 尚未发行验收；维护者自测草稿另行标识，不是公开发布或分发批准 |
 
 如需复核本地成品，先在干净已提交工作树生成 DMG，再执行：
 
