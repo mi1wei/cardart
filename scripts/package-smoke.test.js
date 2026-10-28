@@ -6,7 +6,19 @@ test('a real production-fuse package serves rebuilt PNG/HEIC caches and preserve
   skip: !process.env.FOLIO_PACKAGE_APP,
   timeout: 90000,
 }, async () => {
-  const result = await smokePackage({ appDir: process.env.FOLIO_PACKAGE_APP });
+  let liveChecks = 0;
+  const result = await smokePackage({
+    appDir: process.env.FOLIO_PACKAGE_APP,
+    whileRunning: async ({ pid, servicePid, origin }) => {
+      assert.ok(Number.isSafeInteger(pid) && pid > 0);
+      assert.ok(Number.isSafeInteger(servicePid) && servicePid > 0 && servicePid !== pid);
+      const albums = await fetch(`${origin}/api/albums`, { signal: AbortSignal.timeout(10000) });
+      assert.equal(albums.status, 200);
+      assert.equal((await albums.json()).length, 1);
+      liveChecks++;
+    },
+  });
+  assert.equal(liveChecks, 1, 'The owned live-process check must run before explicit quit');
   assert.equal(result.nativeCacheRebuild, true);
   assert.equal(result.readOnlyEnforced, true);
   assert.equal(result.videoRange, true);
