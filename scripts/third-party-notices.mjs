@@ -15,7 +15,7 @@ const run = promisify(execFile);
 const project = resolve(fileURLToPath(new URL('../', import.meta.url)));
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const json = async (file) => JSON.parse(await readFile(file, 'utf8'));
-const knownLicenses = new Set(['MIT', 'ISC', 'Apache-2.0', 'BSD-2-Clause', 'BSD-3-Clause', '0BSD', 'BlueOak-1.0.0', 'Python-2.0', 'OFL-1.1', 'LGPL-3.0', 'LGPL-3.0-or-later']);
+const knownLicenses = new Set(['MIT', 'ISC', 'Apache-2.0', 'Apache-2.0 AND LGPL-3.0-or-later', 'BSD-2-Clause', 'BSD-3-Clause', '0BSD', 'BlueOak-1.0.0', 'Python-2.0', 'OFL-1.1', 'LGPL-3.0', 'LGPL-3.0-or-later']);
 const packageName = /^(?:@[a-z0-9._-]+\/)?[a-z0-9][a-z0-9._-]*$/;
 const safeVersion = (value) => typeof value === 'string' && /^[0-9][0-9A-Za-z.+-]{0,127}$/.test(value);
 
@@ -137,10 +137,12 @@ export async function generateNotices({ root = project, runtime } = {}) {
       name: pkg.name, version: pkg.version, license: pkg.license, location, integrity, notices,
       source: `https://www.npmjs.com/package/${pkg.name}/v/${pkg.version}`,
     });
-    if (pkg.name.startsWith('@img/sharp-libvips-')) {
+    const windowsVips = pkg.name.startsWith('@img/sharp-win32-');
+    if (pkg.name.startsWith('@img/sharp-libvips-') || windowsVips) {
       const native = manifest.native;
-      if (native.packageVersion !== pkg.version) throw new Error(`${id}: missing matching native source inventory`);
+      if (!native || (!windowsVips && native.packageVersion !== pkg.version)) throw new Error(`${id}: missing matching native source inventory`);
       const versions = await json(join(dir, 'versions.json'));
+      if (!versions.vips) throw new Error(`${id}: missing native libvips version inventory`);
       for (const [name, version] of Object.entries(versions)) {
         if (name === 'sharp') continue;
         const component = native.components?.[name];

@@ -41,7 +41,7 @@ async function fixture(t, { platform = 'darwin', arch = 'arm64', extra = {}, add
   const packages = [
     { name: 'sharp', version: '0.35.5', location: 'node_modules/sharp' },
     { name: `@img/sharp-${native}`, version: '0.35.5', location: `node_modules/@img/sharp-${native}` },
-    { name: `@img/sharp-libvips-${native}`, version: '1.3.4', location: `node_modules/@img/sharp-libvips-${native}` },
+    ...(platform === 'darwin' ? [{ name: `@img/sharp-libvips-${native}`, version: '1.3.4', location: `node_modules/@img/sharp-libvips-${native}` }] : []),
     { name: 'libheif-js', version: '1.23.5', location: 'node_modules/libheif-js' },
   ];
   if (relocateDependency) packages.push({ name: 'semver', version: '7.8.5', location: 'node_modules/semver' });
@@ -61,9 +61,14 @@ async function fixture(t, { platform = 'darwin', arch = 'arm64', extra = {}, add
     });
   }
   const addon = `${packages[1].location}/lib/sharp-${native}-${packages[1].version}.node`;
-  const vips = `${packages[2].location}/lib/${platform === 'darwin' ? 'libvips-cpp.8.18.7.dylib' : 'libvips-42.dll'}`;
+  const vipsRoot = `node_modules/@img/${platform === 'darwin' ? 'sharp-libvips' : 'sharp'}-${native}`;
+  const vips = `${vipsRoot}/lib/${platform === 'darwin' ? 'libvips-cpp.8.18.7.dylib' : 'libvips-42.dll'}`;
   await file(join(source, addon), binary(platform, addonArch));
   await file(join(source, vips), binary(platform, arch));
+  if (platform === 'win32') {
+    await file(join(source, vipsRoot, 'versions.json'), { vips: '8.18.7' });
+    await file(join(source, vipsRoot, 'lib/libvips-cpp-8.18.7.dll'), binary(platform, arch));
+  }
   for (const [path, data] of Object.entries(extra)) await file(join(source, path), data);
   const web = {
     'index.html': '<!doctype html><title>Folio</title>',
@@ -120,6 +125,19 @@ test('host-native ASAR list separators do not change the canonical archive conte
   asar.listPackage = (...args) => list(...args).map((name) => name.replaceAll('/', '\\'));
   try { await verifyPackage(f); }
   finally { asar.listPackage = list; }
+});
+
+test('Windows native verification requires both libvips DLLs from the Sharp package itself', async (t) => {
+  for (const name of ['libvips-42.dll', 'libvips-cpp-8.18.7.dll']) {
+    const f = await fixture(t, { platform: 'win32', arch: 'x64' });
+    await verifyPackage(f);
+    await rm(join(f.source, 'node_modules/@img/sharp-win32-x64/lib', name));
+    await rm(join(f.resources, 'app.asar.unpacked'), { recursive: true, force: true });
+    await asar.createPackageWithOptions(f.source, join(f.resources, 'app.asar'), {
+      dot: true, unpack: '{**/node_modules/sharp/**,**/node_modules/@img/**,**/node_modules/libheif-js/**}',
+    });
+    await assert.rejects(verifyPackage(f), /missing app payload.*libvips/i);
+  }
 });
 
 test('a collector-relocated dependency must retain an approved identity and version', async (t) => {

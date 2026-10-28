@@ -104,6 +104,41 @@ test('unknown licenses and missing notices fail instead of silently publishing a
   await assert.rejects(generateNotices({ root, runtime }), /alpha.*notice/i);
 });
 
+test('Windows Sharp preserves its combined license and inventories the libvips bundled in the same package', async (t) => {
+  const { root, file, pkg, manifest } = await fixture(t);
+  const metadata = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
+  const name = '@img/sharp-win32-x64';
+  const location = `node_modules/${name}`;
+  const license = 'Apache-2.0 AND LGPL-3.0-or-later';
+  await file('package.json', { ...metadata, dependencies: { ...metadata.dependencies, [name]: '0.35.5' } });
+  await pkg(location, { name, version: '0.35.5', license }, 'Windows Apache and LGPL fixture notice');
+  manifest.native = {
+    packageVersion: '1.3.4', source: 'https://example.test/native-build',
+    components: {
+      vips: { version: '8.18.7', license: 'LGPL-3.0-or-later' },
+      'proxy-libintl': { version: '0.5', license: 'LGPL-3.0-or-later' },
+    },
+  };
+  await file('licenses/components.json', manifest);
+  await file(`${location}/versions.json`, { vips: '8.18.7', 'proxy-libintl': '0.5' });
+  const result = await generateNotices({ root, runtime });
+  assert.equal(result.inventory.packages.find((entry) => entry.name === name).license, license);
+  assert.deepEqual(result.inventory.embedded.filter((entry) => entry.bundle === 'sharp-libvips'), [
+    { name: 'proxy-libintl', version: '0.5', license: 'LGPL-3.0-or-later', source: 'https://example.test/native-build', bundle: 'sharp-libvips' },
+    { name: 'vips', version: '8.18.7', license: 'LGPL-3.0-or-later', source: 'https://example.test/native-build', bundle: 'sharp-libvips' },
+  ]);
+  const files = await unzip(result.archive);
+  assert.equal(files.get('npm/@img+sharp-win32-x64@0.35.5/LICENSE').toString(), 'Windows Apache and LGPL fixture notice');
+  assert.equal(result.inventory.readyForDistribution, false);
+  await assert.rejects(requireDistributionApproval({ root, inventory: result.inventory }), /review/i);
+  await file(`${location}/versions.json`, { vips: '8.18.8', 'proxy-libintl': '0.5' });
+  await assert.rejects(generateNotices({ root, runtime }), /unknown native component\/version vips@8\.18\.8/);
+  await file(`${location}/versions.json`, { 'proxy-libintl': '0.5' });
+  await assert.rejects(generateNotices({ root, runtime }), /native.*vips|vips.*inventory/i);
+  await pkg(location, { name, version: '0.35.5', license: 'Apache-2.0 AND Unreviewed-Custom' });
+  await assert.rejects(generateNotices({ root, runtime }), /unknown license/);
+});
+
 test('missing build/source materials, changed artwork and the wrong Electron runtime cannot produce a bundle', async (t) => {
   const { root, file } = await fixture(t);
   await assert.rejects(generateNotices({ root, runtime: { ...runtime, electron: '9.9.8' } }), /Electron.*version/i);

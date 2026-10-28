@@ -171,8 +171,15 @@ export async function verifyPackage({ appDir, root = project, platform = process
   const nativePackage = JSON.parse(content(`node_modules/@img/sharp-${native}/package.json`));
   const addon = `node_modules/@img/sharp-${native}/lib/sharp-${native}-${nativePackage.version}.node`;
   architecture(content(addon), platform, arch, addon);
-  const vips = payload.filter((name) => name.startsWith(`node_modules/@img/sharp-libvips-${native}/lib/`) && /\.(dll|dylib)$/.test(name));
+  const vipsRoot = `node_modules/@img/${platform === 'win32' ? 'sharp' : 'sharp-libvips'}-${native}`;
+  const vips = platform === 'win32'
+    ? [
+      `${vipsRoot}/lib/libvips-42.dll`,
+      `${vipsRoot}/lib/libvips-cpp-${JSON.parse(content(`${vipsRoot}/versions.json`)).vips}.dll`,
+    ]
+    : payload.filter((name) => name.startsWith(`${vipsRoot}/lib/`) && /\.dylib$/.test(name));
   if (!vips.length) throw new Error('Missing unpacked native libvips binary');
+  for (const name of vips) content(name);
   for (const name of payload.filter((name) => /\.(node|dll|dylib)$/.test(name))) architecture(content(name), platform, arch, name);
   const sharpPackage = JSON.parse(content('node_modules/sharp/package.json'));
   const sharpEntries = [sharpPackage.main, sharpPackage.exports?.['.']?.import?.default, sharpPackage.exports?.['.']?.require?.default];

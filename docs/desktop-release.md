@@ -1,6 +1,6 @@
 # Folio 桌面内测发行准备
 
-已在本机生成 Apple Silicon 的本地 ad-hoc DMG 候选，并检查生产 fuses、原生缓存、只读授权和退出；Windows/Intel 安装器及完整发行验收尚未完成。本文件中的本机结果不等于干净系统、quarantine、真机或分发许可验收通过。
+已在本机生成 Apple Silicon 的本地 ad-hoc DMG 候选，并检查生产 fuses、原生缓存、只读授权和退出；三平台技术检查以对应源码提交的 Actions 结果为准，完整发行仍受分发审查和人工验收阻断。本机或 CI 结果不等于干净系统、quarantine、真机或分发许可验收通过。
 
 ## 第三方材料
 
@@ -9,6 +9,8 @@ npm run notices
 ```
 
 使用当前原生平台安装的生产依赖生成 `release/legal/` 与 `release/Folio-<版本>-third-party-licenses.zip`。两者包含同一份 inventory、原始许可证、Electron/Chromium notices、原生/WASM 版本及固定构建来源。探测 Electron 版本时使用独立临时 profile，不启动照片库或读取用户配置。
+
+Windows 的 Sharp addon 与 libvips DLL 同在 `@img/sharp-win32-x64`，按其 `versions.json` 清点嵌入组件；Mac 使用独立的 `@img/sharp-libvips-*` 包。识别 Windows 的 Apache/LGPL 复合声明不等于批准分发。
 
 组件清单不是法律意见。`licenses/SOURCES.txt` 明确区分源码引用/构建说明和完整对应源码交付；后者没有被链接或 ZIP 文件自动替代。特别需要审阅 LGPL 库替换与对应源码、HEVC/H.264 条件、原生库及 Rust 依赖声明、NSIS/提权 helper 等安装器组件、示例素材权利，以及 lazy-val 仅声明 MIT 但缺少独立 LICENSE 的已知问题。
 
@@ -71,7 +73,7 @@ Windows 安装器按机器安装并请求 UAC，应用保持 `asInvoker`。安�
 
 默认 NSIS 进程检查可能强制结束仍在托盘运行的应用，因此本配置覆盖该检查：只查询并等待正常退出，仍在运行或无法确认时停止安装/卸载，让用户先从托盘“退出”，不由安装器终止进程。其他登录会话也需退出。此行为仍须原生 Windows 验证。
 
-防火墙钩子只管理 `io.github.mi1wei.folio - Private LAN`，限定 `Folio.exe`、TCP、Private、LocalSubnet；卸载只移除该规则，保留照片库、用户配置和授权。规则更新失败会提示，不关闭系统防火墙或放开 Public。**NSIS 编译、实际监听 exe、UAC、规则幂等/组织策略和卸载保留尚未在 Windows 验证，不能据此宣称手机已可连接。**
+防火墙钩子只管理 `io.github.mi1wei.folio - Private LAN`，限定 `Folio.exe`、TCP、Private、LocalSubnet；卸载只移除该规则，保留照片库、用户配置和授权。规则更新失败会提示，不关闭系统防火墙或放开 Public。**NSIS 编译结果以原生 CI 为准；实际监听 exe、UAC、规则幂等/组织策略和卸载保留仍须 Windows 11 真机验收，不能据此宣称手机已可连接。**
 
 ## 应用更新
 
@@ -87,13 +89,15 @@ Mac 只显示手动下载入口：用户确认后打开固定 Releases 页面，
 
 `desktop-checks.yml` 在 `windows-2022` x64、`macos-15-intel` x64 和 `macos-15` arm64 运行源码/桌面测试、原生构建及成品检查。只缓存 npm 下载，不跨平台复用 node_modules；普通 PR 检查不上传二进制，也不取得发布写权限。官方 Actions 固定到已核对的完整 commit SHA。
 
+Intel CI 的相册交互夹具通过 `FOLIO_E2E_SOFTWARE_GL=1` 显式使用软件 WebGL：仅在临时原生 Electron 副本内，将随包 SwiftShader 映射到 ANGLE 查找的 Vulkan 加载器名称，以 1x 比例运行并断言实际 SwiftShader renderer，保留真实 3D、翻页和全屏检查。相对框架链接保留在副本内；已安装 Electron、成品运行时、沙箱、上下文隔离和 CSP 均不改。软件路径不证明真实 GPU、Retina 性能或最低系统兼容性。
+
 成品 package.json 记录实际 source commit 与 dirty 状态。`verify:release` 只接受与当前干净源码一致的生产包，并验证签名结构/未签名状态、真实运行与只读 DMG；不把较新 runner 当成最低系统或干净设备验收。Windows 的 `beta.yml` 必须匹配本次安装器的版本、文件名、size、SHA-512 和提权标记；blockmap 的每个 BLAKE2b-18 块都对照实际文件验证。
 
 `desktop-release.yml` 仅构建已存在且版本一致的 beta tag。每个原生目标通过精确输入的分发审查后才允许上传 Actions Artifact；法律门槛未通过时不会泄露可下载产物。汇总必须收到三个目标，拒绝旧 commit、缺架构、重复目标、哈希变化或多余文件；将三套 legal 材料合成一个 ZIP，并生成 `SHA256SUMS`、`release-manifest.json` 和下载说明。
 
 只有汇总 job 有 Release 写权限，且 builder 始终 `--publish never`。草稿阶段只上传白名单，重试只补同 tag/commit 下缺少的文件；已有公开版本、不同源 commit 或不同哈希的同名资产均拒绝覆盖。草稿不是已发布的 updater feed。请为 `desktop-candidates` 配置适当的 GitHub Environment 审批，最终公开发布还需独立保护。
 
-这些工作流与负面用例已在本地校验，但**尚未推送或运行远程 Actions**；不能据此宣称 Windows/Intel 包已生成，或能从 Actions 下载。
+这些工作流已在真实原生 runner 上运行，具体技术状态以每个提交的 Actions 结果为准；配置校验或单个平台通过不能代替三平台成品检查。PR 不上传安装器，分发门槛未通过时也不能从候选流程下载二进制。
 
 ## 人工验收与公开 beta 发布
 
@@ -132,7 +136,7 @@ Mac 只显示手动下载入口：用户确认后打开固定 Releases 页面，
 | 项目 | 当前证据 |
 |---|---|
 | Apple Silicon 本地 DMG | 已生成，生产 fuses/原生缓存/Range/只读授权/正常退出/只读镜像运行/ad-hoc 与镜像完整性通过；不是公证或下载件验收 |
-| Windows/Intel 包与远程 CI | 配置、校验器和工作流已加入；尚未推送/运行对应原生 runner，没有这些真实安装包结果 |
+| Windows/Intel 包与远程 CI | 已运行真实原生 PR 流程；技术状态以提交对应的 Actions 结果为准，PR 不上传安装器，不替代真机验收 |
 | Windows 受控升级/UAC/防火墙 | 控制流回归通过；真实安装/升级/组织策略及非提升账号尚未验证 |
 | 分发与最低系统/手机验收 | 法律审批和验收记录为空，仍然阻断分发 |
 | GitHub 发布与更新 feed | 未创建 tag、未上传 Artifacts、未创建 Draft、未公开发布或验证 feed |

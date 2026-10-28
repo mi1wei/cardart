@@ -5,7 +5,8 @@ const sharp = require('sharp');
 const { desktopFixture } = require('./fixtures.cjs');
 
 test('background JPG and HEIC imports support dedup, pointer reorder, 3D, fullscreen and cache reconstruction', async () => {
-  const fixture = await desktopFixture();
+  const softwareGL = process.env.FOLIO_E2E_SOFTWARE_GL === '1';
+  const fixture = await desktopFixture({ softwareGL });
   let release;
   const held = new Promise((resolve) => { release = resolve; });
   let entered;
@@ -69,7 +70,7 @@ test('background JPG and HEIC imports support dedup, pointer reorder, 3D, fullsc
       throw error;
     }
     await expect(page.locator('.ab')).not.toHaveAttribute('data-error', '');
-    if (process.env.FOLIO_E2E_SOFTWARE_GL === '1') {
+    if (softwareGL) {
       const renderer = await page.locator('.ab canvas').evaluate((canvas) => {
         const gl = canvas.getContext('webgl2');
         const info = gl.getExtension('WEBGL_debug_renderer_info');

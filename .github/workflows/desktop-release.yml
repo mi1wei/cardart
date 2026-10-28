@@ -98,8 +98,6 @@ jobs:
       - run: npm test
       - run: npm run build
       - run: npm run test:desktop
-        env:
-          DEBUG: ${{ matrix.platform == 'darwin' && matrix.arch == 'x64' && 'pw:browser' || '' }}
       - name: Build without publishing or signing credentials
         run: npm run package:desktop -- $TARGET_BUILD
       - name: Verify files, native execution and distribution approval before any upload
