@@ -168,6 +168,22 @@ async function loadLibrary(dir, release, assertLock) {
         return save(next);
       });
     },
+    async updatePhotoNote(id, photoId, patch) {
+      get(id);
+      if (!isPhotoId(photoId)) throw fail(404, 'no-photo');
+      if (!patch || Array.isArray(patch) || typeof patch.note !== 'string' || typeof patch.previousNote !== 'string') throw fail(400, 'bad-request');
+      const note = patch.note.replace(/\r\n?/g, '\n').trim();
+      if ([...note].length > 2000 || [...patch.previousNote].length > 2000) throw fail(400, 'note-length');
+      return queue(id, () => {
+        const album = get(id);
+        const photo = album.photos.find((item) => item.id === photoId);
+        if (!photo) throw fail(404, 'no-photo');
+        const current = typeof photo.note === 'string' ? photo.note : '';
+        if (current !== patch.previousNote && current !== note) throw fail(409, 'note-changed');
+        if (current === note) return album;
+        return save({ ...album, photos: album.photos.map((item) => item.id === photoId ? { ...item, note } : item) });
+      });
+    },
     async remove(id) {
       get(id);
       return queue(id, async () => {

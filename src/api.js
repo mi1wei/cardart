@@ -16,6 +16,7 @@ export const api = {
   albums: () => call('GET', '/api/albums'),
   album: (id) => call('GET', `/api/albums/${id}`),
   photoDetails: (id, photoId, options) => call('GET', `/api/albums/${id}/photos/${photoId}/details`, undefined, options),
+  updatePhotoNote: (id, photoId, note, previousNote) => call('PATCH', `/api/albums/${id}/photos/${photoId}/note`, { note, previousNote }),
   createAlbum: (title) => call('POST', '/api/albums', { title }),
   updateAlbum: (id, patch) => call('PATCH', `/api/albums/${id}`, patch),
   deleteAlbum: (id) => call('DELETE', `/api/albums/${id}`),

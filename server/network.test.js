@@ -33,6 +33,7 @@ test('new LAN choices preserve phone key rotation, cookie access and computer-on
   const album = await lib.create('Private details');
   const { photo } = await importPhoto(lib, album.id, Readable.from([await photoBytes()]), 'private.jpg');
   const details = `/api/albums/${album.id}/photos/${photo.id}/details`;
+  const note = `/api/albums/${album.id}/photos/${photo.id}/note`;
   async function request(url, { local = false, method = 'GET', headers = {}, body } = {}) {
     const req = Object.assign(Readable.from(body ? [JSON.stringify(body)] : []), {
       method, url,
@@ -51,11 +52,14 @@ test('new LAN choices preserve phone key rotation, cookie access and computer-on
   }
   assert.equal((await request('/api/albums')).status, 403);
   assert.equal((await request(details)).status, 403);
+  assert.equal((await request(note, { method: 'PATCH', body: { note: 'Denied', previousNote: '' } })).status, 403);
   const first = await lib.setPhone(true);
   assert.equal((await request('/api/albums')).status, 403);
   assert.equal((await request('/api/albums?key=wrong')).status, 403);
   assert.equal((await request(`/api/albums?key=${first.key}`)).status, 200);
   assert.equal((await request(`${details}?key=${first.key}`)).status, 200);
+  assert.equal((await request(`${note}?key=${first.key}`, { method: 'PATCH', body: { note: 'Phone note', previousNote: '' } })).status, 200);
+  assert.equal((await request(note, { method: 'PATCH', headers: { cookie: `album_key=${first.key}`, origin: 'https://example.com' }, body: { note: 'Cross-site', previousNote: 'Phone note' } })).status, 403);
   assert.equal((await request(details, { headers: { cookie: `album_key=${first.key}` } })).status, 200);
   assert.equal((await request('/api/albums', { headers: { cookie: `album_key=${first.key}` } })).status, 200);
   assert.equal((await request(`/api/phone?key=${first.key}`)).status, 403);
@@ -65,6 +69,7 @@ test('new LAN choices preserve phone key rotation, cookie access and computer-on
   assert.notEqual(first.key, second.key);
   assert.equal((await request(`/api/albums?key=${first.key}`)).status, 403);
   assert.equal((await request(`${details}?key=${first.key}`)).status, 403);
+  assert.equal((await request(`${note}?key=${first.key}`, { method: 'PATCH', body: { note: 'Expired link', previousNote: 'Phone note' } })).status, 403);
   const info = JSON.parse((await request('/api/phone', { local: true })).body);
   assert.equal(info.port, 5291);
   assert.ok(Array.isArray(info.addresses));
