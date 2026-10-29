@@ -12,6 +12,9 @@ test('tray close keeps HTTP alive, reopens the same window and never hides witho
     const origin = new URL(page.url()).origin;
     await desktop.evaluate(({ dialog }) => { dialog.showMessageBox = async () => ({ response: 0 }); });
     expect(await desktop.evaluate(() => !!global.folioTestDesktop.tray)).toBe(true);
+    if (process.platform === 'darwin') {
+      expect(await desktop.evaluate(() => global.folioTestDesktop.tray.getTitle())).toBe('Folio');
+    }
     await desktop.evaluate(() => global.folioTestDesktop.window.close());
     expect(await desktop.evaluate(() => global.folioTestDesktop.window.isVisible())).toBe(false);
     expect((await page.request.get(`${origin}/api/albums`)).status()).toBe(200);
