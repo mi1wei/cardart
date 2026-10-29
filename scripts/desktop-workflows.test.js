@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import yaml from 'js-yaml';
 
 const checks = yaml.load(await readFile(new URL('../.github/workflows/desktop-checks.yml', import.meta.url), 'utf8'));
+const candidate = yaml.load(await readFile(new URL('../.github/workflows/desktop-release.yml', import.meta.url), 'utf8'));
 test('main builds allocate a tag before draft preparation and pass its identity to both native targets', () => {
   assert.equal(checks.jobs['main-tag'].needs, 'resolve-source');
   assert.equal(checks.jobs['self-test-prepare'].needs, 'main-tag');
@@ -26,4 +27,17 @@ test('PRs remain read-only while distinct main pushes cannot cancel each other b
   assert.match(checks.concurrency.group, /pull_request.*github\.ref.*github\.run_id/);
   assert.equal(checks.jobs['main-tag'].concurrency['cancel-in-progress'], false);
   assert.match(checks.jobs['main-tag'].concurrency.group, /needs\.resolve-source\.outputs\.source_commit/);
+});
+
+test('formal candidates retrieve the real tag in every source checkout and keep publishing protected', async () => {
+  for (const name of ['identity', 'native', 'draft']) {
+    const checkout = candidate.jobs[name].steps.find((step) => step.uses?.startsWith('actions/checkout@'));
+    assert.equal(checkout.with['fetch-depth'], 0, `${name} needs the real version ref`);
+  }
+  assert.equal(candidate.jobs.native.env.RELEASE_TAG, '${{ needs.identity.outputs.tag }}');
+  assert.equal(candidate.jobs.native.env.SOURCE_COMMIT, '${{ needs.identity.outputs.source_commit }}');
+  assert.equal(candidate.jobs.draft.environment, 'desktop-candidates');
+  const publish = yaml.load(await readFile(new URL('../.github/workflows/desktop-publish.yml', import.meta.url), 'utf8'));
+  assert.equal(publish.jobs.publish.environment, 'desktop-publish');
+  assert.equal(publish.on.workflow_dispatch.inputs.confirm_public_beta.default, false);
 });

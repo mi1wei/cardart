@@ -19,6 +19,11 @@ export function validateReleaseIdentity({ version, tag, sourceCommit }) {
   return { version, tag, sourceCommit };
 }
 
+export function readTaggedReleaseIdentity({ root = project, tag, sourceCommit }) {
+  const identity = readBuildIdentity({ root, env: { RELEASE_TAG: tag, SOURCE_COMMIT: sourceCommit } });
+  return validateReleaseIdentity(identity);
+}
+
 export async function createReleaseManifest({ input, output, root = project, version, tag, sourceCommit } = {}) {
   validateReleaseIdentity({ version, tag, sourceCommit });
   if (!input || !output) throw new Error('Explicit candidate input and release output directories are required');
@@ -107,8 +112,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
       commit: { type: 'string' }, 'github-output': { type: 'string' },
     } });
     const sourceCommit = values.commit || (await run('git', ['rev-parse', 'HEAD'], { cwd: project })).stdout.trim();
-    const build = readBuildIdentity({ root: project, env: { ...process.env, RELEASE_TAG: values.tag, SOURCE_COMMIT: sourceCommit } });
-    const identity = validateReleaseIdentity({ ...build, sourceCommit });
+    const identity = readTaggedReleaseIdentity({ tag: values.tag, sourceCommit });
     if (positionals[0] === 'identity' && positionals.length === 1) {
       const tagged = (await run('git', ['rev-parse', `refs/tags/${identity.tag}^{commit}`], { cwd: project })).stdout.trim();
       if (tagged !== sourceCommit) throw new Error('Tag does not point at the checked out source commit');
