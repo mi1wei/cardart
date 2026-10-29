@@ -34,6 +34,10 @@ function show(next, again = false, previousHash) {
     toast(t('license-wait-upload'));
     return;
   }
+  if (view?.canLeave && !view.canLeave(next, again)) {
+    if (previousHash) swap(previousHash);
+    return;
+  }
   route = next;
   const key = next.album ?? next.page;
   if (again || view?.key !== key) {

@@ -355,6 +355,10 @@ export function renderAlbum(app, id) {
   load();
 
   return {
+    canLeave(next, again) {
+      if (!again && next.album === id && next.photo === route.photo) return true;
+      return lightbox?.canLeave() ?? true;
+    },
     update(next) {
       route = next;
       if (album) sync();
