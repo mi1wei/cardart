@@ -9,6 +9,7 @@ import { ensureCache, importPhoto } from './importer.js';
 import { fail, isAlbumId, isPhotoId, openLibrary } from './library.js';
 import { say } from './text.js';
 import { MAX_LICENSE_BYTES } from './license.js';
+import { isPhotoMetadata, readPhotoMetadata } from './photo-metadata.js';
 
 const LOOPBACK = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
 const MIME = {
@@ -193,7 +194,7 @@ function gate(lib, req, res, url) {
 }
 
 async function api(lib, req, res, url, local, license) {
-  const [, , name, id, sub, action] = url.pathname.split('/');
+  const [, , name, id, sub, action, detail, ...rest] = url.pathname.split('/');
   const m = req.method;
   if (name === 'license' && id === undefined) {
     if (m === 'GET') return send(res, 200, license?.status() ?? { state: 'development', canWrite: true });
@@ -224,9 +225,19 @@ async function api(lib, req, res, url, local, license) {
         return send(res, 200, { ok: true });
       }
     }
+    if (sub === 'photos' && detail === 'details' && !rest.length && m === 'GET') {
+      if (!isPhotoId(action)) throw fail(404, 'no-photo');
+      const photo = lib.get(id).photos.find((item) => item.id === action);
+      if (!photo) throw fail(404, 'no-photo');
+      const metadata = isPhotoMetadata(photo.metadata) ? photo.metadata :
+        await readPhotoMetadata(join(lib.albumDir(id), 'originals', photo.file));
+      return send(res, 200, { photoId: photo.id, metadata });
+    }
     if (sub === 'photos' && action === undefined && m === 'POST') {
       if (req.headers['x-album-upload'] !== '1') throw fail(403, 'upload-header');
-      return send(res, 200, await importPhoto(lib, id, req, url.searchParams.get('name')));
+      const modified = url.searchParams.get('lastModified');
+      const lastModified = /^(0|[1-9]\d{0,14})$/.test(modified ?? '') ? Number(modified) : undefined;
+      return send(res, 200, await importPhoto(lib, id, req, url.searchParams.get('name'), { lastModified }));
     }
     if (sub === 'photos' && action === 'delete' && m === 'POST') {
       return send(res, 200, await lib.deletePhotos(id, (await readJson(req)).ids));

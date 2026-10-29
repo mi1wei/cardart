@@ -1,6 +1,7 @@
-async function call(method, path, body) {
+async function call(method, path, body, { signal } = {}) {
   const res = await fetch(path, {
     method,
+    signal,
     headers: body === undefined ? {} : { 'Content-Type': 'application/json' },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
@@ -14,6 +15,7 @@ export const api = {
   activateLicense: (envelope) => call('POST', '/api/license', envelope),
   albums: () => call('GET', '/api/albums'),
   album: (id) => call('GET', `/api/albums/${id}`),
+  photoDetails: (id, photoId, options) => call('GET', `/api/albums/${id}/photos/${photoId}/details`, undefined, options),
   createAlbum: (title) => call('POST', '/api/albums', { title }),
   updateAlbum: (id, patch) => call('PATCH', `/api/albums/${id}`, patch),
   deleteAlbum: (id) => call('DELETE', `/api/albums/${id}`),
@@ -21,7 +23,8 @@ export const api = {
   phone: () => call('GET', '/api/phone'),
   setPhone: (enabled) => call('PATCH', '/api/phone', { enabled }),
   async upload(id, file) {
-    const res = await fetch(`/api/albums/${id}/photos?name=${encodeURIComponent(file.name)}`, {
+    const time = Number.isSafeInteger(file.lastModified) && file.lastModified >= 0 ? `&lastModified=${file.lastModified}` : '';
+    const res = await fetch(`/api/albums/${id}/photos?name=${encodeURIComponent(file.name)}${time}`, {
       method: 'POST',
       headers: { 'X-Album-Upload': '1' },
       body: file,

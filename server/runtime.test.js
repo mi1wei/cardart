@@ -1,13 +1,16 @@
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import { once } from 'node:events';
-import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, readdir, cp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { Readable } from 'node:stream';
 import { test } from 'node:test';
 import sharp from 'sharp';
 import { startServer } from './app.js';
 import { openLibrary } from './library.js';
+import { photoBytes } from '../tests/fixtures/photo-metadata.cjs';
+import { importPhoto } from './importer.js';
 
 async function fixture(t) {
   const root = await mkdtemp(join(tmpdir(), 'folio-runtime-'));
@@ -79,6 +82,130 @@ test('shutdown finishes an already accepted photo upload before releasing its li
   try { assert.equal(reopened.get(album.id).photos.length, 1); }
   finally { await reopened.close(); }
 });
+
+test('photo upload carries valid source file time but ignores malformed optional timestamps', async (t) => {
+  const f = await fixture(t);
+  const runtime = await f.start();
+  const bytes = await photoBytes();
+  for (const [value, expected] of [['1577934245000', 'source-file'], ['1e3', 'library-copy']]) {
+    const album = await (await fetch(`${runtime.url}api/albums`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: 'Source time' }),
+    })).json();
+    const response = await fetch(`${runtime.url}api/albums/${album.id}/photos?name=image.jpg&lastModified=${value}`, {
+      method: 'POST', headers: { 'X-Album-Upload': '1' }, body: bytes,
+    });
+    assert.equal(response.status, 200);
+    const { photo } = await response.json();
+    assert.ok(photo.metadata);
+    assert.equal(photo.metadata.fileTimeSource, expected);
+    if (expected === 'source-file') assert.equal(photo.metadata.fileModifiedAt, '2020-01-02T03:04:05.000Z');
+    assert.equal(photo.metadata.takenAt.raw, '2026:08:15 09:30:00');
+  }
+});
+
+async function seedPhoto(dir, { legacy = false } = {}) {
+  const lib = await openLibrary(dir);
+  try {
+    const album = await lib.create('Photo details');
+    const { photo } = await importPhoto(lib, album.id, Readable.from([await photoBytes()]), 'original.jpg');
+    if (legacy) {
+      const { metadata, ...oldPhoto } = photo;
+      await lib.save({ ...lib.get(album.id), photos: [oldPhoto] });
+    }
+    return { albumId: album.id, photo, folder: lib.albumDir(album.id) };
+  } finally { await lib.close(); }
+}
+
+test('legacy details read original EXIF in read-only mode without modifying any album data', async (t) => {
+  const f = await fixture(t);
+  const seeded = await seedPhoto(f.dir, { legacy: true });
+  const files = [join(f.dir, 'library.json'), join(seeded.folder, 'album.json'), join(seeded.folder, 'originals', seeded.photo.file),
+    ...[600, 1600].map((size) => join(seeded.folder, 'cache', `${seeded.photo.id}_${size}.webp`))];
+  const before = await Promise.all(files.map((file) => readFile(file)));
+  for (const state of ['missing', 'expired']) {
+    const runtime = await f.start({ license: { status: () => ({ state, canWrite: false }) } });
+    const response = await fetch(`${runtime.url}api/albums/${seeded.albumId}/photos/${seeded.photo.id}/details`);
+    assert.equal(response.status, 200);
+    const details = await response.json();
+    assert.equal(details.photoId, seeded.photo.id);
+    assert.equal(details.metadata.cameraModel, 'Synthetic Camera');
+    assert.equal(details.metadata.takenAt.raw, '2026:08:15 09:30:00');
+    assert.equal(details.metadata.fileTimeSource, 'library-copy');
+    assert.deepEqual(await Promise.all(files.map((file) => readFile(file))), before);
+    assert.deepEqual((await readdir(seeded.folder)).sort(), ['album.json', 'cache', 'originals']);
+    await runtime.close();
+  }
+});
+
+test('stored details survive missing originals while legacy missing files degrade without exposing paths', async (t) => {
+  const f = await fixture(t);
+  const seeded = await seedPhoto(f.dir);
+  await rm(join(seeded.folder, 'originals', seeded.photo.file));
+  let runtime = await f.start();
+  const path = `api/albums/${seeded.albumId}/photos/${seeded.photo.id}/details`;
+  const stored = await (await fetch(runtime.url + path)).json();
+  assert.deepEqual(stored.metadata, seeded.photo.metadata);
+  assert.equal((await fetch(`${runtime.url}api/albums/${seeded.albumId}/photos/p999/details`)).status, 404);
+  assert.equal((await fetch(runtime.url + path + '/extra')).status, 404);
+  assert.equal((await fetch(`${runtime.url}api/albums/${seeded.albumId}/photos/p001%2f..%2fsecret/details`)).status, 404);
+  await runtime.close();
+  for (const metadata of [{ schemaVersion: 999 }, { ...seeded.photo.metadata, latitude: 'invalid' }]) {
+    const lib = await openLibrary(f.dir);
+    try { await lib.save({ ...lib.get(seeded.albumId), photos: [{ ...seeded.photo, metadata }] }); }
+    finally { await lib.close(); }
+    runtime = await f.start();
+    const response = await fetch(runtime.url + path);
+    assert.equal(response.status, 200);
+    const missing = await response.json();
+    assert.equal(missing.metadata.exifStatus, 'unreadable');
+    assert.equal(missing.metadata.takenAt, null);
+    assert.ok(!JSON.stringify(missing).includes(f.dir));
+    await runtime.close();
+  }
+});
+
+test('legacy details do not leak across libraries with the same album and photo IDs', async (t) => {
+  const f = await fixture(t);
+  const seeded = await seedPhoto(f.dir, { legacy: true });
+  const other = join(f.dir, '..', 'other-library');
+  await cp(f.dir, other, { recursive: true });
+  await writeFile(join(other, 'albums', seeded.albumId, 'originals', seeded.photo.file), await photoBytes({ exif: {
+    IFD0: { Make: 'Other Library', Model: 'Other Camera' },
+  } }));
+  for (const [dir, make] of [[f.dir, 'Folio Test'], [other, 'Other Library']]) {
+    const runtime = await f.start({ dir });
+    const response = await fetch(`${runtime.url}api/albums/${seeded.albumId}/photos/${seeded.photo.id}/details`);
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).metadata.cameraMake, make);
+    await runtime.close();
+  }
+});
+
+for (const [name, patch] of [
+  ['impossible calendar date', { raw: '2026:02:30 09:30:00', local: '2026-02-30T09:30:00' }],
+  ['raw/local disagreement', { local: '2026-08-16T09:30:00' }],
+  ['invalid timezone offset', { offset: '+99:99' }],
+  ['nondigit subseconds', { subsecond: 'not-digits' }],
+]) {
+  test(`stored capture metadata with ${name} is reread from the original without writeback`, async (t) => {
+    const f = await fixture(t);
+    const seeded = await seedPhoto(f.dir);
+    const lib = await openLibrary(f.dir);
+    try {
+      await lib.save({ ...lib.get(seeded.albumId), photos: [{
+        ...seeded.photo, metadata: { ...seeded.photo.metadata, takenAt: { ...seeded.photo.metadata.takenAt, ...patch } },
+      }] });
+    } finally { await lib.close(); }
+    const file = join(seeded.folder, 'album.json');
+    const before = await readFile(file);
+    const runtime = await f.start();
+    const response = await fetch(`${runtime.url}api/albums/${seeded.albumId}/photos/${seeded.photo.id}/details`);
+    assert.equal(response.status, 200);
+    const details = await response.json();
+    assert.deepEqual(details.metadata.takenAt, seeded.photo.metadata.takenAt);
+    assert.deepEqual(await readFile(file), before);
+  });
+}
 
 test('a paused read-only video transfer cannot prevent shutdown or keep the library locked', async (t) => {
   const f = await fixture(t);

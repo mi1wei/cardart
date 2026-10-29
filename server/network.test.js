@@ -6,6 +6,8 @@ import { Readable } from 'node:stream';
 import { test } from 'node:test';
 import { lanInterfaces, createHandler } from './app.js';
 import { openLibrary } from './library.js';
+import { importPhoto } from './importer.js';
+import { photoBytes } from '../tests/fixtures/photo-metadata.cjs';
 
 test('LAN candidates exclude unusable addresses, deduplicate aliases and prefer physical adapters', () => {
   const ipv4 = (address, internal = false) => ({ address, family: 'IPv4', internal });
@@ -28,6 +30,9 @@ test('new LAN choices preserve phone key rotation, cookie access and computer-on
   const lib = await openLibrary(dir);
   t.after(async () => { await lib.close(); await rm(dir, { recursive: true, force: true }); });
   const handler = createHandler(lib);
+  const album = await lib.create('Private details');
+  const { photo } = await importPhoto(lib, album.id, Readable.from([await photoBytes()]), 'private.jpg');
+  const details = `/api/albums/${album.id}/photos/${photo.id}/details`;
   async function request(url, { local = false, method = 'GET', headers = {}, body } = {}) {
     const req = Object.assign(Readable.from(body ? [JSON.stringify(body)] : []), {
       method, url,
@@ -45,10 +50,13 @@ test('new LAN choices preserve phone key rotation, cookie access and computer-on
     return result;
   }
   assert.equal((await request('/api/albums')).status, 403);
+  assert.equal((await request(details)).status, 403);
   const first = await lib.setPhone(true);
   assert.equal((await request('/api/albums')).status, 403);
   assert.equal((await request('/api/albums?key=wrong')).status, 403);
   assert.equal((await request(`/api/albums?key=${first.key}`)).status, 200);
+  assert.equal((await request(`${details}?key=${first.key}`)).status, 200);
+  assert.equal((await request(details, { headers: { cookie: `album_key=${first.key}` } })).status, 200);
   assert.equal((await request('/api/albums', { headers: { cookie: `album_key=${first.key}` } })).status, 200);
   assert.equal((await request(`/api/phone?key=${first.key}`)).status, 403);
   assert.equal((await request('/api/phone', { local: true, method: 'PATCH', headers: { origin: 'https://example.com' }, body: { enabled: false } })).status, 403);
@@ -56,6 +64,7 @@ test('new LAN choices preserve phone key rotation, cookie access and computer-on
   const second = await lib.setPhone(true);
   assert.notEqual(first.key, second.key);
   assert.equal((await request(`/api/albums?key=${first.key}`)).status, 403);
+  assert.equal((await request(`${details}?key=${first.key}`)).status, 403);
   const info = JSON.parse((await request('/api/phone', { local: true })).body);
   assert.equal(info.port, 5291);
   assert.ok(Array.isArray(info.addresses));

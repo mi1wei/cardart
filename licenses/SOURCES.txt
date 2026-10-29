@@ -17,6 +17,12 @@ Electron 45.0.0:
   the base revision alone is not a reconstruction of the shipped binary.
   The original Electron and Chromium/FFmpeg notices accompany the report.
 
+exifr 7.1.3:
+  https://github.com/MikeKovarik/exifr/tree/6cbf6e921688faf7723e1f2e0b9e672d1f0aa21c
+  The published MIT package is used unmodified to parse whitelisted TIFF
+  EXIF selected from original files. Its own LICENSE accompanies inventory
+  notices. No ExifTool executable, geocoding service or native decoder is added.
+
 sharp 0.35.5 / sharp-libvips npm 1.3.4 / libvips 8.18.7:
   https://github.com/lovell/sharp/tree/v0.35.5
   https://github.com/lovell/sharp-libvips/tree/ebb95f8add54eee8bed840e3fb587e4cbec857d7

@@ -226,6 +226,44 @@ public/cards.json     删除
 - 去掉 `cover.webp`：封面直接用那张照片的缓存图。
 - `cache/` 存两种尺寸。
 
+### 照片属性补充：Details
+
+照片可增加可选 `metadata`，其自身 `schemaVersion: 1` 不改变相册 `version: 1`。新导入从原始上传文件、在生成 WebP 前提取，随照片原子保存；原图不改写。
+
+- 文件信息：实际格式、原图字节大小；排版与详情均使用既有方向修正后的 `w/h`，不是缓存尺寸。
+- EXIF：拍摄时间、相机品牌/型号、镜头、光圈、曝光时间、ISO、焦距、方向标记及有效 GPS。只保存白名单 JSON 字段，不存整块 EXIF、MakerNote、缩略图或序列号。
+- `takenAt` 为 `{ raw, local, offset, subsecond, source }` 或 null。优先 DateTimeOriginal，其次 CreateDate；对应的偏移/亚秒必须来自同一个字段。没有时区不补 UTC、不按运行电脑时区转换；CreateDate 回退明确标为 EXIF 创建时间。
+- 文件修改时间单列：上传可传 `File.lastModified`，来源标为 `source-file`；只能获得库中副本 mtime 时标为 `library-copy`。它们不冒充拍摄时间。
+- `exifStatus` 区分 `ready`、`none`、`unreadable`。无 EXIF/解析失败不阻止有效图片导入；GPS 的零值有效，纬度/经度必须成对且在有效范围内。
+- 缺少属性或版本不兼容的旧照片在打开详情时从 `originals/` 只读补取，不要求重新导入，不在 GET 或启动时回写 `album.json`。原图不可读时保留仍可取得的信息。
+- 默认不联网解析地名，也不发送照片、GPS 或元数据给第三方；已有手机访问和许可证只读规则保持不变。
+
+数据例：
+
+```json
+{
+  "schemaVersion": 1,
+  "exifStatus": "ready",
+  "format": "jpeg",
+  "bytes": 123456,
+  "fileModifiedAt": null,
+  "fileTimeSource": null,
+  "takenAt": {
+    "raw": "2026:08:15 09:30:00",
+    "local": "2026-08-15T09:30:00",
+    "offset": null,
+    "subsecond": null,
+    "source": "DateTimeOriginal"
+  },
+  "cameraMake": null,
+  "cameraModel": null,
+  "latitude": null,
+  "longitude": null
+}
+```
+
+示例时间与大小仅为结构演示；其他白名单属性在无数据时也为 null。
+
 ## 7. HTTP 接口
 
 请求和响应都是 JSON（上传除外）。出错时返回 4xx/5xx 和 `{ "error": "…" }`。`/api/*` 一律 `Cache-Control: no-store`。
@@ -239,6 +277,7 @@ public/cards.json     删除
 | DELETE | `/api/albums/:id` | 删除整本相册，文件夹一起删除 |
 | POST | `/api/albums/:id/photos?name=<文件名>` | 请求体就是文件本身，一次一张，请求头带 `X-Album-Upload: 1`。返回 `{ photo }` 或 `{ skipped }` |
 | POST | `/api/albums/:id/photos/delete` | `{ ids }` → 改后的相册；原图和缓存图一起删除 |
+| GET | `/api/albums/:id/photos/:photoId/details` | `{ photoId, metadata }`；优先返回有效已保存属性，旧记录从原图只读补取，不回写相册 |
 | GET | `/media/:albumId/:photoId/600`、`/1600` | WebP 缓存图，缺了就现做；带 `Cache-Control: public, max-age=31536000, immutable` |
 | GET | `/media/:albumId/:photoId/original` | 原图，`Content-Disposition: inline`，文件名用原来的名字 |
 | GET | `/api/phone` | `{ enabled, key, ip, port }`，只允许本机调用 |
@@ -328,10 +367,12 @@ public/cards.json     删除
 - 关闭：Esc、×、返回键。
 - 顶栏：
   - 「i / n」和原文件名；
+  - 「详情 / Details」：默认收起，桌面右侧信息栏、窄屏可滚动底部面板；展示文件、拍摄、相机与 GPS，缺失信息明确降级；
   - 「设为封面」；
   - 「查看原图」：新标签页打开原图。浏览器不能显示的格式（如在 Chrome 里打开 HEIC）会直接下载；
   - 「删除」：删除前确认：「删除这张照片？删除后不能恢复。」
 - 大图打开时，键盘只作用于大图。
+- 详情中的文字可选择、复制；滚动和选字不误触翻图。普通 ←/→ 仍切换照片，选中文字时留给选择操作；Esc 先收起详情，再关闭大图。快速切图或关闭后，旧详情响应不覆盖当前界面。
 - 在大图里删除照片或设封面后，下层页面会刷新：相册页重画网格；3D 调用 `refresh` 重新排版。
 
 **3D 翻阅**（界面稿 6、11，排版稿）：

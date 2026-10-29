@@ -2,6 +2,7 @@ import { api, mediaUrl } from './api.js';
 import { dialog, icon, toast } from './ui.js';
 import { t } from './i18n.js';
 import { allowWrite } from './license.js';
+import { createPhotoDetails } from './photo-details.js';
 
 const KEYS = { ArrowLeft: 'prev', ArrowRight: 'next', Escape: 'close' };
 
@@ -13,6 +14,7 @@ export function openLightbox({ album, index, onIndex, onAlbum, onClose }) {
   root.innerHTML = `
     <header class="lb-bar">
       <b class="lb-count"></b><span class="lb-name"></span><span class="sp"></span>
+      <button class="lb-btn" type="button" data-act="details" aria-label="${t('details')}" aria-expanded="false" aria-controls="photo-details">${icon('info')}<span>${t('details')}</span></button>
       <button class="lb-btn" type="button" data-write data-act="cover">${icon('star')}<span>${t('set-cover')}</span></button>
       <button class="lb-btn" type="button" data-act="original">${icon('expand')}<span>${t('original')}</span></button>
       <button class="lb-btn" type="button" data-write data-act="delete">${icon('trash')}<span>${t('delete')}</span></button>
@@ -23,6 +25,7 @@ export function openLightbox({ album, index, onIndex, onAlbum, onClose }) {
     <button class="ibtn lb-nav r" type="button" data-act="next" aria-label="${t('next-photo')}">${icon('next')}</button>`;
   const $ = (s) => root.querySelector(s);
   const img = $('.lb-img');
+  const details = createPhotoDetails(root);
   img.onload = () => root.classList.remove('missing');
   img.onerror = () => root.classList.add('missing');
 
@@ -33,6 +36,7 @@ export function openLightbox({ album, index, onIndex, onAlbum, onClose }) {
     img.src = mediaUrl(album.id, p.id, 1600);
     $('.lb-count').textContent = `${index + 1} / ${album.photos.length}`;
     $('.lb-name').textContent = p.name;
+    details.setPhoto(album.id, p);
     $('[data-act=prev]').disabled = index === 0;
     $('[data-act=next]').disabled = index === album.photos.length - 1;
     $('[data-act=cover]').disabled = (album.cover ?? album.photos[0].id) === p.id;
@@ -54,6 +58,8 @@ export function openLightbox({ album, index, onIndex, onAlbum, onClose }) {
       if (name === 'prev') go(index - 1);
       else if (name === 'next') go(index + 1);
       else if (name === 'close') onClose();
+      else if (name === 'details') details.toggle();
+      else if (name === 'details-close') details.close();
       else if (name === 'original') window.open(mediaUrl(album.id, p.id, 'original'), '_blank');
       else if (name === 'cover') {
         show(index, await api.updateAlbum(album.id, { cover: p.id }));
@@ -78,17 +84,26 @@ export function openLightbox({ album, index, onIndex, onAlbum, onClose }) {
   // Capture phase: the lightbox gets the keys before the 3D viewer under it.
   function onKey(e) {
     if (!KEYS[e.key] || document.querySelector('dialog[open]')) return;
+    const selection = window.getSelection();
+    if (e.key !== 'Escape' && selection && !selection.isCollapsed &&
+      (details.contains(selection.anchorNode) || details.contains(selection.focusNode))) {
+      e.stopImmediatePropagation();
+      return;
+    }
     e.preventDefault();
     e.stopImmediatePropagation();
+    if (e.key === 'Escape' && details.close()) return;
     act(KEYS[e.key]);
   }
 
   // A horizontal swipe of 50 px or more pages, as on the phone's photo app.
   let x0 = null;
   root.addEventListener('pointerdown', (e) => {
-    if (!e.target.closest('button')) x0 = e.clientX;
+    x0 = null;
+    if (!e.target.closest('button') && !details.contains(e.target)) x0 = e.clientX;
   });
   root.addEventListener('pointerup', (e) => {
+    if (details.contains(e.target)) { x0 = null; return; }
     if (x0 === null) return;
     const dx = e.clientX - x0;
     x0 = null;
@@ -105,6 +120,7 @@ export function openLightbox({ album, index, onIndex, onAlbum, onClose }) {
   return {
     show,
     close() {
+      details.dispose();
       window.removeEventListener('keydown', onKey, true);
       root.remove();
     },

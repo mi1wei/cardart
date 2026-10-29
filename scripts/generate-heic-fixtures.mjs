@@ -12,5 +12,6 @@ try {
   const png = join(temp, 'source.png');
   await sharp(join(root, 'source.svg')).removeAlpha().png().toFile(png);
   await sharp(png).rotate(180).png().toFile(join(temp, 'secondary.png'));
-  execFileSync('/usr/bin/xcrun', ['swift', fileURLToPath(new URL('./heic-fixtures.swift', import.meta.url)), temp, root], { stdio: 'inherit' });
+  execFileSync('/usr/bin/xcrun', ['swift', fileURLToPath(new URL('./heic-fixtures.swift', import.meta.url)), temp, root,
+    ...(process.argv.includes('--metadata-only') ? ['--metadata-only'] : [])], { stdio: 'inherit' });
 } finally { await rm(temp, { recursive: true, force: true }); }
