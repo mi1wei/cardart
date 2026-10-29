@@ -9,6 +9,7 @@ import { execFile } from 'node:child_process';
 import { parseArgs, promisify } from 'node:util';
 import { pipeline } from 'node:stream/promises';
 import yazl from 'yazl';
+import { readBuildIdentity } from './release-identity.cjs';
 
 const require = createRequire(import.meta.url);
 const run = promisify(execFile);
@@ -74,10 +75,11 @@ export async function requireDistributionApproval({ root = project, inventory })
   if (!accepted) throw new Error('Distribution review is pending or does not cover these exact inputs, sources and codec obligations');
 }
 
-export async function generateNotices({ root = project, runtime } = {}) {
+export async function generateNotices({ root = project, runtime, buildEnv = process.env } = {}) {
   root = await realpath(root);
   const metadata = await json(join(root, 'package.json'));
   if (!safeVersion(metadata.version)) throw new Error('Invalid application version for the release filename');
+  metadata.version = readBuildIdentity({ root, env: buildEnv }).version;
   const lock = await json(join(root, 'package-lock.json'));
   const manifestBytes = await readFile(join(root, 'licenses/components.json'));
   const manifest = JSON.parse(manifestBytes);

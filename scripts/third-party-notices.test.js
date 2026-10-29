@@ -1,13 +1,15 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { spawnSync } from 'node:child_process';
-import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { mkdtemp, mkdir, writeFile, readFile, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import yauzl from 'yauzl';
-import { generateNotices, requireDistributionApproval } from './third-party-notices.mjs';
+import { generateNotices as generate, requireDistributionApproval } from './third-party-notices.mjs';
+
+const generateNotices = (options) => generate({ buildEnv: {}, ...options });
 
 const hash = (value) => createHash('sha256').update(value).digest('hex');
 const runtime = { electron: '9.9.9', chrome: '99.0.0', node: '24.0.0', v8: '9.0' };
@@ -93,6 +95,22 @@ test('notices follow the installed production graph, preserve nested versions an
   assert.equal(files.get('electron/LICENSE').toString(), 'Electron fixture notice');
   assert.equal(files.get('electron/LICENSES.chromium.html').toString(), '<p>Chromium and FFmpeg fixture notice</p>');
   for (const [name, bytes] of files) assert.deepEqual(await readFile(join(result.directory, name)), bytes, name);
+});
+
+test('tagged notices and their archive use the release version without rewriting the source package', async (t) => {
+  const { root } = await fixture(t);
+  const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
+  git('init', '-q');
+  git('config', 'user.name', 'Folio test');
+  git('config', 'user.email', 'test@example.invalid');
+  git('add', 'package.json');
+  git('commit', '-qm', 'fixture');
+  git('tag', 'v0.1.0-beta.2');
+  const result = await generateNotices({ root, runtime, buildEnv: { RELEASE_TAG: 'v0.1.0-beta.2', SOURCE_COMMIT: git('rev-parse', 'HEAD') } });
+  assert.equal(result.inventory.version, '0.1.0-beta.2');
+  assert.equal(result.archive, join(await realpath(root), 'release/Folio-0.1.0-beta.2-third-party-licenses.zip'));
+  assert.equal(JSON.parse((await unzip(result.archive)).get('inventory.json')).version, '0.1.0-beta.2');
+  assert.equal(JSON.parse(await readFile(join(root, 'package.json'), 'utf8')).version, '0.1.0-beta.1');
 });
 
 test('unknown licenses and missing notices fail instead of silently publishing an incomplete inventory', async (t) => {
