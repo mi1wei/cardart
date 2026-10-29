@@ -73,3 +73,15 @@ export SHARP_IGNORE_GLOBAL_LIBVIPS=1
 npm ci --include=optional
 npm run package:desktop -- --mac dmg --arm64
 ```
+
+
+## license  3 个月试用许可
+```bash
+EXPIRY_UTC="$(node -e 'console.log(new Date(Date.now()+90*24*60*60*1000).toISOString().replace(/\.\d{3}Z$/,"Z"))')"
+
+node scripts/license-issuer.mjs issue \
+  --private-key "$HOME/.folio-issuer/license-private.pem" \
+  --plan trial \
+  --expires-at "$EXPIRY_UTC" \
+  --out "$HOME/Downloads/folio-trial-$(date +%Y%m%d-%H%M%S).json"
+```
