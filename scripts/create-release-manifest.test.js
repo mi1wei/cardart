@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { createWriteStream } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { mkdtemp, mkdir, writeFile, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -8,13 +9,31 @@ import { gzipSync } from 'node:zlib';
 import { pipeline } from 'node:stream/promises';
 import { test } from 'node:test';
 import yazl from 'yazl';
-import { createReleaseManifest, validateReleaseIdentity } from './create-release-manifest.mjs';
+import { createReleaseManifest, validateReleaseIdentity, readTaggedReleaseIdentity } from './create-release-manifest.mjs';
 import { fileDigest } from './verify-release.mjs';
 
 const version = '0.1.0-beta.1';
 const commit = 'a'.repeat(40);
 const tag = `v${version}`;
 const sha = (bytes) => createHash('sha256').update(bytes).digest('hex');
+
+test('formal identity resolves the actual tag version even when the source package is a baseline', async (t) => {
+  const root = await mkdtemp(join(tmpdir(), 'folio-candidate-identity-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await writeFile(join(root, 'package.json'), JSON.stringify({ version: '0.1.0-beta.1' }));
+  const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
+  git('init', '-q');
+  git('config', 'user.name', 'Folio test');
+  git('config', 'user.email', 'test@example.invalid');
+  git('add', 'package.json');
+  git('commit', '-qm', 'fixture');
+  git('tag', 'v0.1.0-beta.2');
+  const sourceCommit = git('rev-parse', 'HEAD');
+  assert.deepEqual(readTaggedReleaseIdentity({ root, tag: 'v0.1.0-beta.2', sourceCommit }),
+    { version: '0.1.0-beta.2', tag: 'v0.1.0-beta.2', sourceCommit });
+  assert.throws(() => readTaggedReleaseIdentity({ root, tag: 'v0.1.0-beta.2', sourceCommit: 'b'.repeat(40) }));
+  assert.equal(JSON.parse(await readFile(join(root, 'package.json'), 'utf8')).version, '0.1.0-beta.1');
+});
 async function zip(file, entries) {
   const archive = new yazl.ZipFile();
   const done = pipeline(archive.outputStream, createWriteStream(file));

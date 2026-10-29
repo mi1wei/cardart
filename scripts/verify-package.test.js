@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { generateKeyPairSync } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { mkdtemp, mkdir, writeFile, readFile, rm, rename, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -9,6 +10,14 @@ import asar from '@electron/asar';
 import { flipFuses, FuseVersion, FuseV1Options } from '@electron/fuses';
 import { verifyPackage, validateSourceInputs } from './verify-package.mjs';
 const require = createRequire(import.meta.url);
+
+function untaggedEnvironment(t) {
+  for (const key of ['RELEASE_TAG', 'SOURCE_COMMIT']) {
+    const saved = process.env[key];
+    delete process.env[key];
+    t.after(() => { if (saved === undefined) delete process.env[key]; else process.env[key] = saved; });
+  }
+}
 
 // These tiny Mach-O/PE headers and fuse wires are structural fixtures, not runnable applications.
 function binary(platform, arch, fuses = false) {
@@ -107,7 +116,7 @@ async function fixture(t, { platform = 'darwin', arch = 'arm64', extra = {}, add
     await file(join(resources, 'app-update.yml'), 'provider: github\nowner: mi1wei\nrepo: cardart\nchannel: beta\n');
     await file(join(resources, 'elevate.exe'), binary(platform, arch));
   }
-  return { root, source, appDir, resources, fuseFile, privateKey, addon, platform, arch, file };
+  return { root, source, appDir, resources, fuseFile, privateKey, addon, platform, arch, file, buildEnv: {} };
 }
 
 test('package verification accepts the supported thin target layouts without treating fixtures as runtime acceptance', async (t) => {
@@ -117,6 +126,40 @@ test('package verification accepts the supported thin target layouts without tre
     assert.equal(result.version, '0.1.0-beta.1');
     assert.equal(result.target, `${platform}-${arch}`);
   }
+});
+
+test('tagged packages must embed the tag version and build tag, not the source baseline', async (t) => {
+  const f = await fixture(t);
+  const git = (...args) => execFileSync('git', args, { cwd: f.root, encoding: 'utf8' }).trim();
+  git('init', '-q');
+  git('config', 'user.name', 'Folio test');
+  git('config', 'user.email', 'test@example.invalid');
+  git('add', 'package.json');
+  git('commit', '-qm', 'fixture');
+  git('tag', 'v0.1.0-beta.2');
+  f.buildEnv = { RELEASE_TAG: 'v0.1.0-beta.2', SOURCE_COMMIT: git('rev-parse', 'HEAD') };
+  const metadata = JSON.parse(await readFile(join(f.source, 'package.json'), 'utf8'));
+  metadata.version = '0.1.0-beta.2';
+  metadata.folioBuild = { sourceCommit: f.buildEnv.SOURCE_COMMIT, dirty: false, tag: f.buildEnv.RELEASE_TAG };
+  for (const dir of [join(f.root, 'release/legal'), join(f.resources, 'legal')]) {
+    const inventory = JSON.parse(await readFile(join(dir, 'inventory.json'), 'utf8'));
+    await f.file(join(dir, 'inventory.json'), { ...inventory, version: '0.1.0-beta.2' });
+  }
+  const pack = async () => {
+    await f.file(join(f.source, 'package.json'), metadata);
+    await asar.createPackageWithOptions(f.source, join(f.resources, 'app.asar'), {
+      dot: true, unpack: '{**/node_modules/sharp/**,**/node_modules/@img/**,**/node_modules/libheif-js/**}',
+    });
+  };
+  await pack();
+  assert.equal((await verifyPackage(f)).version, '0.1.0-beta.2');
+  metadata.version = '0.1.0-beta.1';
+  await pack();
+  await assert.rejects(verifyPackage(f), /version/i);
+  metadata.version = '0.1.0-beta.2';
+  metadata.folioBuild.tag = 'v0.1.0-beta.3';
+  await pack();
+  await assert.rejects(verifyPackage(f), /tag/i);
 });
 
 test('Intel macOS packages and source builds are explicitly unsupported while support is deferred', async (t) => {
@@ -245,6 +288,7 @@ test('an ASAR symlink cannot pull an otherwise valid payload from outside the ap
 });
 
 test('the builder hook enforces the real source-key gate before generating or packaging resources', async (t) => {
+  untaggedEnvironment(t);
   const root = await mkdtemp(join(tmpdir(), 'folio-build-gate-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   const config = require('../electron-builder.cjs');
@@ -256,6 +300,7 @@ test('the builder hook enforces the real source-key gate before generating or pa
 });
 
 test('unsigned Windows artifacts are still verified when the builder skips afterSign', async (t) => {
+  untaggedEnvironment(t);
   const f = await fixture(t, { platform: 'win32', arch: 'x64' });
   const config = require('../electron-builder.cjs');
   const { Arch } = require('electron-builder');

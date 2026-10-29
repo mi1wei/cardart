@@ -7,6 +7,7 @@ import asar from '@electron/asar';
 import { getCurrentFuseWire, FuseV1Options } from '@electron/fuses';
 import yaml from 'js-yaml';
 import { parseLicensePublicKey } from '../server/license.js';
+import { readBuildIdentity } from './release-identity.cjs';
 
 const project = resolve(fileURLToPath(new URL('../', import.meta.url)));
 const targets = new Set(['darwin-arm64', 'win32-x64']);
@@ -95,13 +96,13 @@ function* archiveFiles(files, prefix = '') {
   }
 }
 
-export async function verifyPackage({ appDir, root = project, platform = process.platform, arch = process.arch, internalTest = false, requireInstallerResources = true } = {}) {
+export async function verifyPackage({ appDir, root = project, platform = process.platform, arch = process.arch, internalTest = false, requireInstallerResources = true, buildEnv = process.env } = {}) {
   if (!targets.has(`${platform}-${arch}`)) throw new Error(`Unsupported package target: ${platform}-${arch}`);
   if (!appDir) throw new Error('An explicit packaged application directory is required');
   appDir = resolve(appDir);
   const resources = platform === 'darwin' ? join(appDir, 'Contents/Resources') : join(appDir, 'resources');
   const archive = join(resources, 'app.asar');
-  const expected = await json(join(root, 'package.json'));
+  const expected = readBuildIdentity({ root, env: buildEnv });
   const key = await publicKey(root);
   const allowedTop = new Set(['app.asar', 'app.asar.unpacked', 'web', 'legal', ...(platform === 'darwin' ? ['icon.icns', 'LICENSE.electron.txt', 'LICENSES.chromium.html'] : ['app-update.yml', 'elevate.exe'])]);
   const electronResources = join(root, 'node_modules/electron/dist/Electron.app/Contents/Resources');
@@ -160,6 +161,7 @@ export async function verifyPackage({ appDir, root = project, platform = process
   }
   const metadata = JSON.parse(content('package.json'));
   if (metadata.version !== expected.version || metadata.main !== 'desktop/main.cjs' || metadata.type !== 'module') throw new Error('Packaged entry point/version is invalid');
+  if (expected.tag && (metadata.folioBuild?.tag !== expected.tag || metadata.folioBuild.sourceCommit !== expected.sourceCommit)) throw new Error('Packaged build tag/source identity is invalid');
   for (const name of ['desktop/main.cjs', 'desktop/service.cjs', 'server/app.js', 'server/heic-worker.cjs', 'server/license.js', 'server/license-store.js']) content(name);
   const packedKey = content('desktop/license-public.pem');
   parseLicensePublicKey(packedKey);

@@ -7,6 +7,7 @@ import { parseArgs, promisify } from 'node:util';
 import { pipeline } from 'node:stream/promises';
 import yazl from 'yazl';
 import { fileDigest, releaseTargets, verifyCandidateFiles } from './verify-release.mjs';
+import { readBuildIdentity } from './release-identity.cjs';
 
 const project = resolve(fileURLToPath(new URL('../', import.meta.url)));
 const run = promisify(execFile);
@@ -16,6 +17,11 @@ export function validateReleaseIdentity({ version, tag, sourceCommit }) {
   if (tag !== `v${version}`) throw new Error('Release tag must match the application version exactly');
   if (!/^[a-f0-9]{40}$/.test(sourceCommit)) throw new Error('A full source commit is required');
   return { version, tag, sourceCommit };
+}
+
+export function readTaggedReleaseIdentity({ root = project, tag, sourceCommit }) {
+  const identity = readBuildIdentity({ root, env: { RELEASE_TAG: tag, SOURCE_COMMIT: sourceCommit } });
+  return validateReleaseIdentity(identity);
 }
 
 export async function createReleaseManifest({ input, output, root = project, version, tag, sourceCommit } = {}) {
@@ -105,9 +111,8 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
       input: { type: 'string' }, output: { type: 'string' }, tag: { type: 'string' },
       commit: { type: 'string' }, 'github-output': { type: 'string' },
     } });
-    const metadata = JSON.parse(await readFile(join(project, 'package.json'), 'utf8'));
     const sourceCommit = values.commit || (await run('git', ['rev-parse', 'HEAD'], { cwd: project })).stdout.trim();
-    const identity = validateReleaseIdentity({ version: metadata.version, tag: values.tag, sourceCommit });
+    const identity = readTaggedReleaseIdentity({ tag: values.tag, sourceCommit });
     if (positionals[0] === 'identity' && positionals.length === 1) {
       const tagged = (await run('git', ['rev-parse', `refs/tags/${identity.tag}^{commit}`], { cwd: project })).stdout.trim();
       if (tagged !== sourceCommit) throw new Error('Tag does not point at the checked out source commit');

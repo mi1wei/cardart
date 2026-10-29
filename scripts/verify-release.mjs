@@ -155,6 +155,7 @@ export async function verifyNativeRelease({ appDir, artifact, output, root = pro
   const resources = platform === 'darwin' ? join(appDir, 'Contents/Resources') : join(appDir, 'resources');
   const metadata = JSON.parse(asar.extractFile(join(resources, 'app.asar'), 'package.json'));
   if (metadata.folioBuild?.sourceCommit !== head || metadata.folioBuild?.dirty !== false) throw new Error('Packaged source commit differs from the clean candidate source');
+  if (tag && metadata.folioBuild.tag !== tag) throw new Error('Packaged build tag differs from the candidate');
   const legal = await readLegalArchive(join(root, `release/Folio-${checked.version}-third-party-licenses.zip`), { version: checked.version, target });
   if (requireReview) {
     if (legal.inventory.readyForDistribution !== true) throw new Error('Pending legal bundle must be regenerated after distribution review');

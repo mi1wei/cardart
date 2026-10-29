@@ -79,8 +79,8 @@ async function treeHashes(root) {
 
 export async function smokeWindowsInstaller({ confirmed = false } = {}) {
   requireDisposableWindows({ confirmed });
-  const metadata = JSON.parse(await readFile(join(project, 'package.json'), 'utf8'));
-  const version = metadata.version;
+  const { readBuildIdentity } = await import('./release-identity.cjs');
+  const { version } = readBuildIdentity({ root: project });
   const sourceCommit = (await run('git', ['rev-parse', 'HEAD'], { cwd: project })).stdout.trim();
   const folder = join(project, 'release/candidate-win32-x64');
   const report = JSON.parse(await readFile(join(folder, 'candidate-report.json'), 'utf8'));

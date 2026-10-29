@@ -7,6 +7,8 @@ import { join, resolve, sep } from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseArgs, promisify } from 'node:util';
+import { resolveBuildVersion } from './release-identity.cjs';
+import { resolveRemoteTag } from './auto-main-tag.mjs';
 
 const repository = 'mi1wei/cardart';
 const targets = ['darwin-arm64', 'win32-x64'];
@@ -26,6 +28,7 @@ function requireSelfTestRun(env) {
 
 function requireContext(context, env) {
   if (!/^\d+\.\d+\.\d+-beta\.\d+$/.test(context.version || '') || !/^[a-f0-9]{40}$/.test(context.sourceCommit || '') ||
+    context.buildTag !== `v${context.version}` ||
     !Number.isSafeInteger(context.releaseId) || context.releaseId <= 0 ||
     !context.tag?.startsWith(`self-test-${context.version}-${context.sourceCommit.slice(0, 12)}-`) ||
     !/^\d+-\d+$/.test(context.tag.slice(`self-test-${context.version}-${context.sourceCommit.slice(0, 12)}-`.length))) {
@@ -61,6 +64,7 @@ export function requireSelfTestDraft(release, context) {
 }
 
 async function getDraft(gh, context) {
+  if (await resolveRemoteTag({ tag: context.buildTag, gh }) !== context.sourceCommit) throw new Error('Real build tag no longer matches self-test source');
   const release = JSON.parse(await gh(['api', `repos/${repository}/releases/${context.releaseId}`]));
   requireSelfTestDraft(release, context);
   requireAssets(release, context);
@@ -69,29 +73,32 @@ async function getDraft(gh, context) {
 
 export async function prepareSelfTestRelease({ env = process.env, gh = executeGitHub } = {}) {
   requireSelfTestRun(env);
-  // A queued push must keep its own source even if main advances.
-  const ref = env.GITHUB_EVENT_NAME === 'push' ? { type: 'commit', sha: env.GITHUB_SHA } :
-    JSON.parse(await gh(['api', `repos/${repository}/git/ref/heads/main`])).object;
-  if (ref?.type !== 'commit' || !/^[a-f0-9]{40}$/.test(ref.sha)) throw new Error('Cannot resolve the fixed main source commit');
-  const metadata = JSON.parse(await gh(['api', `repos/${repository}/contents/package.json?ref=${ref.sha}`]));
+  const sourceCommit = env.SOURCE_COMMIT;
+  const buildTag = env.RELEASE_TAG;
+  if (!/^[a-f0-9]{40}$/.test(sourceCommit || '') ||
+    (env.GITHUB_EVENT_NAME === 'push' && sourceCommit !== env.GITHUB_SHA) ||
+    await resolveRemoteTag({ tag: buildTag, gh }) !== sourceCommit) throw new Error('Build tag does not match the fixed main source commit');
+  const metadata = JSON.parse(await gh(['api', `repos/${repository}/contents/package.json?ref=${sourceCommit}`]));
   if (metadata.encoding !== 'base64') throw new Error('Unexpected main package metadata encoding');
-  const { version } = JSON.parse(Buffer.from(metadata.content, 'base64').toString('utf8'));
-  if (!/^\d+\.\d+\.\d+-beta\.\d+$/.test(version || '')) throw new Error('Only the current explicit beta application version can be self-tested');
-  const tag = `self-test-${version}-${ref.sha.slice(0, 12)}-${env.GITHUB_RUN_ID}-${env.GITHUB_RUN_ATTEMPT}`;
+  const { version: packageVersion } = JSON.parse(Buffer.from(metadata.content, 'base64').toString('utf8'));
+  const version = resolveBuildVersion({ packageVersion, tag: buildTag });
+  const tag = `self-test-${version}-${sourceCommit.slice(0, 12)}-${env.GITHUB_RUN_ID}-${env.GITHUB_RUN_ATTEMPT}`;
   const body = [
     'MAINTAINER SELF-TEST ONLY - NOT CLEARED FOR PUBLIC DISTRIBUTION.',
-    `Source main commit: ${ref.sha}`,
+    `Build tag: ${buildTag}`,
+    `Source main commit: ${sourceCommit}`,
+    `Workflow: https://github.com/${repository}/actions/runs/${env.GITHUB_RUN_ID}`,
     'Builds are in progress. Download only after the workflow and both target bundles are complete.',
     'Unsigned Windows / ad-hoc, unnotarized Apple Silicon. Import your license separately.',
     'Do not publish this draft. Formal distribution/manual approval and the public updater feed are unchanged.',
   ].join('\n\n');
   const release = JSON.parse(await gh([
     'api', `repos/${repository}/releases`, '--method', 'POST',
-    '-f', `tag_name=${tag}`, '-f', `target_commitish=${ref.sha}`,
-    '-f', `name=Folio ${version} maintainer self-test (building)`, '-f', `body=${body}`,
+    '-f', `tag_name=${tag}`, '-f', `target_commitish=${sourceCommit}`,
+    '-f', `name=Folio ${buildTag} maintainer self-test (building)`, '-f', `body=${body}`,
     '-F', 'draft=true', '-F', 'prerelease=true', '-f', 'make_latest=false',
   ]));
-  const context = { version, sourceCommit: ref.sha, tag, releaseId: release.id, url: draftDownloadUrl(release) };
+  const context = { version, buildTag, sourceCommit, tag, releaseId: release.id, url: draftDownloadUrl(release) };
   requireSelfTestDraft(release, context);
   requireAssets(release, context);
   return context;
@@ -103,7 +110,8 @@ export async function uploadSelfTestBundle({ root, folder, target, context, env 
   if (!targets.includes(target)) throw new Error('Unsupported self-test target');
   root = await realpath(root);
   const head = (await run('git', ['rev-parse', 'HEAD'], { cwd: root })).stdout.trim();
-  if (head !== context.sourceCommit || JSON.parse(await readFile(join(root, 'package.json'), 'utf8')).version !== context.version) {
+  const packageVersion = JSON.parse(await readFile(join(root, 'package.json'), 'utf8')).version;
+  if (head !== context.sourceCommit || resolveBuildVersion({ packageVersion, tag: context.buildTag }) !== context.version) {
     throw new Error('Self-test candidate differs from the pinned main source/version');
   }
   folder = await realpath(folder || join(root, `release/candidate-${target}`));
@@ -111,7 +119,7 @@ export async function uploadSelfTestBundle({ root, folder, target, context, env 
   const { verifyCandidateFiles, fileDigest } = await import(pathToFileURL(join(root, 'scripts/verify-release.mjs')).href);
   const report = JSON.parse(await readFile(join(folder, 'candidate-report.json'), 'utf8'));
   if (report.target !== target) throw new Error('Self-test report target mismatch');
-  await verifyCandidateFiles({ folder, report, root, version: context.version, sourceCommit: context.sourceCommit, tag: null, requireReview: false });
+  await verifyCandidateFiles({ folder, report, root, version: context.version, sourceCommit: context.sourceCommit, tag: context.buildTag, requireReview: false });
   await getDraft(gh, context);
   const stage = await mkdtemp(join(root, 'release/.maintainer-self-test-'));
   try {
@@ -119,7 +127,7 @@ export async function uploadSelfTestBundle({ root, folder, target, context, env 
     const file = join(stage, name);
     const marker = {
       schemaVersion: 1, releaseMode: 'maintainer-self-test', distributionApproved: false,
-      version: context.version, sourceCommit: context.sourceCommit, tag: context.tag, target,
+      version: context.version, buildTag: context.buildTag, sourceCommit: context.sourceCommit, tag: context.tag, target,
       signing: report.signing, notarized: false, checks: report.checks, publicUpdateFeedVerified: false,
     };
     const extra = new Map([
@@ -176,14 +184,16 @@ export async function finishSelfTestRelease({ context, env = process.env, gh = e
     if (bytes.length !== proofAsset.size || `sha256:${hash(bytes)}` !== proofAsset.digest) throw new Error('Self-test proof asset hash mismatch');
     const proof = JSON.parse(bytes);
     if (proof.schemaVersion !== 1 || proof.releaseMode !== 'maintainer-self-test' || proof.distributionApproved !== false ||
-      proof.version !== context.version || proof.sourceCommit !== context.sourceCommit || proof.tag !== context.tag ||
+      proof.version !== context.version || proof.buildTag !== context.buildTag || proof.sourceCommit !== context.sourceCommit || proof.tag !== context.tag ||
       proof.target !== target || proof.bundle?.name !== name || proof.bundle.size !== bundle.size ||
       `sha256:${proof.bundle.sha256}` !== bundle.digest) throw new Error('Self-test target proof/source/hash mismatch');
     lines.push(`- ${name}: SHA-256 \`${proof.bundle.sha256}\``);
   }
   const body = [
     '# Maintainer self-test packages (unpublished)', '',
+    `Build tag: ${context.buildTag}`, '',
     `Pinned main commit: ${context.sourceCommit}`, '',
+    `Workflow: https://github.com/${repository}/actions/runs/${env.GITHUB_RUN_ID}`, '',
     'Both native targets passed their technical checks. Download the matching platform ZIP and extract the installer.',
     'This is not public distribution approval, minimum-device/UAC acceptance or a verified public updater feed.',
     'Windows x64 is unsigned; macOS Apple Silicon is ad-hoc and not notarized. Import your license separately.',
@@ -191,12 +201,12 @@ export async function finishSelfTestRelease({ context, env = process.env, gh = e
   ].join('\n\n');
   await gh(['api', `repos/${repository}/releases/${context.releaseId}`, '--method', 'PATCH',
     '-f', `tag_name=${context.tag}`,
-    '-f', `name=Folio ${context.version} maintainer self-test (${context.sourceCommit.slice(0, 12)})`,
+    '-f', `name=Folio ${context.buildTag} maintainer self-test (${context.sourceCommit.slice(0, 12)})`,
     '-f', `body=${body}`, '-F', 'draft=true', '-F', 'prerelease=true', '-f', 'make_latest=false']);
   const retained = await getDraft(gh, context);
   if (retained.assets.length !== release.assets.length || release.assets.some((asset) =>
     !retained.assets.some((entry) => entry.name === asset.name && entry.size === asset.size && entry.digest === asset.digest))) throw new Error('Self-test assets changed during finalization');
-  return { url: draftDownloadUrl(retained), tag: context.tag, sourceCommit: context.sourceCommit, published: false };
+  return { url: draftDownloadUrl(retained), tag: context.tag, buildTag: context.buildTag, sourceCommit: context.sourceCommit, published: false };
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
@@ -207,7 +217,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     if (!values['confirm-maintainer-self-test']) throw new Error('Explicit maintainer self-test confirmation is required');
     requireSelfTestRun(process.env);
     const context = {
-      version: process.env.SELF_TEST_VERSION, sourceCommit: process.env.SELF_TEST_SOURCE_COMMIT,
+      version: process.env.SELF_TEST_VERSION, buildTag: process.env.SELF_TEST_BUILD_TAG, sourceCommit: process.env.SELF_TEST_SOURCE_COMMIT,
       tag: process.env.SELF_TEST_TAG, releaseId: Number(process.env.SELF_TEST_RELEASE_ID), url: process.env.SELF_TEST_URL,
     };
     let result;
@@ -215,14 +225,14 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     if (positionals[0] === 'prepare') {
       result = await prepareSelfTestRelease();
       if (process.env.GITHUB_OUTPUT) {
-        await appendFile(process.env.GITHUB_OUTPUT, `version=${result.version}\nsource_commit=${result.sourceCommit}\ntag=${result.tag}\nrelease_id=${result.releaseId}\nurl=${result.url}\n`);
+        await appendFile(process.env.GITHUB_OUTPUT, `version=${result.version}\nbuild_tag=${result.buildTag}\nsource_commit=${result.sourceCommit}\ntag=${result.tag}\nrelease_id=${result.releaseId}\nurl=${result.url}\n`);
       }
     } else if (positionals[0] === 'upload') {
       if (values.target !== `${process.platform}-${process.arch}`) throw new Error('Self-test upload requires the matching native host');
       result = await uploadSelfTestBundle({ root: values.root, target: values.target, context });
     } else if (positionals[0] === 'finish') {
       result = await finishSelfTestRelease({ context });
-      if (process.env.GITHUB_STEP_SUMMARY) await appendFile(process.env.GITHUB_STEP_SUMMARY, `## Maintainer-only self-test download\n\n[Open the unpublished draft](${result.url})\n\nUse a repository write-capable account. This is not a public release or distribution approval.\n`);
+      if (process.env.GITHUB_STEP_SUMMARY) await appendFile(process.env.GITHUB_STEP_SUMMARY, `## Maintainer-only self-test download\n\nBuild tag: \`${result.buildTag}\`\n\nSource: \`${result.sourceCommit}\`\n\n[Workflow run](https://github.com/${repository}/actions/runs/${process.env.GITHUB_RUN_ID})\n\n[Open the unpublished draft](${result.url})\n\nUse a repository write-capable account. This is not a public release or distribution approval.\n`);
     } else throw new Error('Unknown self-test command');
     console.log(JSON.stringify(result));
   } catch (error) { console.error(error.message); process.exitCode = 1; }

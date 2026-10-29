@@ -14,10 +14,12 @@ import { requireSelfTestDraft, prepareSelfTestRelease, uploadSelfTestBundle, fin
 
 const root = resolve(fileURLToPath(new URL('../', import.meta.url)));
 const sourceCommit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
-const version = JSON.parse(await readFile(join(root, 'package.json'), 'utf8')).version;
-const env = { GITHUB_ACTIONS: 'true', GITHUB_EVENT_NAME: 'workflow_dispatch', GITHUB_REPOSITORY: 'mi1wei/cardart', GITHUB_RUN_ID: '12345', GITHUB_RUN_ATTEMPT: '1' };
+const packageVersion = JSON.parse(await readFile(join(root, 'package.json'), 'utf8')).version;
+const version = '0.1.0-beta.2';
+const buildTag = `v${version}`;
+const env = { GITHUB_ACTIONS: 'true', GITHUB_EVENT_NAME: 'workflow_dispatch', GITHUB_REPOSITORY: 'mi1wei/cardart', GITHUB_RUN_ID: '12345', GITHUB_RUN_ATTEMPT: '1', RELEASE_TAG: buildTag, SOURCE_COMMIT: sourceCommit };
 const pushEnv = { ...env, GITHUB_EVENT_NAME: 'push', GITHUB_REF: 'refs/heads/main', GITHUB_SHA: sourceCommit };
-const context = { version, sourceCommit, tag: `self-test-${version}-${sourceCommit.slice(0, 12)}-12345-1`, releaseId: 42, url: 'https://github.com/mi1wei/cardart/releases/tag/untagged-fixture' };
+const context = { version, buildTag, sourceCommit, tag: `self-test-${version}-${sourceCommit.slice(0, 12)}-12345-1`, releaseId: 42, url: 'https://github.com/mi1wei/cardart/releases/tag/untagged-fixture' };
 const draft = () => ({ id: 42, draft: true, published_at: null, prerelease: true, tag_name: context.tag, target_commitish: sourceCommit, html_url: context.url, assets: [] });
 const hash = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const bundleName = (target) => `Folio-${version}-self-test-${target}.zip`;
@@ -40,22 +42,24 @@ test('untrusted events cannot create a self-test draft', async () => {
   }
 });
 
-test('self-test preparation resolves main once and creates only an unpublished, non-latest draft', async () => {
+test('self-test preparation consumes the pinned real tag and creates only an unpublished, non-latest draft', async () => {
   const calls = [];
   const result = await prepareSelfTestRelease({ env: {
     ...env, GITHUB_REF: 'refs/heads/maintainer-tooling', GITHUB_SHA: 'b'.repeat(40),
   }, gh: async (args) => {
     calls.push(args);
-    if (args[1].endsWith('/git/ref/heads/main')) return JSON.stringify({ object: { type: 'commit', sha: sourceCommit } });
+    if (args[1].includes('/git/ref/tags/')) return JSON.stringify({ object: { type: 'commit', sha: sourceCommit } });
     if (args[1].includes('/contents/package.json?ref=')) {
       assert.ok(args[1].endsWith(sourceCommit));
-      return JSON.stringify({ encoding: 'base64', content: Buffer.from(JSON.stringify({ version })).toString('base64') });
+      return JSON.stringify({ encoding: 'base64', content: Buffer.from(JSON.stringify({ version: packageVersion })).toString('base64') });
     }
     return JSON.stringify(draft());
   } });
   assert.ok(result, 'A draft identity must be returned');
   assert.equal(result.sourceCommit, sourceCommit);
   assert.equal(result.tag, context.tag);
+  assert.equal(result.buildTag, buildTag);
+  assert.equal(result.version, '0.1.0-beta.2');
   const creation = calls.find((args) => args.includes('POST'));
   assert.ok(creation.includes('draft=true'));
   assert.ok(creation.includes('prerelease=true'));
@@ -67,9 +71,10 @@ test('a main push pins its event commit even when main advances', async () => {
   const calls = [];
   const result = await prepareSelfTestRelease({ env: pushEnv, gh: async (args) => {
     calls.push(args);
+    if (args[1].includes('/git/ref/tags/')) return JSON.stringify({ object: { type: 'commit', sha: sourceCommit } });
     if (args[1].endsWith('/git/ref/heads/main')) return JSON.stringify({ object: { type: 'commit', sha: 'b'.repeat(40) } });
     if (args[1].includes('/contents/package.json?ref=')) {
-      const metadataVersion = args[1].endsWith(sourceCommit) ? version : '99.0.0-beta.9';
+      const metadataVersion = args[1].endsWith(sourceCommit) ? packageVersion : '99.0.0-beta.9';
       return JSON.stringify({ encoding: 'base64', content: Buffer.from(JSON.stringify({ version: metadataVersion })).toString('base64') });
     }
     assert.ok(args.includes('POST'));
@@ -137,7 +142,7 @@ async function fixture(t) {
   archive.end();
   await done;
   const report = {
-    schemaVersion: 1, version, tag: null, sourceCommit, target: 'darwin-arm64', signing: 'adhoc', notarized: false,
+    schemaVersion: 1, version, tag: buildTag, sourceCommit, target: 'darwin-arm64', signing: 'adhoc', notarized: false,
     checks: { package: true, smoke: true, artifact: true, trustState: true },
     legalInputsDigest: inventory.inputsDigest,
     files: [
@@ -151,6 +156,7 @@ async function fixture(t) {
   const calls = [];
   const gh = async (args) => {
     calls.push(args);
+    if (args[1]?.includes('/git/ref/tags/')) return JSON.stringify({ object: { type: 'commit', sha: sourceCommit } });
     if (args[0] === 'api') return JSON.stringify(release);
     assert.equal(args[1], 'upload');
     assert.ok(!args.includes('--clobber'));
@@ -194,6 +200,8 @@ for (const [mode, requestEnv] of [['manual', env], ['main-push', pushEnv]]) {
     const marker = JSON.parse(entries.get('self-test.json'));
     assert.equal(marker.distributionApproved, false);
     assert.equal(marker.sourceCommit, sourceCommit);
+    assert.equal(marker.buildTag, buildTag);
+    assert.equal(JSON.parse(entries.get('candidate-report.json')).tag, buildTag);
     assert.equal(marker.releaseMode, 'maintainer-self-test');
     assert.ok(entries.has(`Folio-${version}-third-party-licenses.zip`));
     const proof = JSON.parse(f.uploaded.get(`${bundleName('darwin-arm64')}.json`));
@@ -220,7 +228,7 @@ for (const [mode, requestEnv] of [['manual', env], ['main-push', pushEnv]]) {
     for (const [index, target] of ['darwin-arm64', 'win32-x64'].entries()) {
       const name = bundleName(target);
       const bytes = Buffer.from(`Owned ${target} bundle`);
-      const proof = { schemaVersion: 1, releaseMode: 'maintainer-self-test', distributionApproved: false, version, sourceCommit, tag: context.tag, target, bundle: { name, size: bytes.length, sha256: hash(bytes) } };
+      const proof = { schemaVersion: 1, releaseMode: 'maintainer-self-test', distributionApproved: false, version, buildTag, sourceCommit, tag: context.tag, target, bundle: { name, size: bytes.length, sha256: hash(bytes) } };
       const proofBytes = Buffer.from(JSON.stringify(proof));
       const proofId = index + 10;
       proofs.set(proofId, proofBytes.toString());
@@ -229,6 +237,7 @@ for (const [mode, requestEnv] of [['manual', env], ['main-push', pushEnv]]) {
     }
     const writes = [];
     const gh = async (args) => {
+      if (args[1].includes('/git/ref/tags/')) return JSON.stringify({ object: { type: 'commit', sha: sourceCommit } });
       if (args[1].includes('/releases/assets/')) return proofs.get(Number(args[1].split('/').at(-1)));
       if (args.includes('PATCH')) {
         writes.push(args);
@@ -244,6 +253,7 @@ for (const [mode, requestEnv] of [['manual', env], ['main-push', pushEnv]]) {
     assert.equal(release.tag_name, context.tag);
     assert.equal(writes.length, 1);
     assert.ok(writes[0].includes('draft=true'));
+    assert.ok(writes[0].includes(`name=Folio ${buildTag} maintainer self-test (${sourceCommit.slice(0, 12)})`));
     const removed = release.assets.pop();
     await assert.rejects(finishSelfTestRelease({ context, env: requestEnv, gh }), /target|asset|complete/i);
     assert.equal(writes.length, 1);
@@ -258,3 +268,16 @@ for (const [mode, requestEnv] of [['manual', env], ['main-push', pushEnv]]) {
     assert.equal(writes.length, 1);
   });
 }
+
+  test('a moved real tag or a tag from another beta cannot create or finalize a draft', async () => {
+    let writes = 0;
+    await assert.rejects(prepareSelfTestRelease({ env, gh: async (args) => {
+      if (args.includes('POST')) writes++;
+      return JSON.stringify({ object: { type: 'commit', sha: 'b'.repeat(40) } });
+    } }), /tag|source/i);
+    await assert.rejects(finishSelfTestRelease({
+      context: { ...context, buildTag: 'v0.1.0-beta.3' }, env,
+      gh: async () => { writes++; return JSON.stringify(draft()); },
+    }), /identity/i);
+    assert.equal(writes, 0);
+  });

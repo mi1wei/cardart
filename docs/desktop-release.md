@@ -4,7 +4,7 @@
 
 ## 维护者直接下载自测包
 
-`main` 每次更新（包括合并 PR 和直接推送）都会通过 **Desktop checks** 自动生成维护者自测包，固定使用本次推送的完整提交，不会在排队期间悄悄切到更新的 main。每个平台只运行一遍现有完整自测流程：Windows x64/Apple Silicon 的源码、桌面、原生打包和严格成品检查；Windows 还运行安装、运行中保护、重装及卸载测试。无需在自己的电脑编译。
+`main` 每次更新（包括合并 PR 和直接推送）都会通过 **Desktop checks** 先创建真实的递增 beta Git tag，再自动生成维护者自测包。tag 和打包源码固定使用本次推送的完整提交，不会在排队期间悄悄切到更新的 main。每个平台只运行一遍现有完整自测流程：Windows x64/Apple Silicon 的源码、桌面、原生打包和严格成品检查；Windows 还运行安装、运行中保护、重装及卸载测试。无需在自己的电脑编译。
 
 仍可在 GitHub **Actions → Desktop checks → Run workflow** 手动触发；手动模式固定解析一次当时 `main` 的完整提交。PR 只做只读验证，不上传安装包，也不取得草稿写权限；标签、其他分支和分叉仓库的推送不会触发自动自测上传。
 
@@ -13,9 +13,32 @@
 - `Folio-<版本>-self-test-win32-x64.zip`：解压后运行 Windows 安装器。
 - `Folio-<版本>-self-test-darwin-arm64.zip`：解压后打开 Apple Silicon DMG。
 
-同名 `.zip.json` 是来源与 SHA-256 校验信息，不是安装器。ZIP 同时包含精确候选报告、声明材料、`SHA256SUMS` 和 `self-test.json`；后者明确 `distributionApproved: false`。许可证需自行签发并单独导入，不会附带私钥或真实激活文件。
+同名 `.zip.json` 是来源与 SHA-256 校验信息，不是安装器。ZIP 同时包含精确候选报告、声明材料、`SHA256SUMS` 和 `self-test.json`；后者明确 `distributionApproved: false`。`buildTag` 是真实 Git tag，`tag` 是独立的自测草稿标识；摘要同时列出真实 tag、完整 source commit、运行与下载链接。许可证需自行签发并单独导入，不会附带私钥或真实激活文件。
 
-这些草稿只供维护者自测，不公开、不设为 latest、不进入公开更新 feed；**不要点击 Publish release**。自测标识使用独立的 `self-test-` 前缀，并绑定提交、运行及尝试编号，不创建正式 `v...` 发行版本，也不覆盖旧资产。部分构建失败或被后续 main 更新取消时，草稿可能不完整，应等待两个目标及完成任务均成功，使用最新成功运行摘要中的最终下载链接。重试只复用同来源、同 hash 的既有资产；不同 hash 会拒绝覆盖，需要新包时可重新手动触发或等待下一次 main 更新。
+这些草稿只供维护者自测，不公开、不设为 latest、不进入公开更新 feed；**不要点击 Publish release**。真实 `v...` tag 只标记源码和构建版本，不代表批准公开发行。自测草稿继续使用独立的 `self-test-` 前缀，并绑定提交、运行及尝试编号，不与正式候选 Release 混用，也不覆盖旧资产。部分构建失败或人工取消时，草稿可能不完整，应等待两个目标及完成任务均成功，使用成功运行摘要中的最终下载链接。重试只复用同来源、同 hash 的既有资产；不同 hash 会拒绝覆盖，需要重新构建时可手动触发新运行，生成隔离的新草稿。
+
+### 自动版本与重建
+
+源码 `package.json` 和 lockfile 的版本是系列基线，例如 `0.1.0-beta.1`。分配器读取全部远程 tags，按同系列 beta 序号的数值最大值加一；尚无 tag 时，该基线首次分配 `v0.1.0-beta.2`。同一提交重跑复用已有 tag；不同提交竞争同一编号时重新读取并分配下一个，不移动或覆盖旧 tag。失败后保留 tag，重试不因构建失败再次升版。major/minor/patch 不自动推断，切换系列由维护者同步修改源码 package 和 lockfile。
+
+构建从已经核对的 tag 派生发行版本，注入包内 metadata；不会修改源码 package/lock，不产生机器人 main 提交。以 `v0.1.0-beta.2` 为例，包内版本、About、法律材料、报告和文件名统一为 `0.1.0-beta.2`：`Folio-0.1.0-beta.2-windows-x64-setup.exe`、`Folio-0.1.0-beta.2-macos-arm64.dmg`。`folioBuild.tag` 同时记录真实 tag。PR/开发不带发行环境变量，仍使用基线版本。
+
+main 运行不再互相取消，因此可能并行构建多个版本；PR 仍取消旧检查。同 SHA 的 tag 分配串行，不同 SHA 通过原子 ref 创建解决竞争。序号按 tag 成功预留顺序递增，不保证与合并时间或构建结束顺序一致；公开发行仍人工选择经批准的候选。权限或 tag ruleset 拒绝时停止，不回退为无 tag 包，也不自动放宽规则。
+
+需要本地重建已有版本时，在匹配的原生机器和干净 checkout 中执行（以下以 Apple Silicon 为例）：
+
+```sh
+git fetch origin --tags
+git switch --detach v0.1.0-beta.2
+export RELEASE_TAG=v0.1.0-beta.2
+export SOURCE_COMMIT="$(git rev-parse HEAD)"
+npm ci --include=optional
+npm run package:desktop -- --mac dmg --arm64
+```
+
+Windows 原生 runner 使用 `--win nsis --x64`。必须提供同时匹配 tag、HEAD 的完整 SOURCE_COMMIT；只改文件名或环境中的版本号会失败。
+
+tag 使用当前 Actions 的 `GITHUB_TOKEN` 创建，不会再自动触发 tag-push 工作流；自测在同一个 workflow 中显式接续。要生成经过分发审查的正式候选，请手动运行 **Desktop candidate** 并输入已有 tag。外部正常推送 beta tag 的原入口仍保留。历史草稿不补 tag、不删除，也不会把自测草稿直接发布为正式候选。
 
 仅受信的 main 推送或维护者手动自测任务有草稿创建/上传权限，`GH_TOKEN` 只传给相应步骤，不传给源码构建命令。工具代码与固定 main 源码分目录检出，保持成品源提交清晰。手动上线验证时仍可选择已审阅的工作流分支，打包源码固定来自 main；日常手动运行选择 main。自动触发的实际结果以配置合入后的主干运行记录为准。
 
