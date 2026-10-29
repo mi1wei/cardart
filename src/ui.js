@@ -3,6 +3,13 @@ import { t } from './i18n.js';
 
 const PATHS = {
   info: '<circle cx="12" cy="12" r="8"/><path d="M12 11v6"/><circle cx="12" cy="7.5" r=".8" fill="currentColor" stroke="none"/>',
+  clock: '<circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/>',
+  shield: '<path d="m12 3 7 3v5c0 5-7 10-7 10S5 16 5 11V6Z"/>',
+  shieldCheck: '<path d="m12 3 7 3v5c0 5-7 10-7 10S5 16 5 11V6Z"/><path d="m8.5 11.5 2.5 2.5 4.5-5"/>',
+  file: '<path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8Z"/><path d="M14 3v5h5M8.5 12h7M8.5 16h5"/>',
+  code: '<path d="m8 7-5 5 5 5M16 7l5 5-5 5M14 4l-4 16"/>',
+  chevronDown: '<path d="m7 10 5 5 5-5"/>',
+  refresh: '<path d="M19 8a7.5 7.5 0 1 0 .4 7M19 3v5h-5"/>',
   bookOpen: '<path d="M12 6.5C10.5 5 8 4.5 4 4.5v13c4 0 6.5.5 8 2 1.5-1.5 4-2 8-2v-13c-4 0-6.5.5-8 2z"/><path d="M12 6.5v13"/>',
   close: '<path d="M6 6l12 12M18 6 6 18"/>',
   prev: '<path d="m14.5 6-6 6 6 6"/>',

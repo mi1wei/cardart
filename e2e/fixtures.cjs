@@ -5,7 +5,7 @@ const { mkdtemp, mkdir, writeFile, rm } = require('node:fs/promises');
 const { tmpdir } = require('node:os');
 const { join } = require('node:path');
 
-async function desktopFixture({ license = 'active' } = {}) {
+async function desktopFixture({ license = 'active', plan = 'trial', features = ['album_write'] } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'folio-desktop-e2e-'));
   const profile = join(root, 'Profile with spaces');
   const library = join(root, '\u76f8\u518c\u5e93 with spaces');
@@ -15,9 +15,9 @@ async function desktopFixture({ license = 'active' } = {}) {
   const { publicKey, privateKey } = generateKeyPairSync('ed25519');
   await writeFile(keyFile, publicKey.export({ type: 'spki', format: 'pem' }));
   const payload = {
-    license_id: 'lic_e2e', plan: 'trial', device_id: null,
+    license_id: 'lic_e2e', plan, device_id: null,
     expires_at: new Date(Date.now() + (license === 'expired' ? -3600000 : 3600000)).toISOString().replace(/\.\d{3}Z$/, 'Z'),
-    features: ['album_write'], license_version: 1,
+    features, license_version: 1,
   };
   function issueLicense(expiresAt = payload.expires_at) {
     const bytes = Buffer.from(JSON.stringify({ ...payload, expires_at: expiresAt }));

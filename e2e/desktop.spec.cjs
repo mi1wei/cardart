@@ -84,6 +84,8 @@ test('read-only desktop imports a JSON license without exposing or deleting exis
     await expect(page.locator('.folder')).toHaveCount(1);
     await expect(page.locator('[data-act=new]').first()).toHaveAttribute('aria-disabled', 'true');
     await page.goto(`${origin}/#/license`);
+    await expect(page.locator('#license-json')).toBeHidden();
+    await page.locator('.license-json-details summary').click();
     await expect(page.locator('#license-json')).toBeVisible();
     await page.locator('#license-json').fill('{"payload":"bad","signature":"bad"}');
     await page.locator('[data-act=activate-license]').click();
