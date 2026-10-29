@@ -217,7 +217,7 @@ export async function verifyPackage({ appDir, root = project, platform = process
   const fuses = await getCurrentFuseWire(platform === 'darwin' ? appDir : executable);
   for (const [option, enabled, label] of [
     [FuseV1Options.RunAsNode, false, 'RunAsNode'],
-    [FuseV1Options.EnableCookieEncryption, true, 'cookie encryption'],
+    [FuseV1Options.EnableCookieEncryption, false, 'cookie encryption'],
     [FuseV1Options.EnableNodeOptionsEnvironmentVariable, false, 'NodeOptions'],
     [FuseV1Options.EnableNodeCliInspectArguments, internalTest, 'inspector'],
     [FuseV1Options.EnableEmbeddedAsarIntegrityValidation, true, 'ASAR integrity'],

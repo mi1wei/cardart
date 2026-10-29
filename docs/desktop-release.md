@@ -72,6 +72,8 @@ npm run package:desktop -- --win nsis --x64
 
 构建前校验固定公钥和原生目标；完成全部 target 后检查真实文件内容，包括 ASAR 白名单、原生模块解包/架构、WASM 文件、web/legal 与输入一致、原始 Electron 声明、公钥、图标、更新 feed 和 fuses。使用最终阶段而不是只依赖 `afterSign`：未签名 Windows 会跳过该事件，NSIS 的提权 helper 也在后续才写入解包目录。
 
+生产 fuses 关闭 Cookie 加密，校验器拒绝开启它。桌面窗口唯一的 Cookie 是语言 `folio_lang`（`album_key` 只发给手机），加密不保护机密；而开启后 Electron 会把密钥存进 macOS 钥匙串「Folio Safe Storage」，ad-hoc 签名的每次打包 cdhash 都不同，钥匙串会在每个新包首次启动时要求输入登录密码。关闭后应用不使用系统钥匙串；旧版本加密保存的 Cookie 读不出会被丢弃，语言只回退一次。
+
 出包后可以按实际目录复核，例如：
 
 ```sh

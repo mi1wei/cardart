@@ -33,7 +33,8 @@ module.exports = {
   removePackageScripts: true,
   electronFuses: {
     runAsNode: false,
-    enableCookieEncryption: true,
+    // Off: the only desktop cookie is the language, and ad-hoc macOS builds would re-prompt for the keychain key after every package.
+    enableCookieEncryption: false,
     enableNodeOptionsEnvironmentVariable: false,
     enableNodeCliInspectArguments: internalTest,
     enableEmbeddedAsarIntegrityValidation: true,

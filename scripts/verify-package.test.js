@@ -22,7 +22,7 @@ function binary(platform, arch, fuses = false) {
     header.write('PE\0\0', 64);
     header.writeUInt16LE(0x8664, 68);
   }
-  return fuses ? Buffer.concat([header, Buffer.from('dL7pKGdnNz796PbbjQWNKmHXBZaB9tsX'), Buffer.from([1, 8]), Buffer.from('01001100')]) : header;
+  return fuses ? Buffer.concat([header, Buffer.from('dL7pKGdnNz796PbbjQWNKmHXBZaB9tsX'), Buffer.from([1, 8]), Buffer.from('00001100')]) : header;
 }
 
 async function fixture(t, { platform = 'darwin', arch = 'arm64', extra = {}, addonArch = arch, relocateDependency = false, relocatedVersion = '7.8.5' } = {}) {
@@ -196,6 +196,14 @@ test('distribution fuses reject RunAsNode and inspector while the explicit inter
   await verifyPackage({ ...f, internalTest: true });
   await flipFuses(f.appDir, { version: FuseVersion.V1, [FuseV1Options.RunAsNode]: true });
   await assert.rejects(verifyPackage({ ...f, internalTest: true }), /fuse.*RunAsNode/i);
+});
+
+// Ad-hoc macOS builds change their code hash on every package, so a keychain-backed cookie key prompts again each time.
+test('distribution fuses reject cookie encryption, which would use the macOS keychain', async (t) => {
+  const f = await fixture(t);
+  await verifyPackage(f);
+  await flipFuses(f.appDir, { version: FuseVersion.V1, [FuseV1Options.EnableCookieEncryption]: true });
+  await assert.rejects(verifyPackage(f), /fuse.*cookie/i);
 });
 
 test('Windows updater metadata cannot change the fixed public beta feed or carry credentials', async (t) => {
