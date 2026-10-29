@@ -16,10 +16,11 @@ const hash = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const bundleName = (version, target) => `Folio-${version}-self-test-${target}.zip`;
 const assetNames = (version) => targets.flatMap((target) => [bundleName(version, target), `${bundleName(version, target)}.json`]);
 
-function requireManual(env) {
-  if (env.GITHUB_ACTIONS !== 'true' || env.GITHUB_EVENT_NAME !== 'workflow_dispatch' || env.GITHUB_REPOSITORY !== repository ||
+function requireSelfTestRun(env) {
+  const mainPush = env.GITHUB_EVENT_NAME === 'push' && env.GITHUB_REF === 'refs/heads/main' && /^[a-f0-9]{40}$/.test(env.GITHUB_SHA || '');
+  if (env.GITHUB_ACTIONS !== 'true' || (env.GITHUB_EVENT_NAME !== 'workflow_dispatch' && !mainPush) || env.GITHUB_REPOSITORY !== repository ||
     !/^[1-9]\d*$/.test(env.GITHUB_RUN_ID || '') || !/^[1-9]\d*$/.test(env.GITHUB_RUN_ATTEMPT || '')) {
-    throw new Error('Self-test downloads require a manual GitHub Actions request in the Folio repository');
+    throw new Error('Self-test downloads require a manual request or a trusted main push in GitHub Actions for the Folio repository');
   }
 }
 
@@ -34,6 +35,15 @@ function requireContext(context, env) {
     Number(context.tag.split('-').at(-1)) > Number(env.GITHUB_RUN_ATTEMPT))) {
     throw new Error('Self-test identity belongs to a different workflow run or future attempt');
   }
+  if (env?.GITHUB_EVENT_NAME === 'push' && context.sourceCommit !== env.GITHUB_SHA) {
+    throw new Error('Self-test source does not match this main push commit');
+  }
+}
+
+function draftDownloadUrl(release) {
+  const url = new URL(release.html_url);
+  if (url.origin !== 'https://github.com' || !url.pathname.startsWith(`/${repository}/releases/`)) throw new Error('Unexpected draft download page');
+  return release.html_url;
 }
 
 function requireAssets(release, context) {
@@ -58,8 +68,10 @@ async function getDraft(gh, context) {
 }
 
 export async function prepareSelfTestRelease({ env = process.env, gh = executeGitHub } = {}) {
-  requireManual(env);
-  const ref = JSON.parse(await gh(['api', `repos/${repository}/git/ref/heads/main`])).object;
+  requireSelfTestRun(env);
+  // A queued push must keep its own source even if main advances.
+  const ref = env.GITHUB_EVENT_NAME === 'push' ? { type: 'commit', sha: env.GITHUB_SHA } :
+    JSON.parse(await gh(['api', `repos/${repository}/git/ref/heads/main`])).object;
   if (ref?.type !== 'commit' || !/^[a-f0-9]{40}$/.test(ref.sha)) throw new Error('Cannot resolve the fixed main source commit');
   const metadata = JSON.parse(await gh(['api', `repos/${repository}/contents/package.json?ref=${ref.sha}`]));
   if (metadata.encoding !== 'base64') throw new Error('Unexpected main package metadata encoding');
@@ -79,16 +91,14 @@ export async function prepareSelfTestRelease({ env = process.env, gh = executeGi
     '-f', `name=Folio ${version} maintainer self-test (building)`, '-f', `body=${body}`,
     '-F', 'draft=true', '-F', 'prerelease=true', '-f', 'make_latest=false',
   ]));
-  const context = { version, sourceCommit: ref.sha, tag, releaseId: release.id, url: release.html_url };
+  const context = { version, sourceCommit: ref.sha, tag, releaseId: release.id, url: draftDownloadUrl(release) };
   requireSelfTestDraft(release, context);
   requireAssets(release, context);
-  const url = new URL(context.url);
-  if (url.origin !== 'https://github.com' || !url.pathname.startsWith(`/${repository}/releases/`)) throw new Error('Unexpected draft download page');
   return context;
 }
 
 export async function uploadSelfTestBundle({ root, folder, target, context, env = process.env, gh = executeGitHub } = {}) {
-  requireManual(env);
+  requireSelfTestRun(env);
   requireContext(context, env);
   if (!targets.includes(target)) throw new Error('Unsupported self-test target');
   root = await realpath(root);
@@ -150,7 +160,7 @@ export async function uploadSelfTestBundle({ root, folder, target, context, env 
 }
 
 export async function finishSelfTestRelease({ context, env = process.env, gh = executeGitHub } = {}) {
-  requireManual(env);
+  requireSelfTestRun(env);
   requireContext(context, env);
   const release = await getDraft(gh, context);
   if (release.assets.length !== targets.length * 2) throw new Error('Both self-test target bundles and proofs must be complete');
@@ -186,7 +196,7 @@ export async function finishSelfTestRelease({ context, env = process.env, gh = e
   const retained = await getDraft(gh, context);
   if (retained.assets.length !== release.assets.length || release.assets.some((asset) =>
     !retained.assets.some((entry) => entry.name === asset.name && entry.size === asset.size && entry.digest === asset.digest))) throw new Error('Self-test assets changed during finalization');
-  return { url: context.url, tag: context.tag, sourceCommit: context.sourceCommit, published: false };
+  return { url: draftDownloadUrl(retained), tag: context.tag, sourceCommit: context.sourceCommit, published: false };
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
@@ -195,7 +205,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
       root: { type: 'string' }, target: { type: 'string' }, 'confirm-maintainer-self-test': { type: 'boolean', default: false },
     } });
     if (!values['confirm-maintainer-self-test']) throw new Error('Explicit maintainer self-test confirmation is required');
-    requireManual(process.env);
+    requireSelfTestRun(process.env);
     const context = {
       version: process.env.SELF_TEST_VERSION, sourceCommit: process.env.SELF_TEST_SOURCE_COMMIT,
       tag: process.env.SELF_TEST_TAG, releaseId: Number(process.env.SELF_TEST_RELEASE_ID), url: process.env.SELF_TEST_URL,

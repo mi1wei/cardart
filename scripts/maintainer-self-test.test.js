@@ -16,25 +16,35 @@ const root = resolve(fileURLToPath(new URL('../', import.meta.url)));
 const sourceCommit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
 const version = JSON.parse(await readFile(join(root, 'package.json'), 'utf8')).version;
 const env = { GITHUB_ACTIONS: 'true', GITHUB_EVENT_NAME: 'workflow_dispatch', GITHUB_REPOSITORY: 'mi1wei/cardart', GITHUB_RUN_ID: '12345', GITHUB_RUN_ATTEMPT: '1' };
+const pushEnv = { ...env, GITHUB_EVENT_NAME: 'push', GITHUB_REF: 'refs/heads/main', GITHUB_SHA: sourceCommit };
 const context = { version, sourceCommit, tag: `self-test-${version}-${sourceCommit.slice(0, 12)}-12345-1`, releaseId: 42, url: 'https://github.com/mi1wei/cardart/releases/tag/untagged-fixture' };
 const draft = () => ({ id: 42, draft: true, published_at: null, prerelease: true, tag_name: context.tag, target_commitish: sourceCommit, html_url: context.url, assets: [] });
 const hash = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const bundleName = (target) => `Folio-${version}-self-test-${target}.zip`;
 
-test('only explicit manual requests in this repository can create a self-test draft', async () => {
-  for (const change of [
-    { GITHUB_EVENT_NAME: 'pull_request' }, { GITHUB_EVENT_NAME: 'push' },
-    { GITHUB_REPOSITORY: 'other/repository' }, { GITHUB_ACTIONS: undefined },
+test('untrusted events cannot create a self-test draft', async () => {
+  for (const request of [
+    { ...env, GITHUB_EVENT_NAME: 'pull_request' },
+    { ...env, GITHUB_EVENT_NAME: 'pull_request_target' },
+    { ...env, GITHUB_REPOSITORY: 'other/repository' },
+    { ...env, GITHUB_ACTIONS: undefined },
+    { ...pushEnv, GITHUB_REPOSITORY: 'other/repository' },
+    { ...pushEnv, GITHUB_REF: 'refs/heads/feature' },
+    { ...pushEnv, GITHUB_REF: `refs/tags/v${version}` },
+    { ...pushEnv, GITHUB_SHA: undefined },
+    { ...pushEnv, GITHUB_SHA: 'not-a-commit' },
   ]) {
     let requests = 0;
-    await assert.rejects(prepareSelfTestRelease({ env: { ...env, ...change }, gh: async () => { requests++; return ''; } }), /manual|repository|Actions/i);
+    await assert.rejects(prepareSelfTestRelease({ env: request, gh: async () => { requests++; return ''; } }), /manual|repository|Actions/i);
     assert.equal(requests, 0);
   }
 });
 
 test('self-test preparation resolves main once and creates only an unpublished, non-latest draft', async () => {
   const calls = [];
-  const result = await prepareSelfTestRelease({ env, gh: async (args) => {
+  const result = await prepareSelfTestRelease({ env: {
+    ...env, GITHUB_REF: 'refs/heads/maintainer-tooling', GITHUB_SHA: 'b'.repeat(40),
+  }, gh: async (args) => {
     calls.push(args);
     if (args[1].endsWith('/git/ref/heads/main')) return JSON.stringify({ object: { type: 'commit', sha: sourceCommit } });
     if (args[1].includes('/contents/package.json?ref=')) {
@@ -45,6 +55,32 @@ test('self-test preparation resolves main once and creates only an unpublished, 
   } });
   assert.ok(result, 'A draft identity must be returned');
   assert.equal(result.sourceCommit, sourceCommit);
+  assert.equal(result.tag, context.tag);
+  const creation = calls.find((args) => args.includes('POST'));
+  assert.ok(creation.includes('draft=true'));
+  assert.ok(creation.includes('prerelease=true'));
+  assert.ok(creation.includes('make_latest=false'));
+  assert.ok(creation.includes(`target_commitish=${sourceCommit}`));
+});
+
+test('a main push pins its event commit even when main advances', async () => {
+  const calls = [];
+  const result = await prepareSelfTestRelease({ env: pushEnv, gh: async (args) => {
+    calls.push(args);
+    if (args[1].endsWith('/git/ref/heads/main')) return JSON.stringify({ object: { type: 'commit', sha: 'b'.repeat(40) } });
+    if (args[1].includes('/contents/package.json?ref=')) {
+      const metadataVersion = args[1].endsWith(sourceCommit) ? version : '99.0.0-beta.9';
+      return JSON.stringify({ encoding: 'base64', content: Buffer.from(JSON.stringify({ version: metadataVersion })).toString('base64') });
+    }
+    assert.ok(args.includes('POST'));
+    return JSON.stringify({
+      ...draft(),
+      tag_name: args.find((arg) => arg.startsWith('tag_name=')).slice('tag_name='.length),
+      target_commitish: args.find((arg) => arg.startsWith('target_commitish=')).slice('target_commitish='.length),
+    });
+  } });
+  assert.equal(result.sourceCommit, sourceCommit);
+  assert.equal(result.version, version);
   assert.equal(result.tag, context.tag);
   const creation = calls.find((args) => args.includes('POST'));
   assert.ok(creation.includes('draft=true'));
@@ -69,6 +105,17 @@ test('a different workflow run cannot reuse another self-test run identity', asy
     context, env: { ...env, GITHUB_RUN_ID: '99999' },
     gh: async () => { requests++; return JSON.stringify(draft()); },
   }), /run|identity/i);
+  assert.equal(requests, 0);
+});
+
+test('a main push cannot finalize a draft pinned to another commit', async () => {
+  const otherSource = 'b'.repeat(40);
+  let requests = 0;
+  await assert.rejects(finishSelfTestRelease({
+    context: { ...context, sourceCommit: otherSource, tag: `self-test-${version}-${otherSource.slice(0, 12)}-12345-1` },
+    env: pushEnv,
+    gh: async () => { requests++; return ''; },
+  }), /source.*push|push.*commit/i);
   assert.equal(requests, 0);
 });
 
@@ -135,23 +182,25 @@ async function unzip(bytes) {
   });
 }
 
-test('a self-test bundle retains verified files and notices but never pretends distribution approval', async (t) => {
-  const f = await fixture(t);
-  const result = await uploadSelfTestBundle({ root, folder: f.folder, target: 'darwin-arm64', context, env, gh: f.gh });
-  assert.ok(result);
-  const bytes = f.uploaded.get(bundleName('darwin-arm64'));
-  assert.ok(bytes);
-  const entries = await unzip(bytes);
-  assert.equal(entries.get(f.installer).toString(), 'Owned structural DMG fixture, not runtime acceptance');
-  const marker = JSON.parse(entries.get('self-test.json'));
-  assert.equal(marker.distributionApproved, false);
-  assert.equal(marker.sourceCommit, sourceCommit);
-  assert.equal(marker.releaseMode, 'maintainer-self-test');
-  assert.ok(entries.has(`Folio-${version}-third-party-licenses.zip`));
-  const proof = JSON.parse(f.uploaded.get(`${bundleName('darwin-arm64')}.json`));
-  assert.equal(proof.bundle.sha256, hash(bytes));
-  assert.equal(f.release.draft, true);
-});
+for (const [mode, requestEnv] of [['manual', env], ['main-push', pushEnv]]) {
+  test(`${mode} self-test bundles retain verified files without distribution approval`, async (t) => {
+    const f = await fixture(t);
+    const result = await uploadSelfTestBundle({ root, folder: f.folder, target: 'darwin-arm64', context, env: requestEnv, gh: f.gh });
+    assert.ok(result);
+    const bytes = f.uploaded.get(bundleName('darwin-arm64'));
+    assert.ok(bytes);
+    const entries = await unzip(bytes);
+    assert.equal(entries.get(f.installer).toString(), 'Owned structural DMG fixture, not runtime acceptance');
+    const marker = JSON.parse(entries.get('self-test.json'));
+    assert.equal(marker.distributionApproved, false);
+    assert.equal(marker.sourceCommit, sourceCommit);
+    assert.equal(marker.releaseMode, 'maintainer-self-test');
+    assert.ok(entries.has(`Folio-${version}-third-party-licenses.zip`));
+    const proof = JSON.parse(f.uploaded.get(`${bundleName('darwin-arm64')}.json`));
+    assert.equal(proof.bundle.sha256, hash(bytes));
+    assert.equal(f.release.draft, true);
+  });
+}
 
 test('changed candidates or conflicting existing assets cannot be uploaded or overwritten', async (t) => {
   const f = await fixture(t);
@@ -164,44 +213,48 @@ test('changed candidates or conflicting existing assets cannot be uploaded or ov
   assert.equal(f.uploaded.size, 0);
 });
 
-test('draft completion retains its tag, requires both exact target proofs and never publishes', async () => {
-  const release = draft();
-  const proofs = new Map();
-  for (const [index, target] of ['darwin-arm64', 'win32-x64'].entries()) {
-    const name = bundleName(target);
-    const bytes = Buffer.from(`Owned ${target} bundle`);
-    const proof = { schemaVersion: 1, releaseMode: 'maintainer-self-test', distributionApproved: false, version, sourceCommit, tag: context.tag, target, bundle: { name, size: bytes.length, sha256: hash(bytes) } };
-    const proofBytes = Buffer.from(JSON.stringify(proof));
-    const proofId = index + 10;
-    proofs.set(proofId, proofBytes.toString());
-    release.assets.push({ name, size: bytes.length, digest: `sha256:${hash(bytes)}`, state: 'uploaded' });
-    release.assets.push({ id: proofId, name: `${name}.json`, size: proofBytes.length, digest: `sha256:${hash(proofBytes)}`, state: 'uploaded' });
-  }
-  const writes = [];
-  const gh = async (args) => {
-    if (args[1].includes('/releases/assets/')) return proofs.get(Number(args[1].split('/').at(-1)));
-    if (args.includes('PATCH')) {
-      writes.push(args);
-      release.tag_name = args.find((arg) => arg.startsWith('tag_name='))?.slice('tag_name='.length) || 'untagged-fixture';
+for (const [mode, requestEnv] of [['manual', env], ['main-push', pushEnv]]) {
+  test(`${mode} completion retains both target proofs and returns the final draft URL`, async () => {
+    const release = draft();
+    const proofs = new Map();
+    for (const [index, target] of ['darwin-arm64', 'win32-x64'].entries()) {
+      const name = bundleName(target);
+      const bytes = Buffer.from(`Owned ${target} bundle`);
+      const proof = { schemaVersion: 1, releaseMode: 'maintainer-self-test', distributionApproved: false, version, sourceCommit, tag: context.tag, target, bundle: { name, size: bytes.length, sha256: hash(bytes) } };
+      const proofBytes = Buffer.from(JSON.stringify(proof));
+      const proofId = index + 10;
+      proofs.set(proofId, proofBytes.toString());
+      release.assets.push({ name, size: bytes.length, digest: `sha256:${hash(bytes)}`, state: 'uploaded' });
+      release.assets.push({ id: proofId, name: `${name}.json`, size: proofBytes.length, digest: `sha256:${hash(proofBytes)}`, state: 'uploaded' });
     }
-    return JSON.stringify(release);
-  };
-  const result = await finishSelfTestRelease({ context, env, gh });
-  assert.ok(result);
-  assert.equal(result.published, false);
-  assert.equal(release.tag_name, context.tag);
-  assert.equal(writes.length, 1);
-  assert.ok(writes[0].includes('draft=true'));
-  const removed = release.assets.pop();
-  await assert.rejects(finishSelfTestRelease({ context, env, gh }), /target|asset|complete/i);
-  assert.equal(writes.length, 1);
-  release.assets.push(removed);
-  const forged = JSON.parse(proofs.get(removed.id));
-  forged.sourceCommit = 'b'.repeat(40);
-  const forgedBytes = Buffer.from(JSON.stringify(forged));
-  proofs.set(removed.id, forgedBytes.toString());
-  removed.size = forgedBytes.length;
-  removed.digest = `sha256:${hash(forgedBytes)}`;
-  await assert.rejects(finishSelfTestRelease({ context, env, gh }), /proof|source/i);
-  assert.equal(writes.length, 1);
-});
+    const writes = [];
+    const gh = async (args) => {
+      if (args[1].includes('/releases/assets/')) return proofs.get(Number(args[1].split('/').at(-1)));
+      if (args.includes('PATCH')) {
+        writes.push(args);
+        release.tag_name = args.find((arg) => arg.startsWith('tag_name='))?.slice('tag_name='.length) || 'untagged-fixture';
+        release.html_url = 'https://github.com/mi1wei/cardart/releases/tag/untagged-after-edit';
+      }
+      return JSON.stringify(release);
+    };
+    const result = await finishSelfTestRelease({ context, env: requestEnv, gh });
+    assert.ok(result);
+    assert.equal(result.published, false);
+    assert.equal(result.url, 'https://github.com/mi1wei/cardart/releases/tag/untagged-after-edit');
+    assert.equal(release.tag_name, context.tag);
+    assert.equal(writes.length, 1);
+    assert.ok(writes[0].includes('draft=true'));
+    const removed = release.assets.pop();
+    await assert.rejects(finishSelfTestRelease({ context, env: requestEnv, gh }), /target|asset|complete/i);
+    assert.equal(writes.length, 1);
+    release.assets.push(removed);
+    const forged = JSON.parse(proofs.get(removed.id));
+    forged.sourceCommit = 'b'.repeat(40);
+    const forgedBytes = Buffer.from(JSON.stringify(forged));
+    proofs.set(removed.id, forgedBytes.toString());
+    removed.size = forgedBytes.length;
+    removed.digest = `sha256:${hash(forgedBytes)}`;
+    await assert.rejects(finishSelfTestRelease({ context, env: requestEnv, gh }), /proof|source/i);
+    assert.equal(writes.length, 1);
+  });
+}

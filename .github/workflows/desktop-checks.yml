@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   native:
-    if: github.event_name != 'workflow_dispatch'
+    if: github.event_name == 'pull_request'
     name: ${{ matrix.platform }}-${{ matrix.arch }}
     strategy:
       fail-fast: false
@@ -76,10 +76,13 @@ jobs:
       - name: Verify Windows install, reinstall, removal and data preservation
         if: matrix.platform == 'win32'
         run: node scripts/windows-installer-smoke.mjs --allow-disposable-runner
-      # No binary uploads from pull requests or unapproved technical checks.
+      # Pull requests validate with read-only permissions and never upload binaries.
 
   self-test-prepare:
-    if: github.event_name == 'workflow_dispatch' && github.repository == 'mi1wei/cardart'
+    if: >-
+      github.repository == 'mi1wei/cardart' &&
+      (github.event_name == 'workflow_dispatch' ||
+       (github.event_name == 'push' && github.ref == 'refs/heads/main'))
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -122,7 +125,7 @@ jobs:
             app: release/mac-arm64/Folio.app
             artifact: macos-arm64.dmg
     runs-on: ${{ matrix.runner }}
-    # Manual trusted-main builds only; the write token is exported only to the upload step.
+    # Manual or trusted-main builds only; the write token is exported only to the upload step.
     permissions:
       contents: write
     defaults:
