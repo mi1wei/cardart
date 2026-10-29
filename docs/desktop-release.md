@@ -4,7 +4,9 @@
 
 ## 维护者直接下载自测包
 
-在 GitHub **Actions → Desktop checks → Run workflow** 手动触发。工作流固定解析一次 `main` 的完整提交，分别运行 Windows x64/Apple Silicon 的源码、桌面、原生打包和严格成品检查；Windows 还运行安装、运行中保护、重装及卸载测试。无需在自己的电脑编译。
+`main` 每次更新（包括合并 PR 和直接推送）都会通过 **Desktop checks** 自动生成维护者自测包，固定使用本次推送的完整提交，不会在排队期间悄悄切到更新的 main。每个平台只运行一遍现有完整自测流程：Windows x64/Apple Silicon 的源码、桌面、原生打包和严格成品检查；Windows 还运行安装、运行中保护、重装及卸载测试。无需在自己的电脑编译。
+
+仍可在 GitHub **Actions → Desktop checks → Run workflow** 手动触发；手动模式固定解析一次当时 `main` 的完整提交。PR 只做只读验证，不上传安装包，也不取得草稿写权限；标签、其他分支和分叉仓库的推送不会触发自动自测上传。
 
 成功后打开运行摘要中的 **Maintainer-only self-test download**，用有仓库写权限的账号登录，下载未公开 Draft Release 中对应平台的 ZIP：
 
@@ -13,9 +15,9 @@
 
 同名 `.zip.json` 是来源与 SHA-256 校验信息，不是安装器。ZIP 同时包含精确候选报告、声明材料、`SHA256SUMS` 和 `self-test.json`；后者明确 `distributionApproved: false`。许可证需自行签发并单独导入，不会附带私钥或真实激活文件。
 
-这些草稿只供维护者自测，不公开、不设为 latest、不进入公开更新 feed；**不要点击 Publish release**。普通 PR/main push 检查仍不上传二进制。自测标识使用独立的 `self-test-` 前缀，不创建正式 `v...` 发行版本。部分构建失败时草稿可能不完整，应等待两个目标及完成任务均成功；需要新包时重新手动触发，不覆盖旧资产。
+这些草稿只供维护者自测，不公开、不设为 latest、不进入公开更新 feed；**不要点击 Publish release**。自测标识使用独立的 `self-test-` 前缀，并绑定提交、运行及尝试编号，不创建正式 `v...` 发行版本，也不覆盖旧资产。部分构建失败或被后续 main 更新取消时，草稿可能不完整，应等待两个目标及完成任务均成功，使用最新成功运行摘要中的最终下载链接。重试只复用同来源、同 hash 的既有资产；不同 hash 会拒绝覆盖，需要新包时可重新手动触发或等待下一次 main 更新。
 
-仅手动自测专用任务有草稿创建/上传权限，`GH_TOKEN` 只传给相应步骤，不传给源码构建命令。工具代码与固定 main 源码分目录检出，保持成品源提交清晰。上线验证时可选择已审阅的工作流分支，打包源码仍固定来自 main；日常使用选择 main。
+仅受信的 main 推送或维护者手动自测任务有草稿创建/上传权限，`GH_TOKEN` 只传给相应步骤，不传给源码构建命令。工具代码与固定 main 源码分目录检出，保持成品源提交清晰。手动上线验证时仍可选择已审阅的工作流分支，打包源码固定来自 main；日常手动运行选择 main。自动触发的实际结果以配置合入后的主干运行记录为准。
 
 仓库是公开的，Actions Artifacts 不是仅维护者可见的下载渠道，所以个人自测使用草稿资产而不是公开 Artifacts。此入口不修改 `distribution-review.json`、人工验收记录或正式候选/发布脚本；给其他人分发及公开发布仍走后文的实际审查与审批。
 
@@ -118,7 +120,7 @@ Mac 只显示手动下载入口：用户确认后打开固定 Releases 页面，
 
 `desktop-release.yml` 仅构建已存在且版本一致的 beta tag。每个原生目标通过精确输入的分发审查后才允许上传 Actions Artifact；法律门槛未通过时不会泄露可下载产物。汇总必须且只能收到 `win32-x64` 和 `darwin-arm64` 两个目标，拒绝旧 commit、缺架构、重复目标、额外 Intel 目标、哈希变化或多余文件；将两套 legal 材料合成一个 ZIP，并生成 `SHA256SUMS`、`release-manifest.json` 和下载说明。草稿和公开发布白名单也只接受这两个安装器。
 
-只有汇总 job 有 Release 写权限，且 builder 始终 `--publish never`。草稿阶段只上传白名单，重试只补同 tag/commit 下缺少的文件；已有公开版本、不同源 commit 或不同哈希的同名资产均拒绝覆盖。草稿不是已发布的 updater feed。请为 `desktop-candidates` 配置适当的 GitHub Environment 审批，最终公开发布还需独立保护。
+正式候选流程只有汇总 job 有 Release 写权限，且 builder 始终 `--publish never`。草稿阶段只上传白名单，重试只补同 tag/commit 下缺少的文件；已有公开版本、不同源 commit 或不同哈希的同名资产均拒绝覆盖。草稿不是已发布的 updater feed。请为 `desktop-candidates` 配置适当的 GitHub Environment 审批，最终公开发布还需独立保护。
 
 这些工作流已在真实原生 runner 上运行，具体技术状态以每个提交的 Actions 结果为准；配置校验或单个平台通过不能代替两个受支持目标的成品检查。PR 不上传安装器，分发门槛未通过时也不能从正式 Desktop candidate 流程下载二进制。维护者个人自测使用前述独立草稿入口。
 
