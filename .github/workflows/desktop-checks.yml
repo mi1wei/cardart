@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: desktop-checks-${{ github.event_name == 'workflow_dispatch' && github.run_id || github.ref }}
+  group: desktop-checks-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
   cancel-in-progress: true
 
 jobs:
@@ -78,16 +78,63 @@ jobs:
         run: node scripts/windows-installer-smoke.mjs --allow-disposable-runner
       # Pull requests validate with read-only permissions and never upload binaries.
 
-  self-test-prepare:
+  resolve-source:
     if: >-
       github.repository == 'mi1wei/cardart' &&
       (github.event_name == 'workflow_dispatch' ||
        (github.event_name == 'push' && github.ref == 'refs/heads/main'))
     runs-on: ubuntu-latest
+    outputs:
+      source_commit: ${{ steps.source.outputs.source_commit }}
+      package_version: ${{ steps.source.outputs.package_version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+      - name: Pin the exact main source and version baseline
+        id: source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/auto-main-tag.mjs resolve
+
+  main-tag:
+    needs: resolve-source
+    runs-on: ubuntu-latest
+    concurrency:
+      group: desktop-main-tag-${{ needs.resolve-source.outputs.source_commit }}
+      cancel-in-progress: false
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.tag.outputs.version }}
+      source_commit: ${{ steps.tag.outputs.source_commit }}
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+      - name: Reserve or reuse the immutable beta tag
+        id: tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_COMMIT: ${{ needs.resolve-source.outputs.source_commit }}
+          SOURCE_PACKAGE_VERSION: ${{ needs.resolve-source.outputs.package_version }}
+        run: node scripts/auto-main-tag.mjs ensure
+
+  self-test-prepare:
+    needs: main-tag
+    runs-on: ubuntu-latest
     permissions:
       contents: write
     outputs:
       version: ${{ steps.draft.outputs.version }}
+      build_tag: ${{ steps.draft.outputs.build_tag }}
       source_commit: ${{ steps.draft.outputs.source_commit }}
       tag: ${{ steps.draft.outputs.tag }}
       release_id: ${{ steps.draft.outputs.release_id }}
@@ -99,10 +146,12 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "24"
-      - name: Pin main and create an unpublished maintainer draft
+      - name: Create an unpublished draft for the pinned beta tag
         id: draft
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.main-tag.outputs.tag }}
+          SOURCE_COMMIT: ${{ needs.main-tag.outputs.source_commit }}
         run: node scripts/maintainer-self-test.mjs prepare --confirm-maintainer-self-test
 
   self-test-native:
@@ -140,7 +189,10 @@ jobs:
       TARGET_BUILD: ${{ matrix.build }}
       APP_DIR: ${{ matrix.app }}
       ARTIFACT_SUFFIX: ${{ matrix.artifact }}
+      RELEASE_TAG: ${{ needs.self-test-prepare.outputs.build_tag }}
+      SOURCE_COMMIT: ${{ needs.self-test-prepare.outputs.source_commit }}
       SELF_TEST_VERSION: ${{ needs.self-test-prepare.outputs.version }}
+      SELF_TEST_BUILD_TAG: ${{ needs.self-test-prepare.outputs.build_tag }}
       SELF_TEST_SOURCE_COMMIT: ${{ needs.self-test-prepare.outputs.source_commit }}
       SELF_TEST_TAG: ${{ needs.self-test-prepare.outputs.tag }}
       SELF_TEST_RELEASE_ID: ${{ needs.self-test-prepare.outputs.release_id }}
@@ -150,6 +202,7 @@ jobs:
         with:
           ref: ${{ needs.self-test-prepare.outputs.source_commit }}
           path: source
+          fetch-depth: 0
           persist-credentials: false
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -172,7 +225,7 @@ jobs:
       - name: Build the pinned main source without publishing
         run: npm run package:desktop -- $TARGET_BUILD
       - name: Verify the actual unsigned or ad-hoc candidate
-        run: node scripts/verify-release.mjs --app "$APP_DIR" --artifact "release/Folio-$SELF_TEST_VERSION-$ARTIFACT_SUFFIX"
+        run: node scripts/verify-release.mjs --app "$APP_DIR" --artifact "release/Folio-$SELF_TEST_VERSION-$ARTIFACT_SUFFIX" --tag "$RELEASE_TAG" --commit "$SOURCE_COMMIT"
       - name: Verify Windows installation and running-application protection
         if: matrix.platform == 'win32'
         run: node scripts/windows-installer-smoke.mjs --allow-disposable-runner
@@ -188,6 +241,7 @@ jobs:
       contents: write
     env:
       SELF_TEST_VERSION: ${{ needs.self-test-prepare.outputs.version }}
+      SELF_TEST_BUILD_TAG: ${{ needs.self-test-prepare.outputs.build_tag }}
       SELF_TEST_SOURCE_COMMIT: ${{ needs.self-test-prepare.outputs.source_commit }}
       SELF_TEST_TAG: ${{ needs.self-test-prepare.outputs.tag }}
       SELF_TEST_RELEASE_ID: ${{ needs.self-test-prepare.outputs.release_id }}
