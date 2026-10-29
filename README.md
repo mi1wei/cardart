@@ -57,3 +57,19 @@ npm start
 | Windows | `public/favicon.ico`（16–256px 多尺寸，同浏览器后备图标） |
 
 网页与桌面壳共享这些资源；原生安装包尚待构建验收，源码 Node 进程的系统图标不会自动替换。已添加到 iPhone 主屏幕的旧图标，需要删除后重新添加才能更新。
+
+## Ed25519 密钥
+
+```bash
+node scripts/license-issuer.mjs keygen \
+  --private-out "$HOME/.folio-issuer/license-private.pem" \
+  --public-out desktop/license-public.pem
+```
+
+
+## 出包
+```bash
+export SHARP_IGNORE_GLOBAL_LIBVIPS=1
+npm ci --include=optional
+npm run package:desktop -- --mac dmg --arm64
+```
