@@ -1,6 +1,6 @@
-const sharp = require('sharp');
-
 async function photoBytes({ format = 'jpeg', exif = {}, width = 12, height = 8 } = {}) {
+  // The CJS sharp wrapper resets libvips' global cache; share the server's ESM wrapper instead.
+  const { default: sharp } = await import('sharp');
   let image = sharp({ create: { width, height, channels: 3, background: '#a32f2f' } })[format]();
   if (exif !== null) image = image.withExif({
     IFD0: { Make: 'Folio Test', Model: 'Synthetic Camera', Orientation: '6' },
