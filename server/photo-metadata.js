@@ -60,8 +60,16 @@ export function isPhotoMetadata(value) {
     typeof value.latitude === 'number' && Number.isFinite(value.latitude) && Math.abs(value.latitude) <= 90 &&
     typeof value.longitude === 'number' && Number.isFinite(value.longitude) && Math.abs(value.longitude) <= 180;
   const time = value.takenAt;
-  return location && (time === null || time && ['DateTimeOriginal', 'CreateDate'].includes(time.source) &&
-    typeof time.raw === 'string' && typeof time.local === 'string' && nullableText(time.offset) && nullableText(time.subsecond));
+  if (!location) return false;
+  if (time === null) return true;
+  if (!time || !['DateTimeOriginal', 'CreateDate'].includes(time.source)) return false;
+  const original = time.source === 'DateTimeOriginal';
+  const parsed = captureTime({
+    [time.source]: time.raw,
+    [original ? 'OffsetTimeOriginal' : 'OffsetTimeDigitized']: time.offset,
+    [original ? 'SubSecTimeOriginal' : 'SubSecTimeDigitized']: time.subsecond,
+  });
+  return parsed !== null && Object.keys(parsed).every((key) => parsed[key] === time[key]);
 }
 
 export async function readPhotoMetadata(file, { format = null, byteLength, fileModifiedAt, fileTimeSource } = {}) {

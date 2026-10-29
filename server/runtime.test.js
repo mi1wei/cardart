@@ -181,6 +181,32 @@ test('legacy details do not leak across libraries with the same album and photo 
   }
 });
 
+for (const [name, patch] of [
+  ['impossible calendar date', { raw: '2026:02:30 09:30:00', local: '2026-02-30T09:30:00' }],
+  ['raw/local disagreement', { local: '2026-08-16T09:30:00' }],
+  ['invalid timezone offset', { offset: '+99:99' }],
+  ['nondigit subseconds', { subsecond: 'not-digits' }],
+]) {
+  test(`stored capture metadata with ${name} is reread from the original without writeback`, async (t) => {
+    const f = await fixture(t);
+    const seeded = await seedPhoto(f.dir);
+    const lib = await openLibrary(f.dir);
+    try {
+      await lib.save({ ...lib.get(seeded.albumId), photos: [{
+        ...seeded.photo, metadata: { ...seeded.photo.metadata, takenAt: { ...seeded.photo.metadata.takenAt, ...patch } },
+      }] });
+    } finally { await lib.close(); }
+    const file = join(seeded.folder, 'album.json');
+    const before = await readFile(file);
+    const runtime = await f.start();
+    const response = await fetch(`${runtime.url}api/albums/${seeded.albumId}/photos/${seeded.photo.id}/details`);
+    assert.equal(response.status, 200);
+    const details = await response.json();
+    assert.deepEqual(details.metadata.takenAt, seeded.photo.metadata.takenAt);
+    assert.deepEqual(await readFile(file), before);
+  });
+}
+
 test('a paused read-only video transfer cannot prevent shutdown or keep the library locked', async (t) => {
   const f = await fixture(t);
   await writeFile(join(f.dist, 'large.mp4'), Buffer.alloc(32 * 1024 * 1024));
