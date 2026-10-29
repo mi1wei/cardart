@@ -34,6 +34,7 @@ export function createPhotoNote(host, onAlbum) {
   let current;
   let editing = false;
   let saving = false;
+  let pendingPhotoChange = false;
   let expanded = false;
   let alive = true;
   let previousNote = '';
@@ -49,13 +50,13 @@ export function createPhotoNote(host, onAlbum) {
   function syncInput() {
     const length = [...input.value.replace(/\r\n?/g, '\n').trim()].length;
     $('.note-count').textContent = `${length} / 2000`;
-    input.readOnly = saving || !canWrite();
-    save.disabled = saving || !canWrite() || length > 2000 || input.value === previousNote;
-    cancel.disabled = saving;
-    clear.disabled = saving || !canWrite() || !input.value;
-    error.textContent = saving ? t('note-saving') : length > 2000 ? t('note-length') : message;
+    input.readOnly = saving || pendingPhotoChange || !canWrite();
+    save.disabled = saving || pendingPhotoChange || !canWrite() || length > 2000 || input.value === previousNote;
+    cancel.disabled = saving || pendingPhotoChange;
+    clear.disabled = saving || pendingPhotoChange || !canWrite() || !input.value;
+    error.textContent = saving ? t('note-saving') : pendingPhotoChange ? t('note-wait-save') : length > 2000 ? t('note-length') : message;
     error.hidden = !error.textContent;
-    form.setAttribute('aria-busy', String(saving));
+    form.setAttribute('aria-busy', String(saving || pendingPhotoChange));
   }
 
   function render() {
@@ -66,6 +67,7 @@ export function createPhotoNote(host, onAlbum) {
     $('.note-label').hidden = !value && !editing;
     $('.note-readonly').hidden = canWrite();
     edit.hidden = !canWrite() || editing;
+    edit.disabled = pendingPhotoChange;
     edit.textContent = t(value ? 'note-edit' : 'note-add');
     text.textContent = value;
     text.hidden = editing || !value;
@@ -83,7 +85,7 @@ export function createPhotoNote(host, onAlbum) {
   }
 
   edit.addEventListener('click', () => {
-    if (!allowWrite()) return;
+    if (pendingPhotoChange || !allowWrite()) return;
     previousNote = saved();
     input.value = previousNote;
     editing = true;
@@ -97,7 +99,7 @@ export function createPhotoNote(host, onAlbum) {
   expand.addEventListener('click', () => { expanded = !expanded; text.classList.toggle('expanded', expanded); syncExpansion(); });
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
-    if (saving || !editing || !allowWrite() || [...input.value.trim()].length > 2000) return;
+    if (saving || pendingPhotoChange || !editing || !allowWrite() || [...input.value.trim()].length > 2000) return;
     const snapshot = current;
     const value = input.value;
     saving = true;
@@ -128,7 +130,8 @@ export function createPhotoNote(host, onAlbum) {
   window.addEventListener('resize', syncExpansion);
 
   return {
-    get saving() { return saving; },
+    get saving() { return saving || pendingPhotoChange; },
+    setPending(value) { pendingPhotoChange = value; if (alive) render(); },
     setPhoto(albumId, photo) {
       const key = `${albumId}/${photo.id}/${photo.sha256}`;
       if (current?.key !== key) { editing = false; saving = false; expanded = false; message = ''; }
@@ -136,14 +139,14 @@ export function createPhotoNote(host, onAlbum) {
       render();
     },
     canLeave() {
-      if (saving) { toast(t('note-wait-save')); return false; }
+      if (saving || pendingPhotoChange) { toast(t('note-wait-save')); return false; }
       if (editing && input.value !== previousNote && !window.confirm(t('note-discard'))) return false;
       if (editing) finishEditing();
       return true;
     },
     escape() {
       if (!editing) return false;
-      if (saving) toast(t('note-wait-save'));
+      if (saving || pendingPhotoChange) toast(t('note-wait-save'));
       else finishEditing();
       return true;
     },

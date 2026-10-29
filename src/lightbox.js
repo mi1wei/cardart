@@ -71,9 +71,14 @@ export function openLightbox({ album, index, onIndex, onAlbum, onClose }) {
       else if (name === 'details-close') details.close();
       else if (name === 'original') window.open(mediaUrl(album.id, p.id, 'original'), '_blank');
       else if (name === 'cover') {
-        show(index, await api.updateAlbum(album.id, { cover: p.id }));
-        onAlbum(album);
-        toast(t('cover-set'));
+        details.setPending(true);
+        try {
+          const next = await api.updateAlbum(album.id, { cover: p.id });
+          if (!root.isConnected) return;
+          show(index, next);
+          onAlbum(album);
+          toast(t('cover-set'));
+        } finally { details.setPending(false); }
       } else if (name === 'delete') {
         if (!details.canLeave()) return;
         const text = t('delete-photo-text');

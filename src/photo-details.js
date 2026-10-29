@@ -134,12 +134,12 @@ export function createPhotoDetails(root, onAlbum) {
     controller?.abort();
     controller = new AbortController();
     const request = ++revision;
-    render(current.photo.metadata, { loading: true });
+    render(null, { loading: true });
     try {
       const result = await api.photoDetails(current.albumId, current.photo.id, { signal: controller.signal });
       if (request === revision && opened && root.isConnected && result.photoId === current.photo.id) render(result.metadata);
     } catch (error) {
-      if (error.name !== 'AbortError' && request === revision && opened && root.isConnected) render(current.photo.metadata, { failed: true });
+      if (error.name !== 'AbortError' && request === revision && opened && root.isConnected) render(null, { failed: true });
     }
   }
   function sync() {
@@ -165,6 +165,7 @@ export function createPhotoDetails(root, onAlbum) {
   sync();
   return {
     get saving() { return note.saving; },
+    setPending: (value) => note.setPending(value),
     setPhoto(albumId, photo) {
       const key = `${albumId}/${photo.id}/${photo.sha256}`;
       const changed = current?.key !== key;
@@ -173,7 +174,7 @@ export function createPhotoDetails(root, onAlbum) {
       if (changed) {
         root.scrollTop = 0;
         if (opened) void load();
-        else render(photo.metadata);
+        else render(null);
       }
     },
     toggle() {

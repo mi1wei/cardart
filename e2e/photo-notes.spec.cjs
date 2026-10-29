@@ -206,3 +206,69 @@ test('a pending note save cannot be abandoned or race another photo mutation', a
     await expect(page.locator('.note-form')).toBeHidden();
   } finally { release(); await fixture.close(); }
 });
+
+test('an earlier cover save blocks note submission until its response cannot revert the new note', async () => {
+  const fixture = await desktopFixture();
+  let release;
+  const held = new Promise((resolve) => { release = resolve; });
+  let entered;
+  const started = new Promise((resolve) => { entered = resolve; });
+  try {
+    const album = await seed(fixture);
+    const { page, origin } = await launch(fixture, album);
+    await page.locator('.lb-nav.r').click();
+    await page.locator('[data-note-edit]').click();
+    const input = page.getByLabel('Note text', { exact: true });
+    await input.fill('New note after cover');
+    await page.route(`${origin}/api/albums/${album.id}`, async (route) => {
+      if (route.request().method() !== 'PATCH') return route.continue();
+      const response = await route.fetch();
+      entered();
+      await held;
+      await route.fulfill({ response });
+    });
+    await page.locator('.lb [data-act=cover]').click();
+    await started;
+    await expect(page.locator('[data-note-save]')).toBeDisabled();
+    release();
+    await expect(page.locator('[data-note-save]')).toBeEnabled();
+    await expect(input).toHaveValue('New note after cover');
+    await page.locator('[data-note-save]').click();
+    await expect(page.locator('.note-text')).toHaveText('New note after cover');
+    const saved = await (await page.request.get(`${origin}/api/albums/${album.id}`)).json();
+    expect(saved.cover).toBe('p002');
+    expect(saved.photos[1].note).toBe('New note after cover');
+    await page.reload();
+    await expect(page.locator('.note-text')).toHaveText('New note after cover');
+  } finally { release(); await fixture.close(); }
+});
+
+test('incompatible metadata reaches validated Details fallback and a failed read leaves a usable note editor', async () => {
+  const fixture = await desktopFixture();
+  try {
+    const album = await seed(fixture);
+    const { openLibrary } = await import('../server/library.js');
+    const lib = await openLibrary(fixture.library);
+    try {
+      await lib.save({ ...lib.get(album.id), photos: lib.get(album.id).photos.map((photo) => photo.id === 'p001' ?
+        { ...photo, metadata: { ...photo.metadata, schemaVersion: 999, takenAt: { raw: 'incompatible' } } } : photo) });
+    } finally { await lib.close(); }
+    const { page } = await fixture.launch();
+    await page.evaluate(() => localStorage.setItem('lang', 'en'));
+    await page.reload();
+    const errors = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    const origin = new URL(page.url()).origin;
+    await page.goto(`${origin}/#/a/${album.id}/p/p001`);
+    await expect(page.locator('[data-field=camera]')).toHaveText('Folio Test Synthetic Camera');
+    await expect(page.locator('[data-field=taken-at]')).toHaveText('2026-08-15 09:30:00.125 +09:00');
+    await page.route(`${origin}/api/albums/${album.id}/photos/p001/details`, (route) =>
+      route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'Owned read failure' }) }));
+    await page.reload();
+    await expect(page.locator('.lb-details-status')).toContainText('temporarily unavailable');
+    await expect(page.locator('[data-field=file-name]')).toHaveText('one.jpg');
+    await page.locator('[data-note-edit]').click();
+    await expect(page.getByLabel('Note text', { exact: true })).toBeVisible();
+    expect(errors).toEqual([]);
+  } finally { await fixture.close(); }
+});
