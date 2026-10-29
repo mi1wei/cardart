@@ -103,6 +103,29 @@ test('photo upload carries valid source file time but ignores malformed optional
   }
 });
 
+test('photo note HTTP edits are persisted, bounded and protected by the existing license gate', async (t) => {
+  const f = await fixture(t);
+  const seeded = await seedPhoto(f.dir);
+  let state = 'active';
+  const runtime = await f.start({ license: { status: () => ({ state, canWrite: state === 'active' }) } });
+  const path = `${runtime.url}api/albums/${seeded.albumId}/photos/${seeded.photo.id}/note`;
+  const patch = (body, url = path) => fetch(url, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  let response = await patch({ note: '文字备注\nwith line breaks', previousNote: '' });
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).photos[0].note, '文字备注\nwith line breaks');
+  assert.equal(JSON.parse(await readFile(join(seeded.folder, 'album.json'), 'utf8')).photos[0].note, '文字备注\nwith line breaks');
+  assert.equal((await patch({ note: 'stale', previousNote: '' })).status, 409);
+  assert.equal((await patch({ note: 'x'.repeat(2001), previousNote: '' })).status, 400);
+  assert.equal((await patch({ note: '', previousNote: '' }, path + '/extra')).status, 404);
+  response = await fetch(path, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: ' '.repeat(32769) });
+  assert.equal(response.status, 413);
+  for (state of ['missing', 'expired']) {
+    assert.equal((await patch({ note: 'denied', previousNote: '文字备注\nwith line breaks' })).status, 403);
+    const album = await (await fetch(`${runtime.url}api/albums/${seeded.albumId}`)).json();
+    assert.equal(album.photos[0].note, '文字备注\nwith line breaks');
+  }
+});
+
 async function seedPhoto(dir, { legacy = false } = {}) {
   const lib = await openLibrary(dir);
   try {

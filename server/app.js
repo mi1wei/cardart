@@ -233,6 +233,9 @@ async function api(lib, req, res, url, local, license) {
         await readPhotoMetadata(join(lib.albumDir(id), 'originals', photo.file));
       return send(res, 200, { photoId: photo.id, metadata });
     }
+    if (sub === 'photos' && detail === 'note' && !rest.length && m === 'PATCH') {
+      return send(res, 200, await lib.updatePhotoNote(id, action, await readJson(req, 32768)));
+    }
     if (sub === 'photos' && action === undefined && m === 'POST') {
       if (req.headers['x-album-upload'] !== '1') throw fail(403, 'upload-header');
       const modified = url.searchParams.get('lastModified');
