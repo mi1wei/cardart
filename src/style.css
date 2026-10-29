@@ -1611,6 +1611,114 @@ body:has(.ab, .lb) {
   }
 }
 
+.lb-details {
+  position: absolute;
+  z-index: 2;
+  top: 64px;
+  right: 0;
+  bottom: 0;
+  width: 320px;
+  box-sizing: border-box;
+  padding: 20px 24px max(env(safe-area-inset-bottom, 0px), 24px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  user-select: text;
+  -webkit-user-select: text;
+  background: #171d25;
+  border-left: 1px solid rgb(255 255 255 / 0.08);
+}
+
+.lb-details-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.lb-details-header h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.lb-details-status {
+  margin: 0 0 24px;
+  color: #a1aebb;
+  font-size: 12px;
+  line-height: 19px;
+}
+
+.lb-details-group + .lb-details-group {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid rgb(255 255 255 / 0.08);
+}
+
+.lb-details-group h3 {
+  margin: 0 0 14px;
+  color: #9aa8b6;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.lb-details-group dl,
+.lb-details-group dd {
+  margin: 0;
+}
+
+.lb-details-group dl > div + div {
+  margin-top: 14px;
+}
+
+.lb-details-group dt {
+  color: #9aa8b6;
+  font-size: 12px;
+}
+
+.lb-details-group dd {
+  margin-top: 3px;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.lb.has-details {
+  touch-action: auto;
+}
+
+.lb.has-details .lb-img {
+  width: calc(100% - 176px - 320px);
+  touch-action: none;
+}
+
+.lb.has-details .lb-nav.r {
+  right: calc(320px + max(env(safe-area-inset-right, 0px), 24px));
+}
+
+@media (max-width: 800px) {
+  .lb-details {
+    top: auto;
+    width: 100%;
+    height: min(58dvh, 480px);
+    border-top: 1px solid rgb(255 255 255 / 0.08);
+    border-left: 0;
+  }
+
+  .lb.has-details .lb-img {
+    left: 0;
+    width: 100%;
+    height: calc(100% - min(58dvh, 480px) - 88px);
+  }
+
+  .lb.has-details .lb-nav {
+    display: none;
+  }
+}
+
 /* Phones: floating buttons on the album page */
 @media (max-width: 600px) {
   .fab {

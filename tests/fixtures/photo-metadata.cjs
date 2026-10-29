@@ -1,7 +1,7 @@
 const sharp = require('sharp');
 
-async function photoBytes({ format = 'jpeg', exif = {} } = {}) {
-  let image = sharp({ create: { width: 12, height: 8, channels: 3, background: '#a32f2f' } })[format]();
+async function photoBytes({ format = 'jpeg', exif = {}, width = 12, height = 8 } = {}) {
+  let image = sharp({ create: { width, height, channels: 3, background: '#a32f2f' } })[format]();
   if (exif !== null) image = image.withExif({
     IFD0: { Make: 'Folio Test', Model: 'Synthetic Camera', Orientation: '6' },
     IFD2: {

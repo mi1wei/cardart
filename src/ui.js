@@ -2,6 +2,7 @@ import brandMark from './assets/folio-mark.svg?raw';
 import { t } from './i18n.js';
 
 const PATHS = {
+  info: '<circle cx="12" cy="12" r="8"/><path d="M12 11v6"/><circle cx="12" cy="7.5" r=".8" fill="currentColor" stroke="none"/>',
   bookOpen: '<path d="M12 6.5C10.5 5 8 4.5 4 4.5v13c4 0 6.5.5 8 2 1.5-1.5 4-2 8-2v-13c-4 0-6.5.5-8 2z"/><path d="M12 6.5v13"/>',
   close: '<path d="M6 6l12 12M18 6 6 18"/>',
   prev: '<path d="m14.5 6-6 6 6 6"/>',
