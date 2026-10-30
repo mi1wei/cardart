@@ -78,15 +78,8 @@ test('background JPG and HEIC imports support dedup, pointer reorder, 3D, fullsc
     const initial = await page.locator('.ab-count').textContent();
     await page.locator('.ab [data-act=next]').click();
     await expect(page.locator('.ab-count')).not.toHaveText(initial);
-    const closeBook = page.locator('.ab-bar [data-act=cover]');
-    const openBook = page.locator('.ab-foot [data-act=cover]');
-    await expect(closeBook).toHaveText(/合上相册|Close book/);
-    await closeBook.click();
-    await expect(closeBook).toBeHidden();
-    await expect(openBook).toHaveText(/打开相册|Open book/);
-    await openBook.click();
-    await expect(openBook).toBeHidden();
-    await expect(closeBook).toBeVisible();
+    await expect(page.locator('.ab-bar [data-act=cover]')).toHaveText(/合上相册|Close book/);
+    await expect(page.locator('.ab-foot [data-act=cover]')).toBeHidden();
     console.log('Owned collection phase: entering fullscreen');
     await desktop.evaluate(() => {
       global.folioTestFullscreen = { entered: false, left: false };
@@ -160,5 +153,34 @@ test('a license expiring while hidden becomes read-only on restore without remov
     await expect(page.locator('.tile')).toHaveCount(1);
     await expect(page.locator('[data-act=upload]').first()).toHaveAttribute('aria-disabled', 'true');
     expect((await (await page.request.get(`${origin}/api/license`)).json()).state).toBe('expired');
+  } finally { await fixture.close(); }
+});
+
+// Closing and reopening rebuilds the cover and page textures, which software-rendered CI GPUs
+// take seconds to draw, so this round trip has its own test and budget.
+test('the 3D book pairs a labelled close button with the open button', async () => {
+  test.setTimeout(60_000);
+  const fixture = await desktopFixture();
+  try {
+    const { page } = await fixture.launch();
+    const origin = new URL(page.url()).origin;
+    const album = await (await page.request.post(`${origin}/api/albums`, { data: { title: 'Paired' } })).json();
+    const png = await sharp({ create: { width: 12, height: 8, channels: 3, background: '#1d5f80' } }).png().toBuffer();
+    const uploaded = await page.request.post(`${origin}/api/albums/${album.id}/photos?name=paired.png`, {
+      headers: { 'X-Album-Upload': '1' }, data: png,
+    });
+    expect(uploaded.ok()).toBe(true);
+    await page.goto(`${origin}/#/a/${album.id}`);
+    await expect(page.locator('.tile')).toHaveCount(1);
+    await page.locator('.album-page .acts.normal [data-act="3d"]').click();
+    const closeBook = page.locator('.ab-bar [data-act=cover]');
+    const openBook = page.locator('.ab-foot [data-act=cover]');
+    await expect(closeBook).toHaveText(/合上相册|Close book/, { timeout: 20_000 });
+    await closeBook.click();
+    await expect(closeBook).toBeHidden();
+    await expect(openBook).toHaveText(/打开相册|Open book/);
+    await openBook.click();
+    await expect(openBook).toBeHidden();
+    await expect(closeBook).toBeVisible();
   } finally { await fixture.close(); }
 });
