@@ -140,12 +140,11 @@ test('exports the app illustration to web and native icons, keeping the vector m
 
   await t.test('published assets stay in sync with the icon sources', async () => {
     await assert.rejects(access(new URL('../public/favicon.svg', import.meta.url)), { code: 'ENOENT' });
+    const stale = [];
     for (const name of ['favicon.ico', 'apple-touch-icon.png', 'icons/folio-1024.png', 'icons/folio.icns', 'icons/trayTemplate.png', 'icons/trayTemplate@2x.png']) {
-      assert.deepEqual(
-        await readFile(new URL(`../public/${name}`, import.meta.url)),
-        await readFile(join(output, name)),
-        `${name} is stale; run npm run icons`,
-      );
+      const published = await readFile(new URL(`../public/${name}`, import.meta.url));
+      if (!published.equals(await readFile(join(output, name)))) stale.push(name);
     }
+    assert.deepEqual(stale, [], `stale icons: ${stale.join(', ')}; run npm run icons`);
   });
 });

@@ -19,36 +19,66 @@ function scaled(size, inset = 0) {
 
 // iOS requires an opaque square and applies its own, tighter corner mask. Fill the transparent
 // corners by extending the tile's own edge colours outward so the mask never reveals a seam.
+// Only the lanczos resize runs in libvips; filling, smoothing and compositing use integer JS so
+// the committed PNG is byte-identical on every CI architecture (libvips blur/composite are not).
 async function touchIcon(size) {
-  const grid = 128;
-  const { data } = await sharp(app).resize(grid, grid).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-  const known = new Uint8Array(grid * grid);
-  for (let i = 0; i < known.length; i++) known[i] = data[i * 4 + 3] === 255 ? 1 : 0;
+  const { data: art } = await sharp(app).resize(size, size, { kernel: 'lanczos3' })
+    .ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const pixels = size * size;
+  const backdrop = new Uint8Array(pixels * 3);
+  const known = new Uint8Array(pixels);
+  for (let i = 0; i < pixels; i++) {
+    if (art[i * 4 + 3] !== 255) continue;
+    known[i] = 1;
+    for (let c = 0; c < 3; c++) backdrop[i * 3 + c] = art[i * 4 + c];
+  }
+  const filled = known.slice();
+  const neighbours = (i) => {
+    const x = i % size;
+    return [x > 0 ? i - 1 : -1, x < size - 1 ? i + 1 : -1, i >= size ? i - size : -1, i + size < pixels ? i + size : -1];
+  };
   for (let progress = true; progress;) {
     progress = false;
-    const next = known.slice();
-    for (let i = 0; i < known.length; i++) {
-      if (known[i]) continue;
-      const x = i % grid;
+    const next = filled.slice();
+    for (let i = 0; i < pixels; i++) {
+      if (filled[i]) continue;
       const sum = [0, 0, 0];
       let count = 0;
-      for (const j of [x > 0 ? i - 1 : -1, x < grid - 1 ? i + 1 : -1, i - grid, i + grid]) {
-        if (j < 0 || j >= known.length || !known[j]) continue;
-        for (let c = 0; c < 3; c++) sum[c] += data[j * 4 + c];
+      for (const j of neighbours(i)) {
+        if (j < 0 || !filled[j]) continue;
+        for (let c = 0; c < 3; c++) sum[c] += backdrop[j * 3 + c];
         count++;
       }
       if (!count) continue;
-      for (let c = 0; c < 3; c++) data[i * 4 + c] = Math.round(sum[c] / count);
-      data[i * 4 + 3] = 255;
+      for (let c = 0; c < 3; c++) backdrop[i * 3 + c] = Math.round(sum[c] / count);
       next[i] = 1;
       progress = true;
     }
-    known.set(next);
+    filled.set(next);
   }
-  const backdrop = await sharp(data, { raw: { width: grid, height: grid, channels: 4 } })
-    .resize(1024, 1024, { kernel: 'cubic' }).blur(6).png().toBuffer();
-  const full = await sharp(backdrop).composite([{ input: app }]).png().toBuffer();
-  return sharp(full).resize(size, size, { kernel: 'lanczos3' }).removeAlpha().png().toBuffer();
+  // Soften the streaks the edge extension leaves, touching only the filled corners.
+  for (let pass = 0; pass < 8; pass++) {
+    const source = backdrop.slice();
+    for (let i = 0; i < pixels; i++) {
+      if (known[i]) continue;
+      const sum = [0, 0, 0];
+      let count = 0;
+      for (const j of [i, ...neighbours(i)]) {
+        if (j < 0) continue;
+        for (let c = 0; c < 3; c++) sum[c] += source[j * 3 + c];
+        count++;
+      }
+      for (let c = 0; c < 3; c++) backdrop[i * 3 + c] = Math.round(sum[c] / count);
+    }
+  }
+  const opaque = Buffer.alloc(pixels * 3);
+  for (let i = 0; i < pixels; i++) {
+    const alpha = art[i * 4 + 3];
+    for (let c = 0; c < 3; c++) {
+      opaque[i * 3 + c] = Math.round((art[i * 4 + c] * alpha + backdrop[i * 3 + c] * (255 - alpha)) / 255);
+    }
+  }
+  return sharp(opaque, { raw: { width: size, height: size, channels: 3 } }).png().toBuffer();
 }
 
 const tray = (size, density) => sharp(Buffer.from(mark.replaceAll('currentColor', '#000')))
