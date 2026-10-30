@@ -4,7 +4,7 @@ import { api } from './api.js';
 import { folder, folderClick } from './folder.js';
 import { t } from './i18n.js';
 import { onComputer, openPhoneDialog } from './phone.js';
-import { icon, toast } from './ui.js';
+import { brandLogo, icon, toast } from './ui.js';
 
 const still = matchMedia('(prefers-reduced-motion: reduce)');
 const FEATURES = [['laptop', 'f1'], ['bookOpen', 'f2'], ['layout', 'f3'], ['phone', 'f4']];
@@ -39,7 +39,7 @@ export function renderHome(app) {
         <div class="sec-h"><h2>${t('recent')}</h2><a class="more" href="#/albums">${t('all-albums')} →</a></div>
         <div class="folders"></div>
       </section>
-      <footer class="sec"><div class="foot"><span class="logo"><i>${icon('book')}</i>${t('app')}</span><span>${t('footer')}</span></div></footer>
+      <footer class="sec"><div class="foot"><span class="logo">${brandLogo()}${t('app')}</span><span>${t('footer')}</span></div></footer>
     </main>`;
   app.querySelector('video')?.play().catch(() => {});
 

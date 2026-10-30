@@ -1071,19 +1071,10 @@ button {
   text-decoration: none;
 }
 
-.logo i {
-  display: grid;
-  place-items: center;
+.brand-logo {
+  flex: none;
   width: 28px;
   height: 28px;
-  border-radius: 8px;
-  background: var(--accent);
-  color: #fff;
-}
-
-.logo svg {
-  width: 100%;
-  height: 100%;
 }
 
 .nl {
@@ -1405,10 +1396,9 @@ button {
   font-size: 14px;
 }
 
-.foot .logo i {
+.foot .brand-logo {
   width: 22px;
   height: 22px;
-  border-radius: 6px;
 }
 
 @media (max-width: 600px) {
@@ -2298,12 +2288,34 @@ body:has(.ab, .lb) {
   background: var(--accent-hover);
 }
 
-.ab-primary svg {
+/* Close-book counterpart of the open-book button: same shape, quieter colour. */
+.ab-secondary {
+  height: 36px;
+  padding: 0 16px 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--ink-2);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.ab-secondary:hover {
+  background: var(--hover);
+}
+
+:is(.ab-primary, .ab-secondary) svg {
   width: 16px;
   height: 16px;
 }
 
-:is(.ab-icon, .ab-primary):focus-visible {
+:is(.ab-icon, .ab-primary, .ab-secondary):focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }

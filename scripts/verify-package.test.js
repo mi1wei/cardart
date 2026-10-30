@@ -82,6 +82,7 @@ async function fixture(t, { platform = 'darwin', arch = 'arm64', extra = {}, add
   const web = {
     'index.html': '<!doctype html><title>Folio</title>',
     'favicon.ico': 'owned icon fixture',
+    'icons/folio-logo.png': 'owned page logo fixture',
     'icons/trayTemplate.png': 'owned template fixture',
     'icons/trayTemplate@2x.png': 'owned retina fixture',
   };

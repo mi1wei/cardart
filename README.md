@@ -53,14 +53,15 @@ Folio 原样保存视频，不转码、不换封装，也不打包新的 ffmpeg 
 
 ## 图标
 
-应用图标来自插画源图 `src/assets/folio-app-icon.png`（1024px，圆角方块外透明）：小朋友翻开相册，左页是夕阳海面，右页是远山与河流。网页导航 Logo 与 macOS 菜单栏模板仍使用单色矢量 `src/assets/folio-mark.svg`，因为菜单栏图标必须是单色剪影。修改任一源文件后运行 `npm run icons` 重新生成资源，用 `npm test` 检查格式、尺寸及资源是否同步。插画缩放在 `scripts/icon-raster.js` 中用纯 JavaScript 完成，保证 macOS 与 Windows 生成的文件逐字节一致；同步检查逐字节比较，不要改成 sharp 缩放。
+应用图标来自插画源图 `src/assets/folio-app-icon.png`（1024px，圆角方块外透明）：小朋友翻开相册，左页是夕阳海面，右页是远山与河流。页面里的品牌 Logo（顶栏、页脚、照片查看页）也使用这张插画；macOS 菜单栏模板和按钮里的小图标仍使用单色矢量 `src/assets/folio-mark.svg`，因为菜单栏图标必须是单色剪影，按钮图标太小、放不下插画细节。修改任一源文件后运行 `npm run icons` 重新生成资源，用 `npm test` 检查格式、尺寸及资源是否同步。插画缩放在 `scripts/icon-raster.js` 中用纯 JavaScript 完成，保证 macOS 与 Windows 生成的文件逐字节一致；同步检查逐字节比较，不要改成 sharp 缩放。
 
 | 用途 | 资源 |
 | --- | --- |
 | 浏览器标签页 | `public/favicon.ico` |
 | iPhone 主屏幕 | `public/apple-touch-icon.png`（180px，不透明，四角延续方块颜色） |
 | 通用应用图标 | `public/icons/folio-1024.png` |
-| macOS Dock | `public/icons/folio.icns`（含 Retina 尺寸与透明外边距） |
+| 页面品牌 Logo | `public/icons/folio-logo.png`（96px，按 22–28px 显示，适配 3 倍屏） |
+| macOS Dock | `public/icons/folio.icns`（含 Retina 尺寸；按 Apple 图标网格铺满 824/1024 圆角方块、四周留 100/1024，否则 macOS 26 会把图标缩小放进灰色底板） |
 | macOS 菜单栏 | `public/icons/trayTemplate.png`、`trayTemplate@2x.png`（透明单色，来自矢量标志） |
 | Windows | `public/favicon.ico`（16–256px 多尺寸，同浏览器图标） |
 

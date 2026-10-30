@@ -10,6 +10,7 @@ const PATHS = {
   code: '<path d="m8 7-5 5 5 5M16 7l5 5-5 5M14 4l-4 16"/>',
   chevronDown: '<path d="m7 10 5 5 5-5"/>',
   refresh: '<path d="M19 8a7.5 7.5 0 1 0 .4 7M19 3v5h-5"/>',
+  bookClosed: '<path d="M5 17.5v-11a2 2 0 0 1 2-2h12v11H7a2 2 0 0 0-2 2z"/><path d="M5 17.5a2 2 0 0 0 2 2h12"/>',
   bookOpen: '<path d="M12 6.5C10.5 5 8 4.5 4 4.5v13c4 0 6.5.5 8 2 1.5-1.5 4-2 8-2v-13c-4 0-6.5.5-8 2z"/><path d="M12 6.5v13"/>',
   close: '<path d="M6 6l12 12M18 6 6 18"/>',
   prev: '<path d="m14.5 6-6 6 6 6"/>',
@@ -31,6 +32,9 @@ const PATHS = {
   laptop: '<rect x="4" y="5" width="16" height="11" rx="1.5"/><path d="M2.5 19h19"/>',
   layout: '<rect x="4" y="4" width="9" height="7" rx="1.2"/><rect x="15" y="4" width="5" height="16" rx="1.2"/><rect x="4" y="13" width="9" height="7" rx="1.2"/>',
 };
+
+// Full-colour app illustration for brand spots; the single-colour mark stays for icon buttons.
+export const brandLogo = () => '<img class="brand-logo" src="/icons/folio-logo.png" alt="" width="28" height="28" draggable="false">';
 
 export const icon = (name) =>
   name === 'book'

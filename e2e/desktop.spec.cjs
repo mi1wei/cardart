@@ -9,6 +9,8 @@ test('isolated desktop uses the real utility backend and a sandboxed renderer', 
   try {
     const { desktop, page } = await fixture.launch();
     await expect(page.locator('.nav .logo')).toBeVisible();
+    // The brand logo is the full-colour illustration, served from the packaged web root.
+    await expect.poll(() => page.locator('.nav .brand-logo').evaluate((img) => img.complete && img.naturalWidth)).toBe(96);
     expect(await page.evaluate(() => typeof window.require)).toBe('undefined');
     const origin = new URL(page.url()).origin;
     const html = await page.request.get(origin);

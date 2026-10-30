@@ -23,20 +23,14 @@ const encode = (data, size, channels = 4) => sharp(Buffer.from(data.buffer, data
   raw: { width: size, height: size, channels },
 }).png().toBuffer();
 
-function scaled(size, inset = 0) {
-  const inner = size - 2 * inset;
-  let art = resize(inner);
+function scaled(size) {
   // Small frames lose edge contrast when downsampled; restore it gently.
-  if (size <= 64) art = sharpenRgba(art, inner, 0.5);
-  if (!inset) return encode(art, size);
-  const framed = new Uint8Array(size * size * 4);
-  for (let y = 0; y < inner; y++) framed.set(art.subarray(y * inner * 4, (y + 1) * inner * 4), ((y + inset) * size + inset) * 4);
-  return encode(framed, size);
+  return encode(size <= 64 ? sharpenRgba(resize(size), size, 0.5) : resize(size), size);
 }
 
-// iOS requires an opaque square and applies its own, tighter corner mask. Fill the transparent
-// corners by extending the tile's own edge colours outward so the mask never reveals a seam.
-async function touchIcon(size) {
+// Opaque square of the tile at `size`: the transparent corners and side bands are filled by
+// extending the tile's own edge colours outward, so a tighter mask never reveals a seam.
+function fullBleed(size, smoothing) {
   const art = resize(size);
   const pixels = size * size;
   const backdrop = new Uint8Array(pixels * 3);
@@ -70,8 +64,8 @@ async function touchIcon(size) {
     }
     filled.set(next);
   }
-  // Soften the streaks the edge extension leaves, touching only the filled corners.
-  for (let pass = 0; pass < 8; pass++) {
+  // Soften the streaks the edge extension leaves, touching only the filled pixels.
+  for (let pass = 0; pass < smoothing; pass++) {
     const source = backdrop.slice();
     for (let i = 0; i < pixels; i++) {
       if (known[i]) continue;
@@ -85,14 +79,58 @@ async function touchIcon(size) {
       for (let c = 0; c < 3; c++) backdrop[i * 3 + c] = Math.round(sum[c] / count);
     }
   }
-  const opaque = Buffer.alloc(pixels * 3);
+  const opaque = new Uint8Array(pixels * 3);
   for (let i = 0; i < pixels; i++) {
     const alpha = art[i * 4 + 3];
     for (let c = 0; c < 3; c++) {
       opaque[i * 3 + c] = Math.round((art[i * 4 + c] * alpha + backdrop[i * 3 + c] * (255 - alpha)) / 255);
     }
   }
-  return encode(opaque, size, 3);
+  return opaque;
+}
+
+// iOS requires an opaque square and applies its own, tighter corner mask.
+const touchIcon = (size) => encode(fullBleed(size, 8), size, 3);
+
+// macOS 26 shrinks icons that do not fill Apple's grid onto a grey plate. The grid is an
+// 824/1024 rounded square inset 100/1024; its continuous corners are a superellipse
+// (exponent 2.8) spanning 238/824 of the side, fitted to the system template.
+const GRID = 824;
+let macArt;
+function macTile(size) {
+  const inset = Math.round(size * 100 / 1024);
+  const side = size - 2 * inset;
+  macArt ??= fullBleed(GRID, 37);
+  let art = new Uint8Array(side * side * 4);
+  if (side === GRID) {
+    for (let i = 0; i < side * side; i++) art.set([...macArt.subarray(i * 3, i * 3 + 3), 255], i * 4);
+  } else {
+    const rgba = new Uint8Array(GRID * GRID * 4).fill(255);
+    for (let i = 0; i < GRID * GRID; i++) rgba.set(macArt.subarray(i * 3, i * 3 + 3), i * 4);
+    art = resizeRgba(rgba, GRID, side);
+  }
+  if (size <= 64) art = sharpenRgba(art, side, 0.5);
+  const corner = side * 238 / GRID;
+  const inside = (u, v) => {
+    const x = Math.max(corner - u, u - (side - corner), 0) / corner;
+    const y = Math.max(corner - v, v - (side - corner), 0) / corner;
+    return x ** 2.8 + y ** 2.8 <= 1;
+  };
+  const frame = new Uint8Array(size * size * 4);
+  const samples = 4;
+  for (let y = 0; y < side; y++) {
+    for (let x = 0; x < side; x++) {
+      let hits = 0;
+      for (let sy = 0; sy < samples; sy++) {
+        for (let sx = 0; sx < samples; sx++) hits += inside(x + (sx + 0.5) / samples, y + (sy + 0.5) / samples);
+      }
+      if (!hits) continue;
+      const i = ((y + inset) * size + x + inset) * 4;
+      frame.set(art.subarray((y * side + x) * 4, (y * side + x) * 4 + 3), i);
+      frame[i + 3] = Math.round(hits * 255 / (samples * samples));
+    }
+  }
+  return encode(frame, size);
 }
 
 const tray = (size, density) => sharp(Buffer.from(mark.replaceAll('currentColor', '#000')))
@@ -125,8 +163,7 @@ async function macIcon() {
     ['ic11', 32], ['ic12', 64], ['ic13', 256], ['ic14', 512],
   ];
   const chunks = await Promise.all(types.map(async ([type, size]) => {
-    // A transparent margin of 1/16 per side keeps the Dock tile the same size as other apps.
-    const image = await scaled(size, size / 16);
+    const image = await macTile(size);
     const header = Buffer.alloc(8);
     header.write(type, 0, 'ascii');
     header.writeUInt32BE(image.length + 8, 4);
@@ -144,6 +181,8 @@ await Promise.all([
   windowsIcon().then((image) => writeFile(join(output, 'favicon.ico'), image)),
   touchIcon(180).then((image) => writeFile(join(output, 'apple-touch-icon.png'), image)),
   writeFile(join(output, 'icons/folio-1024.png'), app),
+  // Page brand logo: shown at 22-28 CSS px, so 96px stays sharp on 3x displays.
+  scaled(96).then((image) => writeFile(join(output, 'icons/folio-logo.png'), image)),
   macIcon().then((image) => writeFile(join(output, 'icons/folio.icns'), image)),
   tray(16, 72).then((image) => writeFile(join(output, 'icons/trayTemplate.png'), image)),
   tray(32, 144).then((image) => writeFile(join(output, 'icons/trayTemplate@2x.png'), image)),
