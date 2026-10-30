@@ -7,9 +7,10 @@ import { Readable } from 'node:stream';
 import { test } from 'node:test';
 import sharp from 'sharp';
 import { openLibrary } from './library.js';
-import { ensureCache } from './importer.js';
+import { ensureCache, importPhoto } from './importer.js';
 import { importVideo, parseVideoParameters } from './video-importer.js';
 import { bmff, posterBytes, request, videoOptions, workspace } from '../tests/fixtures/video.cjs';
+import { photoBytes } from '../tests/fixtures/photo-metadata.cjs';
 
 function failFs(t, method, predicate) {
   const original = fs[method];
@@ -205,4 +206,20 @@ test('video queued behind album deletion is rejected and leaves no new files', a
   };
   await assert.rejects(importVideo(lib, album.id, request(poster, bmff()), 'gone.mp4', videoOptions(poster)), { status: 404 });
   await assert.rejects(stat(lib.albumDir(album.id)), { code: 'ENOENT' });
+});
+
+test('photo and video imports share collision-safe numbering without overwriting orphan files', async (t) => {
+  const { lib, album, originals, cache } = await workspace(t);
+  await writeFile(join(originals, 'p001.mov'), 'owned orphan video');
+  await writeFile(join(cache, 'p002_600.webp'), 'owned orphan cache');
+  const bytes = await photoBytes({ exif: null });
+  const { photo } = await importPhoto(lib, album.id, Readable.from([bytes]), 'new.jpg');
+  assert.equal(photo.id, 'p003');
+  const poster = await posterBytes();
+  const video = (await importVideo(lib, album.id, request(poster, bmff()), 'new.mp4', videoOptions(poster))).photo;
+  assert.equal(video.id, 'p004');
+  assert.equal(lib.get(album.id).nextSeq, 5);
+  assert.equal(await readFile(join(originals, 'p001.mov'), 'utf8'), 'owned orphan video');
+  assert.equal(await readFile(join(cache, 'p002_600.webp'), 'utf8'), 'owned orphan cache');
+  assert.deepEqual(await readFile(join(originals, photo.file)), bytes);
 });

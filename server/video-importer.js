@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { open, readFile, readdir, rename, rm } from 'node:fs/promises';
+import { open, readFile, rename, rm } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import sharp from 'sharp';
 import { MAX_POSTER_BYTES, MAX_POSTER_EDGE, MAX_VIDEO_BYTES, MAX_VIDEO_DIMENSION } from '../shared/media.js';
@@ -22,19 +22,6 @@ export function parseVideoParameters(search) {
     lastModified: /^(?:0|[1-9]\d{0,14})$/.test(time ?? '') && Number(time) <= 253402300799999 ? Number(time) : undefined,
   };
   return validParameters(result) ? result : null;
-}
-
-async function unusedId(lib, album) {
-  const dir = lib.albumDir(album.id);
-  const names = [...await readdir(join(dir, 'originals')), ...await readdir(join(dir, 'cache'))];
-  const used = new Set(album.photos.map((item) => item.id));
-  for (const name of names) {
-    const match = /^(p\d{3,})[._-]/.exec(name);
-    if (match) used.add(match[1]);
-  }
-  let sequence = album.nextSeq;
-  while (used.has(`p${String(sequence).padStart(3, '0')}`)) sequence++;
-  return { id: `p${String(sequence).padStart(3, '0')}`, sequence };
 }
 
 async function validatePoster(file) {
@@ -108,7 +95,7 @@ export async function importVideo(lib, albumId, req, rawName, options = {}) {
     return await lib.queue(albumId, async () => {
       const album = lib.get(albumId);
       if (album.photos.some((item) => item.sha256 === sha256)) return { skipped: 'duplicate' };
-      const { id, sequence } = await unusedId(lib, album);
+      const { id, sequence } = await lib.nextPhotoIdentity(album);
       const file = `${id}${container.ext}`;
       const poster = `${id}-poster.jpg`;
       for (const size of [600, 1600]) owned.add(join(cache, `${id}_${size}.webp`));
