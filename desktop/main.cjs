@@ -274,6 +274,8 @@ async function startDesktop({ appRoot = join(__dirname, '..'), licensePublicKeyF
   });
   function updateMenu() {
     const state = updates?.status() || { phase: 'idle' };
+    // macOS has no automatic updates; its manual entry (open the releases page) is hidden for now.
+    if (state.phase === 'manual') return [];
     const download = state.phase === 'available' || (state.phase === 'error' && state.retry === 'download');
     const install = state.phase === 'downloaded';
     const label = download ? text(`下载更新 ${state.version}`, `Download Update ${state.version}`)
@@ -281,11 +283,11 @@ async function startDesktop({ appRoot = join(__dirname, '..'), licensePublicKeyF
         : state.phase === 'checking' ? text('正在检查更新…', 'Checking for Updates…')
           : state.phase === 'downloading' ? text(`正在下载 ${Math.floor(state.percent || 0)}%`, `Downloading ${Math.floor(state.percent || 0)}%`)
             : state.phase === 'manual' ? text('下载新版', 'Download Updates') : text('检查更新', 'Check for Updates');
-    return {
+    return [{
       id: 'updates', label,
       enabled: !isStopping() && !['checking', 'downloading', 'installing'].includes(state.phase) && !state.terminal,
       click: () => { void (install ? updates.install() : download ? updates.download() : updates.check()).catch((error) => { void log(error.message); }); },
-    };
+    }];
   }
   async function isImporting() {
     if (window.isDestroyed() || window.webContents.isDestroyed() || !window.webContents.getURL() || window.webContents.isLoadingMainFrame()) return false;
@@ -345,7 +347,7 @@ async function startDesktop({ appRoot = join(__dirname, '..'), licensePublicKeyF
       { id: 'choose-library', label: text('选择相册库', 'Choose Library'), enabled: !isStopping() && !choosingLibrary, click: chooseAnotherLibrary },
       { label: text('打开日志', 'Open Logs'), click: () => openPath(join(profile, 'logs')) },
       { id: 'third-party-notices', label: text('第三方声明', 'Third-party Notices'), click: () => openPath(app.isPackaged ? join(process.resourcesPath, 'legal/THIRD_PARTY_NOTICES.txt') : join(appRoot, 'licenses/THIRD_PARTY_NOTICES.txt')) },
-      updateMenu(),
+      ...updateMenu(),
       { type: 'separator' },
       { role: 'about', label: text('关于 Folio', 'About Folio') },
       { role: 'quit', id: 'quit', label: text('退出', 'Quit') },
