@@ -110,7 +110,8 @@ export async function ensureCache(lib, albumId, photo, size) {
   if (await stat(file).then(() => true, () => false)) return file;
   const key = `${albumId}/${photo.id}`;
   if (!making.has(key)) {
-    const job = makeCache(join(dir, 'originals', photo.file), join(dir, 'cache'), photo.id);
+    const source = photo.kind === 'video' ? photo.poster : photo.file;
+    const job = makeCache(join(dir, 'originals', source), join(dir, 'cache'), photo.id);
     making.set(key, job.finally(() => making.delete(key)));
   }
   await making.get(key);
