@@ -1,6 +1,5 @@
 const { test, expect } = require('@playwright/test');
 const { join } = require('node:path');
-const { createHash } = require('node:crypto');
 const { desktopFixture } = require('./fixtures.cjs');
 const { launchProbe, openAlbum, seedMixed } = require('./video-fixtures.cjs');
 const { posterBytes } = require('../tests/fixtures/video.cjs');
@@ -99,34 +98,66 @@ test('book textures distinguish video with a painted marker/duration and never r
   } finally { await fixture.close(); }
 });
 
-test('actual 3D book loads only posters and a real hit on the back-page video opens native playback', async () => {
-  const fixture = await desktopFixture();
-  try {
-    const album = await seedMixed(fixture);
-    const { page, origin } = await openAlbum(fixture, album);
-    await page.setViewportSize({ width: 1440, height: 900 });
-    await page.locator('.tile-video img').evaluate((image) => image.decode());
-    const originals = [];
-    page.on('request', (request) => { if (/\/media\/[^/]+\/p\d+\/original$/.test(request.url())) originals.push(request.url()); });
-    await page.goto(`${origin}/#/a/${album.id}/3d`);
-    const canvas = page.locator('.ab canvas');
-    await expect(canvas).toBeVisible();
-    await expect(page.locator('.ab')).not.toHaveAttribute('data-error', '');
-    await page.locator('.ab [data-act=next]').click();
-    await expect(page.locator('.ab-count')).toHaveText('2 / 2');
-    let previous;
-    await expect.poll(async () => {
-      const current = createHash('sha256').update(await canvas.screenshot()).digest('hex');
-      const stable = current === previous;
-      previous = current;
-      return stable;
-    }).toBe(true);
-    expect(originals).toEqual([]);
-    await page.screenshot({ path: test.info().outputPath('video-book-actual.png'), fullPage: true, scale: 'css' });
-    const point = await restVideoPoint(page, album);
-    await page.mouse.click(point.x, point.y);
-    await expect(page).toHaveURL(new RegExp(`/3d/p/p002$`));
-    await expect(page.locator('.lb-video')).toBeVisible();
-    expect(originals.length).toBeGreaterThan(0);
-  } finally { await fixture.close(); }
-});
+for (const frameWorkMs of [0, 250]) {
+  test(`actual 3D book loads only posters and a real hit on the back-page video opens native playback (${frameWorkMs}ms frame work)`, async () => {
+    const fixture = await desktopFixture();
+    try {
+      const album = await seedMixed(fixture);
+      const { page, origin } = await openAlbum(fixture, album);
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await page.locator('.tile-video img').evaluate((image) => image.decode());
+      const originals = [];
+      page.on('request', (request) => { if (/\/media\/[^/]+\/p\d+\/original$/.test(request.url())) originals.push(request.url()); });
+      const frames = await page.evaluateHandle((frameWorkMs) => {
+        const request = window.requestAnimationFrame.bind(window);
+        const cancel = window.cancelAnimationFrame.bind(window);
+        const pending = new Set();
+        let completed = 0;
+        let first;
+        let last;
+        window.requestAnimationFrame = (callback) => {
+          const id = request((time) => {
+            pending.delete(id);
+            try { callback.call(window, time); }
+            finally {
+              // Model synchronous rendering cost while retaining native frame timestamps.
+              const end = performance.now() + frameWorkMs;
+              while (performance.now() < end) {}
+              completed++;
+              first ??= time;
+              last = time;
+            }
+          });
+          pending.add(id);
+          return id;
+        };
+        window.cancelAnimationFrame = (id) => {
+          pending.delete(id);
+          cancel(id);
+        };
+        return {
+          get pending() { return pending.size; },
+          stats: () => ({ pending: pending.size, completed, frameSpan: last - first, visibility: document.visibilityState }),
+        };
+      }, frameWorkMs);
+      await page.goto(`${origin}/#/a/${album.id}/3d`);
+      const canvas = page.locator('.ab canvas');
+      await expect(canvas).toBeVisible();
+      await expect(page.locator('.ab')).not.toHaveAttribute('data-error', '');
+      await page.locator('.ab [data-act=next]').click();
+      await expect(page.locator('.ab-count')).toHaveText('2 / 2');
+      // Slow-frame animation shares the existing scenario deadline, not the assertion's 5s default.
+      try { await expect.poll(() => frames.evaluate((state) => state.pending), { timeout: test.info().timeout }).toBe(0); }
+      finally {
+        console.log('Owned book animation:', JSON.stringify(await frames.evaluate((state) => state.stats()).catch(() => null)));
+      }
+      expect(originals).toEqual([]);
+      await page.screenshot({ path: test.info().outputPath('video-book-actual.png'), fullPage: true, scale: 'css' });
+      const point = await restVideoPoint(page, album);
+      await page.mouse.click(point.x, point.y);
+      await expect(page).toHaveURL(new RegExp(`/3d/p/p002$`));
+      await expect(page.locator('.lb-video')).toBeVisible();
+      expect(originals.length).toBeGreaterThan(0);
+    } finally { await fixture.close(); }
+  });
+}
