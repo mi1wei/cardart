@@ -53,16 +53,18 @@ Folio 原样保存视频，不转码、不换封装，也不打包新的 ffmpeg 
 
 ## 图标
 
-网页 Logo 与各平台图标共用 `src/assets/folio-mark.svg`：纯色照片页和弧形卷角，不使用阴影或渐变。修改后运行 `npm run icons` 重新生成资源，用 `npm test` 检查格式、尺寸及资源是否同步。
+应用图标来自插画源图 `src/assets/folio-app-icon.png`（1024px，圆角方块外透明）：小朋友翻开相册，左页是夕阳海面，右页是远山与河流。网页导航 Logo 与 macOS 菜单栏模板仍使用单色矢量 `src/assets/folio-mark.svg`，因为菜单栏图标必须是单色剪影。修改任一源文件后运行 `npm run icons` 重新生成资源，用 `npm test` 检查格式、尺寸及资源是否同步。插画缩放在 `scripts/icon-raster.js` 中用纯 JavaScript 完成，保证 macOS 与 Windows 生成的文件逐字节一致；同步检查逐字节比较，不要改成 sharp 缩放。
 
 | 用途 | 资源 |
 | --- | --- |
-| 浏览器标签页 | `public/favicon.svg`、`public/favicon.ico` |
-| iPhone 主屏幕 | `public/apple-touch-icon.png`（180px，不透明背景） |
+| 浏览器标签页 | `public/favicon.ico` |
+| iPhone 主屏幕 | `public/apple-touch-icon.png`（180px，不透明，四角延续方块颜色） |
 | 通用应用图标 | `public/icons/folio-1024.png` |
 | macOS Dock | `public/icons/folio.icns`（含 Retina 尺寸与透明外边距） |
-| macOS 菜单栏 | `public/icons/trayTemplate.png`、`trayTemplate@2x.png`（透明单色） |
-| Windows | `public/favicon.ico`（16–256px 多尺寸，同浏览器后备图标） |
+| macOS 菜单栏 | `public/icons/trayTemplate.png`、`trayTemplate@2x.png`（透明单色，来自矢量标志） |
+| Windows | `public/favicon.ico`（16–256px 多尺寸，同浏览器图标） |
+
+插画在 16/32px 下细节有限。插画来源的版权需在正式分发前确认，见 `licenses/ASSET_PROVENANCE.txt`。
 
 网页与桌面壳共享这些资源；原生安装包尚待构建验收，源码 Node 进程的系统图标不会自动替换。已添加到 iPhone 主屏幕的旧图标，需要删除后重新添加才能更新。
 

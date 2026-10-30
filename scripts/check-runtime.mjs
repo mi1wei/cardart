@@ -12,7 +12,7 @@ try {
   if (Number(process.versions.node.split('.')[0]) < 24 || Number(process.versions.napi) < 9) {
     throw new Error('Node 24 or newer with Node-API 9 is required.');
   }
-  const { info } = await sharp(fileURLToPath(new URL('../public/favicon.svg', import.meta.url)))
+  const { info } = await sharp(fileURLToPath(new URL('../src/assets/folio-mark.svg', import.meta.url)))
     .resize(32, 32).raw().toBuffer({ resolveWithObject: true });
   console.log(JSON.stringify({ platform, arch, node: process.versions.node, napi: process.versions.napi, image: info }));
 } catch (error) {

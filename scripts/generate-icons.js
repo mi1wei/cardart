@@ -1,34 +1,106 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
+import { resizeRgba, sharpenRgba } from './icon-raster.js';
 
 const output = resolve(process.argv[2] ?? fileURLToPath(new URL('../public/', import.meta.url)));
-const source = await readFile(new URL('../src/assets/folio-mark.svg', import.meta.url), 'utf8');
-const mark = source.slice(source.indexOf('>') + 1, source.lastIndexOf('</svg>')).trim();
-const blue = '#1d5f80';
+// Full-colour illustration for app, Dock, browser and Windows icons.
+const app = await readFile(new URL('../src/assets/folio-app-icon.png', import.meta.url));
+// Monochrome vector mark: menu-bar templates must be a single-colour silhouette.
+const mark = await readFile(new URL('../src/assets/folio-mark.svg', import.meta.url), 'utf8');
 
-function svg(background, transform = '') {
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  ${background}
-  <g fill="#fff"${transform ? ` transform="${transform}"` : ''}>${mark.replaceAll('currentColor', '#fff')}</g>
-</svg>
-`;
+// Pixels are resampled in JavaScript (see icon-raster.js) and libvips only decodes and encodes
+// PNG, so the committed icons are byte-identical on every CI architecture.
+const { data: source, info } = await sharp(app).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+if (info.width !== info.height) throw new Error('folio-app-icon.png must be square');
+const resized = new Map();
+const resize = (size) => {
+  if (!resized.has(size)) resized.set(size, resizeRgba(source, info.width, size));
+  return resized.get(size);
+};
+const encode = (data, size, channels = 4) => sharp(Buffer.from(data.buffer, data.byteOffset, data.length), {
+  raw: { width: size, height: size, channels },
+}).png().toBuffer();
+
+function scaled(size, inset = 0) {
+  const inner = size - 2 * inset;
+  let art = resize(inner);
+  // Small frames lose edge contrast when downsampled; restore it gently.
+  if (size <= 64) art = sharpenRgba(art, inner, 0.5);
+  if (!inset) return encode(art, size);
+  const framed = new Uint8Array(size * size * 4);
+  for (let y = 0; y < inner; y++) framed.set(art.subarray(y * inner * 4, (y + 1) * inner * 4), ((y + inset) * size + inset) * 4);
+  return encode(framed, size);
 }
 
-const web = svg(`<rect width="64" height="64" rx="16" fill="${blue}"/>`);
-const touch = svg(`<rect width="64" height="64" fill="${blue}"/>`);
-const mac = svg(
-  `<rect x="4" y="4" width="56" height="56" rx="13" fill="${blue}"/>`,
-  'translate(4 4) scale(.875)',
-);
-const png = (image, size) => sharp(Buffer.from(image)).resize(size).png().toBuffer();
-const tray = (size, density) => sharp(Buffer.from(source.replaceAll('currentColor', '#000')))
+// iOS requires an opaque square and applies its own, tighter corner mask. Fill the transparent
+// corners by extending the tile's own edge colours outward so the mask never reveals a seam.
+async function touchIcon(size) {
+  const art = resize(size);
+  const pixels = size * size;
+  const backdrop = new Uint8Array(pixels * 3);
+  const known = new Uint8Array(pixels);
+  for (let i = 0; i < pixels; i++) {
+    if (art[i * 4 + 3] !== 255) continue;
+    known[i] = 1;
+    for (let c = 0; c < 3; c++) backdrop[i * 3 + c] = art[i * 4 + c];
+  }
+  const filled = known.slice();
+  const neighbours = (i) => {
+    const x = i % size;
+    return [x > 0 ? i - 1 : -1, x < size - 1 ? i + 1 : -1, i >= size ? i - size : -1, i + size < pixels ? i + size : -1];
+  };
+  for (let progress = true; progress;) {
+    progress = false;
+    const next = filled.slice();
+    for (let i = 0; i < pixels; i++) {
+      if (filled[i]) continue;
+      const sum = [0, 0, 0];
+      let count = 0;
+      for (const j of neighbours(i)) {
+        if (j < 0 || !filled[j]) continue;
+        for (let c = 0; c < 3; c++) sum[c] += backdrop[j * 3 + c];
+        count++;
+      }
+      if (!count) continue;
+      for (let c = 0; c < 3; c++) backdrop[i * 3 + c] = Math.round(sum[c] / count);
+      next[i] = 1;
+      progress = true;
+    }
+    filled.set(next);
+  }
+  // Soften the streaks the edge extension leaves, touching only the filled corners.
+  for (let pass = 0; pass < 8; pass++) {
+    const source = backdrop.slice();
+    for (let i = 0; i < pixels; i++) {
+      if (known[i]) continue;
+      const sum = [0, 0, 0];
+      let count = 0;
+      for (const j of [i, ...neighbours(i)]) {
+        if (j < 0) continue;
+        for (let c = 0; c < 3; c++) sum[c] += source[j * 3 + c];
+        count++;
+      }
+      for (let c = 0; c < 3; c++) backdrop[i * 3 + c] = Math.round(sum[c] / count);
+    }
+  }
+  const opaque = Buffer.alloc(pixels * 3);
+  for (let i = 0; i < pixels; i++) {
+    const alpha = art[i * 4 + 3];
+    for (let c = 0; c < 3; c++) {
+      opaque[i * 3 + c] = Math.round((art[i * 4 + c] * alpha + backdrop[i * 3 + c] * (255 - alpha)) / 255);
+    }
+  }
+  return encode(opaque, size, 3);
+}
+
+const tray = (size, density) => sharp(Buffer.from(mark.replaceAll('currentColor', '#000')))
   .resize(size).withMetadata({ density }).png().toBuffer();
 
 async function windowsIcon() {
   const sizes = [16, 24, 32, 48, 64, 128, 256];
-  const images = await Promise.all(sizes.map((size) => png(web, size)));
+  const images = await Promise.all(sizes.map((size) => scaled(size)));
   const directory = Buffer.alloc(6 + sizes.length * 16);
   directory.writeUInt16LE(1, 2);
   directory.writeUInt16LE(sizes.length, 4);
@@ -53,7 +125,8 @@ async function macIcon() {
     ['ic11', 32], ['ic12', 64], ['ic13', 256], ['ic14', 512],
   ];
   const chunks = await Promise.all(types.map(async ([type, size]) => {
-    const image = await png(mac, size);
+    // A transparent margin of 1/16 per side keeps the Dock tile the same size as other apps.
+    const image = await scaled(size, size / 16);
     const header = Buffer.alloc(8);
     header.write(type, 0, 'ascii');
     header.writeUInt32BE(image.length + 8, 4);
@@ -67,10 +140,10 @@ async function macIcon() {
 
 await mkdir(join(output, 'icons'), { recursive: true });
 await Promise.all([
-  writeFile(join(output, 'favicon.svg'), web),
+  rm(join(output, 'favicon.svg'), { force: true }),
   windowsIcon().then((image) => writeFile(join(output, 'favicon.ico'), image)),
-  png(touch, 180).then((image) => writeFile(join(output, 'apple-touch-icon.png'), image)),
-  png(touch, 1024).then((image) => writeFile(join(output, 'icons/folio-1024.png'), image)),
+  touchIcon(180).then((image) => writeFile(join(output, 'apple-touch-icon.png'), image)),
+  writeFile(join(output, 'icons/folio-1024.png'), app),
   macIcon().then((image) => writeFile(join(output, 'icons/folio.icns'), image)),
   tray(16, 72).then((image) => writeFile(join(output, 'icons/trayTemplate.png'), image)),
   tray(32, 144).then((image) => writeFile(join(output, 'icons/trayTemplate@2x.png'), image)),
