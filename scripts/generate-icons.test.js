@@ -99,7 +99,7 @@ test('exports the app illustration to web and native icons, keeping the vector m
     assert.deepEqual(sizes, [16, 24, 32, 48, 64, 128, 256]);
   });
 
-  await t.test('macOS representations include Retina sizes and leave transparent Dock margins', async () => {
+  await t.test('macOS representations fill Apple\'s icon grid so macOS 26 shows them without a grey plate', async () => {
     const icns = await readFile(join(output, 'icons/folio.icns'));
     assert.equal(icns.toString('ascii', 0, 4), 'icns');
     assert.equal(icns.readUInt32BE(4), icns.length);
@@ -119,7 +119,18 @@ test('exports the app illustration to web and native icons, keeping the vector m
       const metadata = await sharp(frame).metadata();
       assert.deepEqual([metadata.width, metadata.height], [size, size]);
       assert.equal(await alphaAt(frame, Math.floor(size / 32), size / 2), 0, 'side margin must stay transparent');
-      if (type === 'icp5' || type === 'ic08') await assertShowsAppIcon(frame, size, size / 16);
+      // Apple's grid: a 824/1024 rounded square, 100/1024 from every edge, with solid straight edges.
+      if (type === 'ic08' || type === 'ic10') {
+        const [inset, end] = [size * 100 / 1024, size * 924 / 1024];
+        for (const [x, y] of [[inset, size / 2], [end - 1, size / 2], [size / 2, inset], [size / 2, end - 1]]) {
+          assert.equal(await alphaAt(frame, x, y), 255, `edge (${x}, ${y}) must be opaque`);
+        }
+        for (const [x, y] of [[inset - 1, size / 2], [end, size / 2], [size / 2, inset - 1], [size / 2, end]]) {
+          assert.equal(await alphaAt(frame, x, y), 0, `margin (${x}, ${y}) must be transparent`);
+        }
+        assert.equal(await alphaAt(frame, inset, inset), 0, 'corners must be rounded');
+        await assertShowsAppIcon(frame, size, inset);
+      }
       expected.delete(type);
       offset += length;
     }

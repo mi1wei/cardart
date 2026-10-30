@@ -61,7 +61,7 @@ Folio 原样保存视频，不转码、不换封装，也不打包新的 ffmpeg 
 | iPhone 主屏幕 | `public/apple-touch-icon.png`（180px，不透明，四角延续方块颜色） |
 | 通用应用图标 | `public/icons/folio-1024.png` |
 | 页面品牌 Logo | `public/icons/folio-logo.png`（96px，按 22–28px 显示，适配 3 倍屏） |
-| macOS Dock | `public/icons/folio.icns`（含 Retina 尺寸与透明外边距） |
+| macOS Dock | `public/icons/folio.icns`（含 Retina 尺寸；按 Apple 图标网格铺满 824/1024 圆角方块、四周留 100/1024，否则 macOS 26 会把图标缩小放进灰色底板） |
 | macOS 菜单栏 | `public/icons/trayTemplate.png`、`trayTemplate@2x.png`（透明单色，来自矢量标志） |
 | Windows | `public/favicon.ico`（16–256px 多尺寸，同浏览器图标） |
 
