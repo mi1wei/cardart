@@ -1032,11 +1032,11 @@ button {
 }
 
 @media (max-width: 600px) {
-  body:has(.license-page) .nav [data-page='home'] {
+  body:has(:is(.license-page, .album-page)) .nav [data-page='home'] {
     display: none;
   }
 
-  body:has(.license-page) .nav .nl {
+  body:has(:is(.license-page, .album-page)) .nav .nl {
     padding: 0 8px;
   }
 }
@@ -1599,6 +1599,28 @@ button {
   transition: transform 0.4s var(--ease-out);
 }
 
+.video-badge {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 7px;
+  border-radius: 6px;
+  background: rgb(16 25 32 / 78%);
+  color: #fff;
+  font-size: 11px;
+  line-height: 16px;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+.video-badge svg {
+  width: 14px;
+  height: 14px;
+}
+
 @media (hover: hover) and (prefers-reduced-motion: no-preference) {
   .tile:hover img {
     transform: scale(1.03);
@@ -1783,6 +1805,7 @@ button {
   right: 24px;
   bottom: calc(env(safe-area-inset-bottom, 0px) + 24px);
   width: 320px;
+  max-width: calc(100vw - 32px);
   padding: 14px 16px;
   font-size: 14px;
   line-height: 20px;
@@ -1792,6 +1815,14 @@ button {
   display: flex;
   justify-content: space-between;
   gap: 8px;
+}
+
+.upload .r b {
+  flex-shrink: 0;
+}
+
+.upload small {
+  overflow-wrap: anywhere;
 }
 
 .upload .r span {

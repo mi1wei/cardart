@@ -32,7 +32,9 @@ export function renderWall(app) {
       if (!alive) return;
       albums = list;
       wall.replaceChildren(...albums.map((a) => folder(a, { menu: true })));
-      sub.textContent = t('stats', { a: albums.length, p: albums.reduce((n, a) => n + a.count, 0) });
+      sub.textContent = t('stats', { a: albums.length,
+        p: albums.reduce((n, a) => n + (a.photoCount ?? a.count - (a.videoCount ?? 0)), 0),
+        v: albums.reduce((n, a) => n + (a.videoCount ?? 0), 0) });
       sub.hidden = albums.length === 0;
       app.querySelector('.empty').hidden = albums.length > 0;
     } catch (err) {
