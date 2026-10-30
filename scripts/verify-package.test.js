@@ -59,7 +59,7 @@ async function fixture(t, { platform = 'darwin', arch = 'arm64', extra = {}, add
   await file(join(source, 'package.json'), metadata);
   await file(join(root, 'desktop/license-public.pem'), pem);
   await file(join(source, 'desktop/license-public.pem'), pem);
-  for (const path of ['desktop/main.cjs', 'desktop/service.cjs', 'server/app.js', 'server/heic-worker.cjs', 'server/license.js', 'server/license-store.js', 'server/video-container.js', 'shared/media.js', 'node_modules/sharp/dist/index.cjs', 'node_modules/sharp/dist/index.mjs', 'node_modules/libheif-js/wasm-bundle.js', 'node_modules/libheif-js/libheif-wasm/libheif-bundle.js']) {
+  for (const path of ['desktop/main.cjs', 'desktop/service.cjs', 'server/app.js', 'server/heic-worker.cjs', 'server/license.js', 'server/license-store.js', 'server/video-container.js', 'server/video-importer.js', 'server/video-metadata.js', 'shared/media.js', 'node_modules/sharp/dist/index.cjs', 'node_modules/sharp/dist/index.mjs', 'node_modules/libheif-js/wasm-bundle.js', 'node_modules/libheif-js/libheif-wasm/libheif-bundle.js']) {
     await file(join(source, path), '/* structural fixture */');
   }
   for (const pkg of packages) {
@@ -136,8 +136,20 @@ test('package requires its shared media contract but rejects unrelated shared co
   await asar.createPackageWithOptions(missing.source, join(missing.resources, 'app.asar'), {
     dot: true, unpack: '{**/node_modules/sharp/**,**/node_modules/@img/**,**/node_modules/libheif-js/**}',
   });
+
   await assert.rejects(verifyPackage(missing), /missing app payload: shared\/media\.js/i);
 });
+
+for (const module of ['server/video-importer.js', 'server/video-metadata.js']) {
+  test(`package rejects the missing backend module ${module}`, async (t) => {
+    const f = await fixture(t);
+    await rm(join(f.source, module));
+    await asar.createPackageWithOptions(f.source, join(f.resources, 'app.asar'), {
+      dot: true, unpack: '{**/node_modules/sharp/**,**/node_modules/@img/**,**/node_modules/libheif-js/**}',
+    });
+    await assert.rejects(verifyPackage(f), /missing app payload.*video-(importer|metadata)\.js/i);
+  });
+}
 
 test('tagged packages must embed the tag version and build tag, not the source baseline', async (t) => {
   const f = await fixture(t);

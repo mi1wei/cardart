@@ -162,7 +162,7 @@ export async function verifyPackage({ appDir, root = project, platform = process
   const metadata = JSON.parse(content('package.json'));
   if (metadata.version !== expected.version || metadata.main !== 'desktop/main.cjs' || metadata.type !== 'module') throw new Error('Packaged entry point/version is invalid');
   if (expected.tag && (metadata.folioBuild?.tag !== expected.tag || metadata.folioBuild.sourceCommit !== expected.sourceCommit)) throw new Error('Packaged build tag/source identity is invalid');
-  for (const name of ['desktop/main.cjs', 'desktop/service.cjs', 'server/app.js', 'server/heic-worker.cjs', 'server/license.js', 'server/license-store.js', 'server/video-container.js', 'shared/media.js']) content(name);
+  for (const name of ['desktop/main.cjs', 'desktop/service.cjs', 'server/app.js', 'server/heic-worker.cjs', 'server/license.js', 'server/license-store.js', 'server/video-container.js', 'server/video-importer.js', 'server/video-metadata.js', 'shared/media.js']) content(name);
   const packedKey = content('desktop/license-public.pem');
   parseLicensePublicKey(packedKey);
   if (hash(packedKey) !== hash(key)) throw new Error('Packaged license public key differs from the maintainer source key');
