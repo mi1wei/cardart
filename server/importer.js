@@ -83,7 +83,7 @@ export async function importPhoto(lib, albumId, req, rawName, { lastModified } =
       await rm(tmp, { force: true });
       return { skipped: 'duplicate' };
     }
-    const id = `p${String(album.nextSeq).padStart(3, '0')}`;
+    const { id, sequence } = await lib.nextPhotoIdentity(album);
     const { format, compression } = await sharp(tmp).metadata().catch(() => ({}));
     const ext = format === 'heif' && compression === 'av1' ? '.avif' : RASTER[format];
     const metadata = ext ? await readPhotoMetadata(tmp, { format, byteLength: bytes, fileModifiedAt: lastModified, fileTimeSource: 'source-file' }) : null;
@@ -98,7 +98,7 @@ export async function importPhoto(lib, albumId, req, rawName, { lastModified } =
     const file = `${id}${ext}`;
     await rename(tmp, join(dir, 'originals', file));
     const photo = { id, file, name, w: size.w, h: size.h, sha256, metadata };
-    await lib.save({ ...album, nextSeq: album.nextSeq + 1, photos: [...album.photos, photo] });
+    await lib.save({ ...album, nextSeq: sequence + 1, photos: [...album.photos, photo] });
     return { photo };
   });
 }
@@ -110,7 +110,8 @@ export async function ensureCache(lib, albumId, photo, size) {
   if (await stat(file).then(() => true, () => false)) return file;
   const key = `${albumId}/${photo.id}`;
   if (!making.has(key)) {
-    const job = makeCache(join(dir, 'originals', photo.file), join(dir, 'cache'), photo.id);
+    const source = photo.kind === 'video' ? photo.poster : photo.file;
+    const job = makeCache(join(dir, 'originals', source), join(dir, 'cache'), photo.id);
     making.set(key, job.finally(() => making.delete(key)));
   }
   await making.get(key);

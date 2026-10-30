@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { smokePackage } from './package-smoke.mjs';
 
-test('a real production-fuse package serves rebuilt PNG/HEIC caches and preserves its isolated library', {
+test('a real production-fuse package serves rebuilt photo/video caches and preserves its isolated library', {
   skip: !process.env.FOLIO_PACKAGE_APP,
   timeout: 90000,
 }, async () => {
@@ -22,5 +22,6 @@ test('a real production-fuse package serves rebuilt PNG/HEIC caches and preserve
   assert.equal(result.nativeCacheRebuild, true);
   assert.equal(result.readOnlyEnforced, true);
   assert.equal(result.videoRange, true);
+  assert.equal(result.albumVideoReadOnly, true);
   assert.equal(result.libraryReleased, true);
 });

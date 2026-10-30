@@ -105,7 +105,7 @@ npm run verify:package -- --app release/win-unpacked --platform win32 --arch x64
 npm run smoke:package -- --app release/mac-arm64/Folio.app
 ```
 
-黑盒 smoke 不开启 inspector，使用临时中文/空格库和 profile，以真实 utility process/Worker 重建 PNG/primary-HEIC 缓存，检查原图、Range 视频及缺许可时拒绝写入，再验证端口关闭和库锁释放。macOS 测试进程使用 Chromium 的 mock-keychain 参数，避免自动化接触用户钥匙串；不改变生产 fuses 或正常启动参数，真实钥匙串/系统提示仍需人工验收。它不会读取生产私钥或签发真实许可。普通 `npm test` 跳过依赖实包的单个用例；原生流水线通过 `FOLIO_PACKAGE_APP` 显式运行。
+黑盒 smoke 不开启 inspector，使用临时中文/空格库和 profile，以真实 utility process/Worker 重建 PNG/primary-HEIC 和视频 JPEG 封面的缓存，检查照片/视频原字节、相册视频 Range、视频 Details、只读备注和缺许可时拒绝写入，再验证端口关闭和库锁释放。首页装饰视频的旧 Range 检查仍保留，不把它当作相册视频验收。自测只在私有 profile 中选择空闲端口，避免干扰已运行实例或触发端口占用提示，不改变生产端口策略。macOS 测试进程使用 Chromium 的 mock-keychain 参数，避免自动化接触用户钥匙串；不改变生产 fuses 或正常启动参数，真实钥匙串/系统提示仍需人工验收。它不会读取生产私钥或签发真实许可。普通 `npm test` 跳过依赖实包的单个用例；原生流水线通过 `FOLIO_PACKAGE_APP` 显式运行。
 
 应用支持 `--user-data-dir=<绝对路径> --quit` 正常退出指定 profile 的现有实例；没有实例时不启动服务。该命令通过已有本机单实例机制走统一 drain，不依赖调试端口或强杀。显式退出时，加载中的空页面不执行需等页面完成加载的 JavaScript；已进入导入的页面仍等待完整队列完成。
 
@@ -124,6 +124,16 @@ Windows 安装器按机器安装并请求 UAC，应用保持 `asInvoker`。安�
 卸载保护检查使用自有卸载器副本及 NSIS 的 `_?=` 同步模式取得实际退出码，不改变正常卸载路径，也不靠仿冒进程名证明保护有效。实际结果以对应 Windows CI 为准；其他登录会话也需先退出，Windows 11 的多用户/权限差异仍须真机验收。
 
 防火墙钩子只管理 `io.github.mi1wei.folio - Private LAN`，限定 `Folio.exe`、TCP、Private、LocalSubnet；卸载只移除该规则，保留照片库、用户配置和授权。规则更新失败会提示，不关闭系统防火墙或放开 Public。**NSIS 编译结果以原生 CI 为准；实际监听 exe、UAC、规则幂等/组织策略和卸载保留仍须 Windows 11 真机验收，不能据此宣称手机已可连接。**
+
+## 视频混排的验证边界
+
+视频原样保存，服务端仅做有界容器/JPEG 校验，不转码、不换封装、不调用或打包新的 ffmpeg/codec。播放依赖当前 Electron/Chromium、浏览器与操作系统实际提供的解码路径；格式白名单不是 H.264、HEVC、HDR 或任意 profile 的通用播放保证，编解码器与专利仍属于现有分发审查范围。
+
+本地 Apple Silicon 验证使用自有 H.264/AAC MP4、MOV、M4V、带旋转矩阵、极短及封面需缩小的样片；真实 Electron 检查解码帧、队列/保存、原生控件、备注和释放，production-fuse 目录包检查只读服务与可再生 poster。夹具生成工具只供维护者准备素材，不是测试运行或应用的依赖，测试媒体也不进入安装包。
+
+Windows 11 x64、最低 macOS 13、真实 iPhone Safari 的连续上传、切后台、省流/播放受限，以及 HEVC/10-bit/HDR 仍须分别取得设备证据。当前 macOS 26.1 的运行结果不能替代这些验收；没有特定硬件解码器也不直接等于没有软件解码能力。只在实际不支持时降级为封面与说明，不能把文件 404 误称为设备 codec 不支持。
+
+所有结论绑定实际源码与成品；旧自测包、构建成功或结构夹具不代表新视频功能或最低系统已验收，更不代表公开发行已获批准。
 
 ## 应用更新
 

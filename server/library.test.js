@@ -4,9 +4,14 @@ import { once } from 'node:events';
 import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { Readable } from 'node:stream';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { openLibrary } from './library.js';
+import { importPhoto } from './importer.js';
+import { importVideo } from './video-importer.js';
+import { photoBytes } from '../tests/fixtures/photo-metadata.cjs';
+import { bmff, posterBytes, request, videoOptions, workspace as videoWorkspace } from '../tests/fixtures/video.cjs';
 
 async function workspace(t) {
   const root = await mkdtemp(join(tmpdir(), 'folio-library-'));
@@ -175,4 +180,47 @@ test('a failed note commit preserves the saved snapshot and does not poison subs
   await rm(join(folder, 'album.json.tmp'), { recursive: true });
   const updated = await lib.updatePhotoNote(album.id, 'p001', { note: 'Can commit', previousNote: '' });
   assert.equal(updated.photos[0].note, 'Can commit');
+});
+
+test('mixed library counts, covers, notes and video file deletion survive reopening without migrating old photos', async (t) => {
+  const { dir, lib, album, originals, cache } = await videoWorkspace(t);
+  const bytes = await photoBytes({ exif: null });
+  const { photo } = await importPhoto(lib, album.id, Readable.from([bytes]), 'photo.jpg');
+  const poster = await posterBytes();
+  const video = (await importVideo(lib, album.id, request(poster, bmff()), 'clip.mp4', videoOptions(poster, { duration: 0.04 }))).photo;
+  assert.deepEqual(
+    (({ count, photoCount, videoCount }) => ({ count, photoCount, videoCount }))(lib.list()[0]),
+    { count: 2, photoCount: 1, videoCount: 1 },
+  );
+  assert.equal(Object.hasOwn(photo, 'kind'), false);
+  await lib.update(album.id, { order: [video.id, photo.id], cover: video.id });
+  await lib.updatePhotoNote(album.id, video.id, { note: '视频备注', previousNote: '' });
+  await assert.rejects(lib.updatePhotoNote(album.id, video.id, { note: 'Stale', previousNote: '' }), { status: 409 });
+  assert.equal(lib.list()[0].previews[0].id, video.id);
+  await lib.close();
+  const reopened = await openLibrary(dir);
+  try {
+    const restored = reopened.get(album.id);
+    assert.equal(restored.version, 1);
+    assert.equal(restored.photos[0].duration, 0.04);
+    assert.equal(restored.photos[0].note, '视频备注');
+    assert.equal(restored.photos[0].metadata.fileModifiedAt, null);
+    assert.deepEqual(restored.photos[1], photo);
+    const before = await readFile(join(reopened.albumDir(album.id), 'album.json'));
+    await mkdir(join(reopened.albumDir(album.id), 'album.json.tmp'));
+    await assert.rejects(reopened.deletePhotos(album.id, [video.id]));
+    assert.deepEqual(await readFile(join(reopened.albumDir(album.id), 'album.json')), before);
+    assert.deepEqual(await readFile(join(originals, video.poster)), poster);
+    await rm(join(reopened.albumDir(album.id), 'album.json.tmp'), { recursive: true });
+    await reopened.deletePhotos(album.id, [photo.id]);
+    assert.equal(reopened.list()[0].photoCount, 0);
+    assert.equal(reopened.list()[0].videoCount, 1);
+    await reopened.deletePhotos(album.id, [video.id]);
+    for (const file of [join(originals, video.file), join(originals, video.poster),
+      join(cache, `${video.id}_600.webp`), join(cache, `${video.id}_1600.webp`)]) {
+      await assert.rejects(readFile(file), { code: 'ENOENT' });
+    }
+    assert.equal(reopened.list()[0].count, 0);
+    assert.equal(reopened.get(album.id).cover, null);
+  } finally { await reopened.close(); }
 });

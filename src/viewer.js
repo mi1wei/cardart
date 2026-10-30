@@ -109,6 +109,7 @@ export function openViewer({ album, onOpenPhoto, onClose, onPerPage }) {
         title: album.title,
         pages,
         photoUrl,
+        itemInfo: (i) => album.photos[i],
         insets,
         startSpread: spreadOf(i),
         onChange,

@@ -46,7 +46,9 @@ export function renderHome(app) {
   api.albums().then(
     (list) => {
       if (!alive || !list.length) return;
-      app.querySelector('.stats .n').textContent = t('stats', { a: list.length, p: list.reduce((n, a) => n + a.count, 0) });
+      app.querySelector('.stats .n').textContent = t('stats', { a: list.length,
+        p: list.reduce((n, a) => n + (a.photoCount ?? a.count - (a.videoCount ?? 0)), 0),
+        v: list.reduce((n, a) => n + (a.videoCount ?? 0), 0) });
       app.querySelector('.stats').hidden = false;
       app.querySelector('.recent .folders').replaceChildren(...list.slice(0, 4).map((a) => folder(a)));
       app.querySelector('.recent').hidden = false;

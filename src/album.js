@@ -2,8 +2,10 @@ import { api, mediaUrl } from './api.js';
 import { openLightbox } from './lightbox.js';
 import { close, open, swap } from './router.js';
 import { dialog, icon, toast } from './ui.js';
-import { t } from './i18n.js';
+import { mediaCountText, t } from './i18n.js';
 import { allowWrite, canWrite } from './license.js';
+import { probeVideo } from './video-probe.js';
+import { formatDuration, mediaCounts } from '../shared/media.js';
 
 const fine = matchMedia('(pointer: fine)');
 const SKIP = { duplicate: 'dup', unsupported: 'bad', 'too-large': 'big' };
@@ -19,6 +21,7 @@ export function renderAlbum(app, id) {
   const queue = [];
   const tally = { total: 0, done: 0, dup: 0, bad: 0, big: 0, fail: 0 };
   let uploading = false;
+  let uploadController;
   let lightbox = null;
   let viewer = null;
   let viewerLoading = false;
@@ -30,7 +33,7 @@ export function renderAlbum(app, id) {
       <p class="sub count"></p>
       <div class="acts normal">
         <button class="btn pri" type="button" data-act="3d">${icon('book')}<span>${t('flip-3d')}</span></button>
-        <button class="btn" type="button" data-write data-act="upload">${icon('upload')}<span>${t('upload-photos')}</span></button>
+        <button class="btn" type="button" data-write data-act="upload">${icon('upload')}<span>${t('upload')}</span></button>
         <button class="btn" type="button" data-act="select">${t('select')}</button>
       </div>
       <div class="acts picking" hidden>
@@ -49,8 +52,8 @@ export function renderAlbum(app, id) {
         <button class="btn" type="button" data-write data-act="upload">${icon('upload')}<span>${t('upload')}</span></button>
         <button class="btn pri" type="button" data-act="3d">${icon('book')}<span>${t('flip-3d')}</span></button>
       </div>
-      <input type="file" data-write accept="image/*,.heic,.heif" multiple hidden>
-      <div class="upload" hidden><div class="r"><b></b><span></span></div><div class="prog"><i></i></div><small></small></div>
+      <input type="file" data-write accept="image/*,.heic,.heif,video/mp4,video/quicktime,video/x-m4v,.mp4,.mov,.m4v" multiple hidden>
+      <div class="upload" role="status" aria-live="polite" hidden><div class="r"><b></b><span></span></div><div class="prog"><i></i></div><small></small></div>
     </main>`;
   const $ = (s) => app.querySelector(s);
   const main = $('.page');
@@ -136,6 +139,15 @@ export function renderAlbum(app, id) {
     el.style.setProperty('--a', (p.w / p.h).toFixed(4));
     el.classList.toggle('sel', selected.has(p.id));
     el.innerHTML = `<img alt="" loading="lazy" draggable="false" src="${mediaUrl(id, p.id, 600)}">${isCover ? `<span class="badge">${t('cover')}</span>` : ''}<span class="chk">${icon('check')}</span>`;
+    if (p.kind === 'video') {
+      el.classList.add('tile-video');
+      const badge = document.createElement('span');
+      badge.className = 'video-badge';
+      badge.innerHTML = icon('play');
+      badge.append(document.createTextNode(formatDuration(p.duration)));
+      el.append(badge);
+      el.setAttribute('aria-label', `${p.name} · ${t('video')} · ${formatDuration(p.duration)}`);
+    } else el.setAttribute('aria-label', p.name);
     el.querySelector('img').onerror = () => el.classList.add('missing');
     return el;
   }
@@ -143,7 +155,7 @@ export function renderAlbum(app, id) {
   function render() {
     const n = album.photos.length;
     $('.title').textContent = album.title;
-    $('.count').textContent = t('photos', { n });
+    $('.count').textContent = mediaCountText(mediaCounts(album.photos));
     document.title = `${album.title} · ${t('app')}`;
     $('.drop').hidden = n > 0;
     grid.hidden = n === 0;
@@ -172,33 +184,88 @@ export function renderAlbum(app, id) {
     if (!uploading) pump();
   }
 
+  async function refreshAfterUpload(signal) {
+    while (alive) {
+      const before = album;
+      const next = await api.album(id, { signal });
+      if (!alive) return;
+      if (album !== before) continue;
+      if (next?.id !== id || !Array.isArray(next.photos)) throw new Error('Invalid album response');
+      album = next;
+      render();
+      return;
+    }
+  }
+
   async function pump() {
     uploading = true;
     document.documentElement.setAttribute('data-busy', '');
     box.hidden = false;
     clearTimeout(box.timer);
     box.querySelector('small').textContent = '';
-    while (queue.length && alive) {
-      const file = queue.shift();
-      const i = tally.total - queue.length;
-      box.querySelector('b').textContent = t('importing', { i, n: tally.total });
-      box.querySelector('.r span').textContent = file.name;
-      box.querySelector('.prog i').style.width = `${((i - 1) / tally.total) * 100}%`;
-      try {
-        const res = await api.upload(id, file);
-        if (res.photo) {
-          tally.done++;
-          album = { ...album, photos: [...album.photos, res.photo] };
-          if (album.photos.length === 1) render();
-          else grid.append(tile(res.photo, false));
-          $('.count').textContent = t('photos', { n: album.photos.length });
-        } else tally[SKIP[res.skipped]]++;
-      } catch {
-        tally.fail++;
+    let lastFailure = '';
+    try {
+      while (queue.length && alive) {
+        if (!allowWrite()) { queue.length = 0; break; }
+        const file = queue.shift();
+        const i = tally.total - queue.length;
+        const startingAlbum = album;
+        uploadController = new AbortController();
+        const signal = uploadController.signal;
+        box.querySelector('b').textContent = t('importing', { i, n: tally.total });
+        box.querySelector('.r span').textContent = file.name;
+        box.querySelector('.prog i').style.width = `${((i - 1) / tally.total) * 100}%`;
+        try {
+          const video = /\.(mp4|mov|m4v)$/i.test(file.name) || /^(video\/mp4|video\/quicktime|video\/x-m4v)$/i.test(file.type);
+          let res;
+          if (video) {
+            box.querySelector('b').textContent = `${t('video-preparing')} · ${i}/${tally.total}`;
+            const prepared = await probeVideo(file, { signal });
+            if (!alive || !allowWrite()) { queue.length = 0; break; }
+            res = await api.uploadVideo(id, file, prepared, ({ stage, loaded, total }) => {
+              if (!alive) return;
+              box.querySelector('b').textContent = `${t(stage === 'saving' ? 'upload-saving' : 'upload-sending')} · ${i}/${tally.total}`;
+              const fraction = total > 0 ? Math.min(1, Math.max(0, loaded / total)) : 0;
+              box.querySelector('.prog i').style.width = `${((i - 1 + fraction) / tally.total) * 100}%`;
+            }, { signal });
+          } else if (/^video\//i.test(file.type)) res = { skipped: 'unsupported' };
+          else res = await api.upload(id, file, { signal });
+          if (!alive) break;
+          if (res.photo) {
+            tally.done++;
+            if (!album.photos.some((photo) => photo.id === res.photo.id)) {
+              if (album !== startingAlbum) {
+                try { await refreshAfterUpload(signal); }
+                catch (error) {
+                  if (!alive || error.name === 'AbortError') break;
+                  lastFailure = t('upload-refresh-failed');
+                }
+              } else {
+                album = { ...album, photos: [...album.photos, res.photo] };
+                if (album.photos.length === 1) render();
+                else grid.append(tile(res.photo, false));
+              }
+            } else render();
+            if (!alive) break;
+            $('.count').textContent = mediaCountText(mediaCounts(album.photos));
+          } else if (SKIP[res.skipped]) tally[SKIP[res.skipped]]++;
+          else throw Object.assign(new Error('Invalid upload response'), { code: 'bad-response' });
+        } catch (error) {
+          if (!alive || error.name === 'AbortError') continue;
+          if (SKIP[error.code]) tally[SKIP[error.code]]++;
+          else {
+            tally.fail++;
+            const key = { timeout: 'video-timeout', blocked: 'video-blocked', unreadable: 'video-unreadable',
+              network: 'upload-network', 'bad-response': 'upload-bad-response' }[error.code];
+            lastFailure = `${file.name.slice(0, 200)}: ${key ? t(key) : error.message}`;
+          }
+        }
       }
+    } finally {
+      uploadController = null;
+      uploading = false;
+      document.documentElement.removeAttribute('data-busy');
     }
-    uploading = false;
-    document.documentElement.removeAttribute('data-busy');
     if (!alive) return;
     const skipped = tally.dup + tally.bad + tally.big;
     const why = [tally.dup && t('dup', { n: tally.dup }), tally.bad && t('bad', { n: tally.bad }), tally.big && t('big', { n: tally.big })]
@@ -208,9 +275,10 @@ export function renderAlbum(app, id) {
     box.querySelector('.r span').textContent = '';
     box.querySelector('.prog i').style.width = '100%';
     box.querySelector('small').textContent =
-      t('imported', { n: tally.done }) + (skipped ? t('skipped', { n: skipped, why }) : '') + (tally.fail ? t('failed-n', { n: tally.fail }) : '');
+      t('imported', { n: tally.done }) + (skipped ? t('skipped', { n: skipped, why }) : '') + (tally.fail ? t('failed-n', { n: tally.fail }) : '') +
+      (lastFailure ? ` · ${lastFailure}` : '');
     Object.assign(tally, { total: 0, done: 0, dup: 0, bad: 0, big: 0, fail: 0 });
-    box.timer = setTimeout(() => (box.hidden = true), 4000);
+    if (!lastFailure) box.timer = setTimeout(() => (box.hidden = true), 4000);
   }
 
   async function removeSelected() {
@@ -356,6 +424,7 @@ export function renderAlbum(app, id) {
 
   return {
     canLeave(next, again) {
+      if (uploading && (again || next.album !== id)) { toast(t('upload-wait')); return false; }
       if (!again && next.album === id && next.photo === route.photo) return true;
       return lightbox?.canLeave() ?? true;
     },
@@ -365,6 +434,9 @@ export function renderAlbum(app, id) {
     },
     destroy() {
       alive = false;
+      uploadController?.abort();
+      queue.length = 0;
+      clearTimeout(box.timer);
       viewer?.close();
       lightbox?.close();
       drag?.ghost?.remove();

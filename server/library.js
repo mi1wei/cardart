@@ -3,6 +3,7 @@ import { mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promise
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { acquireLibraryLock } from './library-lock.js';
+import { mediaCounts } from '../shared/media.js';
 
 export const DEFAULT_DIR = join(homedir(), 'Pictures', '相册库');
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -102,6 +103,18 @@ async function loadLibrary(dir, release, assertLock) {
     get,
     save,
     queue,
+    async nextPhotoIdentity(album) {
+      const current = get(album.id);
+      const folders = await Promise.all(['originals', 'cache'].map((sub) => readdir(join(albumDir(album.id), sub))));
+      const used = new Set(current.photos.map((item) => item.id));
+      for (const name of folders.flat()) {
+        const match = /^(p\d{3,})[._-]/.exec(name);
+        if (match) used.add(match[1]);
+      }
+      let sequence = current.nextSeq;
+      while (used.has(`p${String(sequence).padStart(3, '0')}`)) sequence++;
+      return { id: `p${String(sequence).padStart(3, '0')}`, sequence };
+    },
     close() {
       closing ??= Promise.allSettled([...queues.values()]).then(async () => { closed = true; await release(); });
       return closing;
@@ -116,7 +129,7 @@ async function loadLibrary(dir, release, assertLock) {
           return {
             id: a.id,
             title: a.title,
-            count: a.photos.length,
+            ...mediaCounts(a.photos),
             previews: previews.map(({ id, w, h }) => ({ id, w, h })),
             createdAt: a.createdAt,
           };
@@ -210,7 +223,8 @@ async function loadLibrary(dir, release, assertLock) {
           photos: album.photos.filter((p) => !drop.has(p.id)),
         });
         for (const p of gone) {
-          await rm(join(albumDir(id), 'originals', p.file), { force: true });
+          const originals = [p.file, ...(p.kind === 'video' && p.poster ? [p.poster] : [])];
+          for (const name of originals) await rm(join(albumDir(id), 'originals', name), { force: true });
           for (const size of [600, 1600]) await rm(join(albumDir(id), 'cache', `${p.id}_${size}.webp`), { force: true });
         }
         return next;
