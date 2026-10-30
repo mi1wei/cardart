@@ -53,7 +53,7 @@ Folio 原样保存视频，不转码、不换封装，也不打包新的 ffmpeg 
 
 ## 图标
 
-应用图标来自插画源图 `src/assets/folio-app-icon.png`（1024px，圆角方块外透明）：小朋友翻开相册，左页是夕阳海面，右页是远山与河流。网页导航 Logo 与 macOS 菜单栏模板仍使用单色矢量 `src/assets/folio-mark.svg`，因为菜单栏图标必须是单色剪影。修改任一源文件后运行 `npm run icons` 重新生成资源，用 `npm test` 检查格式、尺寸及资源是否同步。
+应用图标来自插画源图 `src/assets/folio-app-icon.png`（1024px，圆角方块外透明）：小朋友翻开相册，左页是夕阳海面，右页是远山与河流。网页导航 Logo 与 macOS 菜单栏模板仍使用单色矢量 `src/assets/folio-mark.svg`，因为菜单栏图标必须是单色剪影。修改任一源文件后运行 `npm run icons` 重新生成资源，用 `npm test` 检查格式、尺寸及资源是否同步。插画缩放在 `scripts/icon-raster.js` 中用纯 JavaScript 完成，保证 macOS 与 Windows 生成的文件逐字节一致；同步检查逐字节比较，不要改成 sharp 缩放。
 
 | 用途 | 资源 |
 | --- | --- |

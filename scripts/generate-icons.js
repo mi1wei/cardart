@@ -2,6 +2,7 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
+import { resizeRgba, sharpenRgba } from './icon-raster.js';
 
 const output = resolve(process.argv[2] ?? fileURLToPath(new URL('../public/', import.meta.url)));
 // Full-colour illustration for app, Dock, browser and Windows icons.
@@ -9,21 +10,34 @@ const app = await readFile(new URL('../src/assets/folio-app-icon.png', import.me
 // Monochrome vector mark: menu-bar templates must be a single-colour silhouette.
 const mark = await readFile(new URL('../src/assets/folio-mark.svg', import.meta.url), 'utf8');
 
+// Pixels are resampled in JavaScript (see icon-raster.js) and libvips only decodes and encodes
+// PNG, so the committed icons are byte-identical on every CI architecture.
+const { data: source, info } = await sharp(app).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+if (info.width !== info.height) throw new Error('folio-app-icon.png must be square');
+const resized = new Map();
+const resize = (size) => {
+  if (!resized.has(size)) resized.set(size, resizeRgba(source, info.width, size));
+  return resized.get(size);
+};
+const encode = (data, size, channels = 4) => sharp(Buffer.from(data.buffer, data.byteOffset, data.length), {
+  raw: { width: size, height: size, channels },
+}).png().toBuffer();
+
 function scaled(size, inset = 0) {
-  let image = sharp(app).resize(size - 2 * inset, size - 2 * inset, { kernel: 'lanczos3' });
+  const inner = size - 2 * inset;
+  let art = resize(inner);
   // Small frames lose edge contrast when downsampled; restore it gently.
-  if (size <= 64) image = image.sharpen({ sigma: 0.5, m1: 0.2, m2: 0.8 });
-  if (inset) image = image.extend({ top: inset, bottom: inset, left: inset, right: inset, background: '#0000' });
-  return image.png().toBuffer();
+  if (size <= 64) art = sharpenRgba(art, inner, 0.5);
+  if (!inset) return encode(art, size);
+  const framed = new Uint8Array(size * size * 4);
+  for (let y = 0; y < inner; y++) framed.set(art.subarray(y * inner * 4, (y + 1) * inner * 4), ((y + inset) * size + inset) * 4);
+  return encode(framed, size);
 }
 
 // iOS requires an opaque square and applies its own, tighter corner mask. Fill the transparent
 // corners by extending the tile's own edge colours outward so the mask never reveals a seam.
-// Only the lanczos resize runs in libvips; filling, smoothing and compositing use integer JS so
-// the committed PNG is byte-identical on every CI architecture (libvips blur/composite are not).
 async function touchIcon(size) {
-  const { data: art } = await sharp(app).resize(size, size, { kernel: 'lanczos3' })
-    .ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const art = resize(size);
   const pixels = size * size;
   const backdrop = new Uint8Array(pixels * 3);
   const known = new Uint8Array(pixels);
@@ -78,7 +92,7 @@ async function touchIcon(size) {
       opaque[i * 3 + c] = Math.round((art[i * 4 + c] * alpha + backdrop[i * 3 + c] * (255 - alpha)) / 255);
     }
   }
-  return sharp(opaque, { raw: { width: size, height: size, channels: 3 } }).png().toBuffer();
+  return encode(opaque, size, 3);
 }
 
 const tray = (size, density) => sharp(Buffer.from(mark.replaceAll('currentColor', '#000')))
