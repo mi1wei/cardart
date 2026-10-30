@@ -18,7 +18,7 @@ async function launchProbe(fixture) {
   await serveVideoModules(launched.page);
   return launched;
 }
-async function seedMixed(fixture) {
+async function seedMixed(fixture, { note = '' } = {}) {
   const { openLibrary } = await import('../server/library.js');
   const { importPhoto } = await import('../server/importer.js');
   const { importVideo } = await import('../server/video-importer.js');
@@ -27,8 +27,9 @@ async function seedMixed(fixture) {
     const album = await lib.create('Owned mixed-media album');
     await importPhoto(lib, album.id, Readable.from([await photoBytes({ exif: null, width: 1200, height: 800 })]), 'photo.jpg');
     const poster = await posterBytes({ width: 320, height: 180 });
-    await importVideo(lib, album.id, request(poster, await nativeVideo()), 'clip.mp4',
-      videoOptions(poster, { w: 320, h: 180, duration: 2 }));
+    const { photo } = await importVideo(lib, album.id, request(poster, await nativeVideo()), 'clip.mp4',
+      videoOptions(poster, { w: 320, h: 180, duration: 2, lastModified: 1577934245000 }));
+    if (note) await lib.updatePhotoNote(album.id, photo.id, { note, previousNote: '' });
     return lib.get(album.id);
   } finally { await lib.close(); }
 }

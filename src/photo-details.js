@@ -2,6 +2,7 @@ import { api } from './api.js';
 import { lang, t } from './i18n.js';
 import { icon } from './ui.js';
 import { createPhotoNote } from './photo-note.js';
+import { formatDuration } from '../shared/media.js';
 
 const locale = () => lang() === 'zh' ? 'zh-CN' : 'en';
 const number = (value, digits = 2) => new Intl.NumberFormat(locale(), { maximumFractionDigits: digits, useGrouping: false }).format(value);
@@ -94,6 +95,7 @@ export function createPhotoDetails(root, onAlbum) {
   }
   function render(metadata, { loading = false, failed = false } = {}) {
     const photo = current.photo;
+    const video = photo.kind === 'video';
     $('[data-field=file-name]').textContent = photo.name;
     $('[data-field=file-name]').title = photo.name;
     const format = metadata?.format || photo.file.split('.').at(-1);
@@ -102,12 +104,24 @@ export function createPhotoDetails(root, onAlbum) {
     const size = bytes(metadata?.bytes);
     $('[data-field=bytes]').textContent = size || '';
     $('[data-field=bytes]').hidden = !size;
+    $('[data-act=original] span').textContent = t(video ? 'original-video' : 'original');
+    $('[data-act=delete]').setAttribute('aria-label', t(video ? 'delete-video' : 'delete-photo'));
     body.setAttribute('aria-busy', String(loading));
-    status.textContent = loading ? t('details-loading') : failed ? t('details-unavailable') :
-      metadata?.exifStatus === 'none' ? t('details-no-exif') : metadata?.exifStatus === 'unreadable' ? t('details-unreadable') : '';
+    status.textContent = loading ? t(video ? 'video-details-loading' : 'details-loading') : failed ? t(video ? 'video-details-unavailable' : 'details-unavailable') :
+      !video && metadata?.exifStatus === 'none' ? t('details-no-exif') : !video && metadata?.exifStatus === 'unreadable' ? t('details-unreadable') : '';
     status.hidden = !status.textContent;
     content.replaceChildren();
     if (!metadata) return;
+    const modified = metadata.fileModifiedAt && Number.isFinite(Date.parse(metadata.fileModifiedAt))
+      ? new Intl.DateTimeFormat(locale(), { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', timeZoneName: 'short' }).format(new Date(metadata.fileModifiedAt)) : null;
+    if (video) {
+      const rows = [];
+      const duration = formatDuration(photo.duration);
+      if (duration) rows.push(['duration', 'video-duration', duration]);
+      if (modified) rows.push(['file-modified', 'details-file-modified', modified]);
+      if (rows.length) group('video-information', rows);
+      return;
+    }
     if (metadata.takenAt) group('details-capture', [['taken-at', metadata.takenAt.source === 'CreateDate' ? 'details-exif-created' : 'details-taken-at', capture(metadata.takenAt)]]);
     const camera = [];
     if (metadata.cameraMake || metadata.cameraModel) camera.push(['camera', 'details-camera-model', [metadata.cameraMake, metadata.cameraModel].filter(Boolean).join(' ')]);
@@ -123,9 +137,9 @@ export function createPhotoDetails(root, onAlbum) {
       disclosure('lb-gps', 'details-location', [['location', 'details-coordinates', `${metadata.latitude.toFixed(6)}, ${metadata.longitude.toFixed(6)}`]], !mobile.matches);
     }
     const file = [];
-    if (metadata.fileModifiedAt && Number.isFinite(Date.parse(metadata.fileModifiedAt))) file.push([
+    if (modified) file.push([
       'file-modified', metadata.fileTimeSource === 'source-file' ? 'details-file-modified' : 'details-copy-modified',
-      new Intl.DateTimeFormat(locale(), { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', timeZoneName: 'short' }).format(new Date(metadata.fileModifiedAt)),
+      modified,
     ]);
     if (metadata.orientation) file.push(['orientation', 'details-orientation', `EXIF ${metadata.orientation}`]);
     if (file.length) disclosure('lb-file-properties', 'details-more-file', file);

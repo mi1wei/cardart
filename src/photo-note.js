@@ -54,7 +54,7 @@ export function createPhotoNote(host, onAlbum) {
     save.disabled = saving || pendingPhotoChange || !canWrite() || length > 2000 || input.value === previousNote;
     cancel.disabled = saving || pendingPhotoChange;
     clear.disabled = saving || pendingPhotoChange || !canWrite() || !input.value;
-    error.textContent = saving ? t('note-saving') : pendingPhotoChange ? t('note-wait-save') : length > 2000 ? t('note-length') : message;
+    error.textContent = saving ? t('note-saving') : pendingPhotoChange ? t(current?.photo.kind === 'video' ? 'note-video-wait-save' : 'note-wait-save') : length > 2000 ? t('note-length') : message;
     error.hidden = !error.textContent;
     form.setAttribute('aria-busy', String(saving || pendingPhotoChange));
   }
@@ -62,6 +62,8 @@ export function createPhotoNote(host, onAlbum) {
   function render() {
     if (!current) return;
     const value = saved();
+    input.placeholder = t(current.photo.kind === 'video' ? 'note-video-placeholder' : 'note-placeholder');
+    $('.note-help').textContent = t(current.photo.kind === 'video' ? 'note-video-help' : 'note-help');
     root.hidden = !value && !canWrite() && !editing;
     root.dataset.empty = String(!value && !editing);
     $('.note-label').hidden = !value && !editing;
@@ -139,14 +141,14 @@ export function createPhotoNote(host, onAlbum) {
       render();
     },
     canLeave() {
-      if (saving || pendingPhotoChange) { toast(t('note-wait-save')); return false; }
-      if (editing && input.value !== previousNote && !window.confirm(t('note-discard'))) return false;
+      if (saving || pendingPhotoChange) { toast(t(current?.photo.kind === 'video' ? 'note-video-wait-save' : 'note-wait-save')); return false; }
+      if (editing && input.value !== previousNote && !window.confirm(t(current?.photo.kind === 'video' ? 'note-video-discard' : 'note-discard'))) return false;
       if (editing) finishEditing();
       return true;
     },
     escape() {
       if (!editing) return false;
-      if (saving || pendingPhotoChange) toast(t('note-wait-save'));
+      if (saving || pendingPhotoChange) toast(t(current?.photo.kind === 'video' ? 'note-video-wait-save' : 'note-wait-save'));
       else finishEditing();
       return true;
     },
