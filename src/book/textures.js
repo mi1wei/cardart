@@ -1,5 +1,6 @@
 import { CanvasTexture, SRGBColorSpace } from 'three';
 import { DIM, POCKET, pocketX } from './layout.js';
+import { formatDuration } from '../../shared/media.js';
 
 // PVC palette from the original album.
 const FILM = '#eef1f3';
@@ -70,7 +71,7 @@ function drawPage(ctx, face, page) {
 
 // One album face. Photos are drawn into their slots as they arrive; the Image is then dropped.
 // Backs are mirrored here, as sheet.js expects of every back map.
-export function createPageTexture(face, page, photoUrl, onRedraw) {
+export function createPageTexture(face, page, photoUrl, onRedraw, itemInfo = () => null) {
   const canvas = document.createElement('canvas');
   canvas.width = Math.round(DIM.W * PX);
   canvas.height = Math.round(DIM.H * PX);
@@ -96,6 +97,34 @@ export function createPageTexture(face, page, photoUrl, onRedraw) {
       ctx.roundRect(x0 + r.x, y0 + r.y, r.w, r.h, 0.6);
       ctx.clip();
       ctx.drawImage(image, x0 + r.x, y0 + r.y, r.w, r.h);
+      const info = itemInfo(r.i);
+      if (info?.kind === 'video') {
+        const cx = x0 + r.x + r.w / 2;
+        const cy = y0 + r.y + r.h / 2;
+        const radius = Math.min(r.w, r.h) * 0.12;
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.moveTo(cx - radius * 0.25, cy - radius * 0.45);
+        ctx.lineTo(cx + radius * 0.5, cy);
+        ctx.lineTo(cx - radius * 0.25, cy + radius * 0.45);
+        ctx.fill();
+        const duration = formatDuration(info.duration);
+        if (duration) {
+          ctx.font = '3px system-ui';
+          ctx.textAlign = 'right';
+          const width = ctx.measureText(duration).width + 4;
+          ctx.fillStyle = 'rgba(0,0,0,0.65)';
+          ctx.beginPath();
+          ctx.roundRect(x0 + r.x + r.w - width - 1, y0 + r.y + r.h - 6, width, 5, 0.7);
+          ctx.fill();
+          ctx.fillStyle = '#fff';
+          ctx.fillText(duration, x0 + r.x + r.w - 3, y0 + r.y + r.h - 2);
+        }
+      }
       ctx.restore();
       texture.needsUpdate = true;
       onRedraw();

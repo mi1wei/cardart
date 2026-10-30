@@ -11,7 +11,7 @@ const DRAWN = 20; // leaves drawn at once (spec §11)
 const MIDDLE = 11; // local k with ten leaves on each side
 const smoothstep = (t) => t * t * (3 - 2 * t);
 
-export function createBook(container, { title, pages, photoUrl, insets, startSpread = 1, onChange, onPhotoClick }) {
+export function createBook(container, { title, pages, photoUrl, itemInfo = () => null, insets, startSpread = 1, onChange, onPhotoClick }) {
   const G = Math.max(1, Math.ceil(pages.length / 2)); // leaves in the whole album
   const S = Math.min(DRAWN, G); // leaves drawn
   const binder = createBinder({ sheets: S, title });
@@ -21,7 +21,7 @@ export function createBook(container, { title, pages, photoUrl, insets, startSpr
   scene.add(binder.group);
 
   const anisotropy = renderer.capabilities.getMaxAnisotropy();
-  const blank = [0, 1].map((face) => createPageTexture(face, null, photoUrl, () => {}));
+  const blank = [0, 1].map((face) => createPageTexture(face, null, photoUrl, () => {}, itemInfo));
   const textures = new Map(); // album face → texture, only around the current spread
   const sheets = [];
   for (let i = 0; i < S; i++) {
@@ -66,7 +66,7 @@ export function createBook(container, { title, pages, photoUrl, insets, startSpr
     }
     for (const f of want) {
       if (textures.has(f)) continue;
-      const texture = createPageTexture(f, pages[f] ?? null, photoUrl, requestRender);
+      const texture = createPageTexture(f, pages[f] ?? null, photoUrl, requestRender, itemInfo);
       texture.anisotropy = anisotropy;
       textures.set(f, texture);
     }
