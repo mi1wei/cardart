@@ -1,6 +1,5 @@
 const { test, expect } = require('@playwright/test');
 const { join } = require('node:path');
-const { createHash } = require('node:crypto');
 const { desktopFixture } = require('./fixtures.cjs');
 const { launchProbe, openAlbum, seedMixed } = require('./video-fixtures.cjs');
 const { posterBytes } = require('../tests/fixtures/video.cjs');
@@ -108,19 +107,32 @@ test('actual 3D book loads only posters and a real hit on the back-page video op
     await page.locator('.tile-video img').evaluate((image) => image.decode());
     const originals = [];
     page.on('request', (request) => { if (/\/media\/[^/]+\/p\d+\/original$/.test(request.url())) originals.push(request.url()); });
+    const frames = await page.evaluateHandle(() => {
+      const request = window.requestAnimationFrame.bind(window);
+      const cancel = window.cancelAnimationFrame.bind(window);
+      const pending = new Set();
+      window.requestAnimationFrame = (callback) => {
+        const id = request((time) => {
+          pending.delete(id);
+          callback.call(window, time);
+        });
+        pending.add(id);
+        return id;
+      };
+      window.cancelAnimationFrame = (id) => {
+        pending.delete(id);
+        cancel(id);
+      };
+      return { get pending() { return pending.size; } };
+    });
     await page.goto(`${origin}/#/a/${album.id}/3d`);
     const canvas = page.locator('.ab canvas');
     await expect(canvas).toBeVisible();
     await expect(page.locator('.ab')).not.toHaveAttribute('data-error', '');
     await page.locator('.ab [data-act=next]').click();
     await expect(page.locator('.ab-count')).toHaveText('2 / 2');
-    let previous;
-    await expect.poll(async () => {
-      const current = createHash('sha256').update(await canvas.screenshot()).digest('hex');
-      const stable = current === previous;
-      previous = current;
-      return stable;
-    }).toBe(true);
+    // Observe real animation completion without repeatedly forcing GPU readback.
+    await expect.poll(() => frames.evaluate((state) => state.pending)).toBe(0);
     expect(originals).toEqual([]);
     await page.screenshot({ path: test.info().outputPath('video-book-actual.png'), fullPage: true, scale: 'css' });
     const point = await restVideoPoint(page, album);
