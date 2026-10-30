@@ -3,11 +3,13 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable } from 'node:stream';
+import { EventEmitter } from 'node:events';
 import { test } from 'node:test';
 import { lanInterfaces, createHandler } from './app.js';
 import { openLibrary } from './library.js';
 import { importPhoto } from './importer.js';
 import { photoBytes } from '../tests/fixtures/photo-metadata.cjs';
+import { bmff, posterBytes } from '../tests/fixtures/video.cjs';
 
 test('LAN candidates exclude unusable addresses, deduplicate aliases and prefer physical adapters', () => {
   const ipv4 = (address, internal = false) => ({ address, family: 'IPv4', internal });
@@ -34,30 +36,39 @@ test('new LAN choices preserve phone key rotation, cookie access and computer-on
   const { photo } = await importPhoto(lib, album.id, Readable.from([await photoBytes()]), 'private.jpg');
   const details = `/api/albums/${album.id}/photos/${photo.id}/details`;
   const note = `/api/albums/${album.id}/photos/${photo.id}/note`;
+  const poster = await posterBytes();
+  const videoBody = Buffer.concat([poster, bmff()]);
+  const videoPath = `/api/albums/${album.id}/photos?kind=video&posterBytes=${poster.length}&w=320&h=180&duration=2`;
   async function request(url, { local = false, method = 'GET', headers = {}, body } = {}) {
-    const req = Object.assign(Readable.from(body ? [JSON.stringify(body)] : []), {
+    const req = Object.assign(Readable.from(body === undefined ? [] : [Buffer.isBuffer(body) ? body : JSON.stringify(body)]), {
       method, url,
       headers: { host: 'localhost:5291', 'accept-language': 'en', 'content-type': 'application/json', ...headers },
       socket: { remoteAddress: local ? '127.0.0.1' : '192.168.50.20', localPort: 5291 },
     });
     const result = {};
-    const res = {
+    const res = Object.assign(new EventEmitter(), {
       headersSent: false,
       writeHead(status, responseHeaders) { result.status = status; result.headers = responseHeaders; this.headersSent = true; },
       setHeader() {},
-      end(value) { result.body = String(value); },
-    };
+      end(value) { result.body = String(value); this.emit('finish'); },
+    });
     await handler(req, res, () => { throw new Error('Unexpected static fallthrough'); });
     return result;
   }
   assert.equal((await request('/api/albums')).status, 403);
   assert.equal((await request(details)).status, 403);
+  assert.equal((await request(videoPath, { method: 'POST', headers: { 'x-album-upload': '1' }, body: videoBody })).status, 403);
   assert.equal((await request(note, { method: 'PATCH', body: { note: 'Denied', previousNote: '' } })).status, 403);
   const first = await lib.setPhone(true);
   assert.equal((await request('/api/albums')).status, 403);
   assert.equal((await request('/api/albums?key=wrong')).status, 403);
   assert.equal((await request(`/api/albums?key=${first.key}`)).status, 200);
   assert.equal((await request(`${details}?key=${first.key}`)).status, 200);
+  const importedVideo = await request(`${videoPath}&key=${first.key}`, { method: 'POST', headers: { 'x-album-upload': '1' }, body: videoBody });
+  assert.equal(importedVideo.status, 200);
+  assert.equal(JSON.parse(importedVideo.body).photo.kind, 'video');
+  assert.equal((await request(videoPath, { method: 'POST', headers: { 'x-album-upload': '1', cookie: `album_key=${first.key}`, origin: 'https://example.com' }, body: videoBody })).status, 403);
+  assert.equal((await request(videoPath, { method: 'POST', headers: { 'x-album-upload': '1', cookie: `album_key=${first.key}` }, body: videoBody })).status, 200);
   assert.equal((await request(`${note}?key=${first.key}`, { method: 'PATCH', body: { note: 'Phone note', previousNote: '' } })).status, 200);
   assert.equal((await request(note, { method: 'PATCH', headers: { cookie: `album_key=${first.key}`, origin: 'https://example.com' }, body: { note: 'Cross-site', previousNote: 'Phone note' } })).status, 403);
   assert.equal((await request(details, { headers: { cookie: `album_key=${first.key}` } })).status, 200);
@@ -69,6 +80,7 @@ test('new LAN choices preserve phone key rotation, cookie access and computer-on
   assert.notEqual(first.key, second.key);
   assert.equal((await request(`/api/albums?key=${first.key}`)).status, 403);
   assert.equal((await request(`${details}?key=${first.key}`)).status, 403);
+  assert.equal((await request(`${videoPath}&key=${first.key}`, { method: 'POST', headers: { 'x-album-upload': '1' }, body: videoBody })).status, 403);
   assert.equal((await request(`${note}?key=${first.key}`, { method: 'PATCH', body: { note: 'Expired link', previousNote: 'Phone note' } })).status, 403);
   const info = JSON.parse((await request('/api/phone', { local: true })).body);
   assert.equal(info.port, 5291);

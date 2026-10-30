@@ -10,6 +10,8 @@ import { fail, isAlbumId, isPhotoId, openLibrary } from './library.js';
 import { say } from './text.js';
 import { MAX_LICENSE_BYTES } from './license.js';
 import { isPhotoMetadata, readPhotoMetadata } from './photo-metadata.js';
+import { importVideo, parseVideoParameters } from './video-importer.js';
+import { readVideoMetadata } from './video-metadata.js';
 
 const LOOPBACK = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
 const MIME = {
@@ -31,6 +33,8 @@ const MIME = {
   '.ico': 'image/x-icon',
   '.woff2': 'font/woff2',
   '.mp4': 'video/mp4',
+  '.mov': 'video/quicktime',
+  '.m4v': 'video/mp4',
   '.txt': 'text/plain; charset=utf-8',
 };
 
@@ -100,6 +104,10 @@ async function sendFile(req, res, file, headers) {
     ...(partial && { 'Content-Range': `bytes ${start}-${end}/${size}` }),
     ...headers,
   });
+  if (req.method === 'HEAD') {
+    await handle.close();
+    return res.end();
+  }
   const stream = handle.createReadStream(partial ? { start, end } : {});
   await pipeline(stream, res).catch(() => {}); // the phone left mid-download
 }
@@ -229,6 +237,10 @@ async function api(lib, req, res, url, local, license) {
       if (!isPhotoId(action)) throw fail(404, 'no-photo');
       const photo = lib.get(id).photos.find((item) => item.id === action);
       if (!photo) throw fail(404, 'no-photo');
+      if (photo.kind === 'video') {
+        return send(res, 200, { photoId: photo.id, kind: 'video',
+          metadata: await readVideoMetadata(join(lib.albumDir(id), 'originals', photo.file), photo) });
+      }
       const metadata = isPhotoMetadata(photo.metadata) ? photo.metadata :
         await readPhotoMetadata(join(lib.albumDir(id), 'originals', photo.file));
       return send(res, 200, { photoId: photo.id, metadata });
@@ -238,6 +250,12 @@ async function api(lib, req, res, url, local, license) {
     }
     if (sub === 'photos' && action === undefined && m === 'POST') {
       if (req.headers['x-album-upload'] !== '1') throw fail(403, 'upload-header');
+      if (url.searchParams.has('kind')) {
+        const options = url.searchParams.get('kind') === 'video' ? parseVideoParameters(url.searchParams) : null;
+        return send(res, 200, options
+          ? await importVideo(lib, id, req, url.searchParams.get('name'), options)
+          : { skipped: 'unsupported' });
+      }
       const modified = url.searchParams.get('lastModified');
       const lastModified = /^(0|[1-9]\d{0,14})$/.test(modified ?? '') ? Number(modified) : undefined;
       return send(res, 200, await importPhoto(lib, id, req, url.searchParams.get('name'), { lastModified }));
@@ -273,6 +291,10 @@ export function createHandler(lib, { license = null } = {}) {
   return async (req, res, next) => {
     try {
       const url = new URL(req.url, 'http://local');
+      if (req.method === 'POST' && /^\/api\/albums\/[^/]+\/photos$/.test(url.pathname) && url.searchParams.has('kind')) {
+        res.setHeader('Connection', 'close');
+        res.once('finish', () => { if (!req.readableEnded) req.destroy(); });
+      }
       const who = gate(lib, req, res, url);
       if (!who) return;
       if (url.pathname.startsWith('/api/')) return await api(lib, req, res, url, who.local, license);
