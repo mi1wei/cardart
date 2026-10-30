@@ -144,6 +144,8 @@ await Promise.all([
   windowsIcon().then((image) => writeFile(join(output, 'favicon.ico'), image)),
   touchIcon(180).then((image) => writeFile(join(output, 'apple-touch-icon.png'), image)),
   writeFile(join(output, 'icons/folio-1024.png'), app),
+  // Page brand logo: shown at 22-28 CSS px, so 96px stays sharp on 3x displays.
+  scaled(96).then((image) => writeFile(join(output, 'icons/folio-logo.png'), image)),
   macIcon().then((image) => writeFile(join(output, 'icons/folio.icns'), image)),
   tray(16, 72).then((image) => writeFile(join(output, 'icons/trayTemplate.png'), image)),
   tray(32, 144).then((image) => writeFile(join(output, 'icons/trayTemplate@2x.png'), image)),

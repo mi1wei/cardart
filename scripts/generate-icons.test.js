@@ -66,6 +66,14 @@ test('exports the app illustration to web and native icons, keeping the vector m
     );
   });
 
+  await t.test('pages show the illustration as the brand logo, crisp up to 3x density', async () => {
+    const logo = await readFile(join(output, 'icons/folio-logo.png'));
+    const metadata = await sharp(logo).metadata();
+    assert.deepEqual([metadata.width, metadata.height, metadata.hasAlpha], [96, 96, true]);
+    assert.equal(await alphaAt(logo, 0, 0), 0);
+    await assertShowsAppIcon(logo, 96);
+  });
+
   await t.test('Windows and browser favicon frames show the illustration at every advertised size', async () => {
     const ico = await readFile(join(output, 'favicon.ico'));
     assert.equal(ico.readUInt16LE(0), 0);
@@ -141,7 +149,7 @@ test('exports the app illustration to web and native icons, keeping the vector m
   await t.test('published assets stay in sync with the icon sources', async () => {
     await assert.rejects(access(new URL('../public/favicon.svg', import.meta.url)), { code: 'ENOENT' });
     const stale = [];
-    for (const name of ['favicon.ico', 'apple-touch-icon.png', 'icons/folio-1024.png', 'icons/folio.icns', 'icons/trayTemplate.png', 'icons/trayTemplate@2x.png']) {
+    for (const name of ['favicon.ico', 'apple-touch-icon.png', 'icons/folio-1024.png', 'icons/folio-logo.png', 'icons/folio.icns', 'icons/trayTemplate.png', 'icons/trayTemplate@2x.png']) {
       const published = await readFile(new URL(`../public/${name}`, import.meta.url));
       if (!published.equals(await readFile(join(output, name)))) stale.push(name);
     }

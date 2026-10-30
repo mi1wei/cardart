@@ -78,6 +78,15 @@ test('background JPG and HEIC imports support dedup, pointer reorder, 3D, fullsc
     const initial = await page.locator('.ab-count').textContent();
     await page.locator('.ab [data-act=next]').click();
     await expect(page.locator('.ab-count')).not.toHaveText(initial);
+    const closeBook = page.locator('.ab-bar [data-act=cover]');
+    const openBook = page.locator('.ab-foot [data-act=cover]');
+    await expect(closeBook).toHaveText(/合上相册|Close book/);
+    await closeBook.click();
+    await expect(closeBook).toBeHidden();
+    await expect(openBook).toHaveText(/打开相册|Open book/);
+    await openBook.click();
+    await expect(openBook).toBeHidden();
+    await expect(closeBook).toBeVisible();
     console.log('Owned collection phase: entering fullscreen');
     await desktop.evaluate(() => {
       global.folioTestFullscreen = { entered: false, left: false };

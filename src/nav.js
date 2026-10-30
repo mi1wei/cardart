@@ -1,6 +1,6 @@
 import { lang, setLang, t } from './i18n.js';
 import { onComputer, openPhoneDialog } from './phone.js';
-import { icon } from './ui.js';
+import { brandLogo, icon } from './ui.js';
 
 // The bar on top of every page (spec §5). `onLang` re-opens the current page in the new language.
 export function createNav(onLang) {
@@ -11,7 +11,7 @@ export function createNav(onLang) {
   function render() {
     el.setAttribute('aria-label', t('app'));
     el.innerHTML = `
-      <a class="logo" href="#/"><i>${icon('book')}</i><span>${t('app')}</span></a>
+      <a class="logo" href="#/">${brandLogo()}<span>${t('app')}</span></a>
       <a class="nl" href="#/" data-page="home">${t('home')}</a>
       <a class="nl" href="#/albums" data-page="albums">${t('albums')}</a>
       ${onComputer ? `<a class="nl" href="#/license" data-page="license">${t('license-manage')}</a>` : ''}

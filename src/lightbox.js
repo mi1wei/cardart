@@ -1,5 +1,5 @@
 import { api, mediaUrl } from './api.js';
-import { dialog, icon, toast } from './ui.js';
+import { brandLogo, dialog, icon, toast } from './ui.js';
 import { t } from './i18n.js';
 import { allowWrite } from './license.js';
 import { createPhotoDetails } from './photo-details.js';
@@ -15,7 +15,7 @@ export function openLightbox({ album, index, onIndex, onAlbum, onClose }) {
   root.innerHTML = `
     <header class="lb-bar">
       <button class="lb-back" type="button" data-act="close" aria-label="${t('close')}">${icon('prev')}<span>${t('albums')}</span></button>
-      <span class="lb-brand">${icon('book')} Folio</span><span class="lb-album-name"></span>
+      <span class="lb-brand">${brandLogo()} Folio</span><span class="lb-album-name"></span>
       <b class="lb-count"></b><span class="sp"></span>
       <button class="ibtn lb-nav l" type="button" data-act="prev" aria-label="${t('prev-photo')}">${icon('prev')}</button>
       <button class="ibtn lb-nav r" type="button" data-act="next" aria-label="${t('next-photo')}">${icon('next')}</button>

@@ -23,7 +23,7 @@ export function openViewer({ album, onOpenPhoto, onClose, onPerPage }) {
       <h2 class="ab-title"></h2>
       <label class="ab-select"><span>${t('per-page')}</span><select data-write>${DENSITY.map((v) => `<option value="${v}">${t(`per-${v}`)}</option>`).join('')}</select></label>
       <button class="ab-icon" type="button" data-act="fullscreen" aria-label="${t('fullscreen')}" aria-pressed="false">${icon('fullscreen')}</button>
-      <button class="ab-icon" type="button" data-act="cover" aria-label="${t('close-book')}" aria-pressed="false">${icon('book')}</button>
+      <button class="ab-secondary" type="button" data-act="cover" data-open>${icon('bookClosed')}<span>${t('close-book')}</span></button>
     </header>
     <footer class="ab-foot">
       <div class="ab-nav" data-open>
@@ -77,17 +77,13 @@ export function openViewer({ album, onOpenPhoto, onClose, onPerPage }) {
 
   function onChange({ spread: s, spreads, closed }) {
     spread = s;
-    $('[data-open]').hidden = closed;
+    for (const open of root.querySelectorAll('[data-open]')) open.hidden = closed;
     $('[data-closed]').hidden = !closed;
     $('.ab-count').textContent = `${s} / ${spreads}`;
     $('[data-act=next]').disabled = s === spreads;
     slider.hidden = closed || spreads <= DRAWN + 1;
     slider.max = String(spreads);
     if (!sliding) slider.value = String(s);
-    const cover = $('.ab-bar [data-act=cover]');
-    cover.innerHTML = icon(closed ? 'bookOpen' : 'book');
-    cover.setAttribute('aria-label', t(closed ? 'open-book' : 'close-book'));
-    cover.setAttribute('aria-pressed', String(closed));
     $('.ab-hint').textContent = t(closed ? 'hint-closed' : 'hint-open');
   }
 
