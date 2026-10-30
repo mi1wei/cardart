@@ -184,6 +184,19 @@ export function renderAlbum(app, id) {
     if (!uploading) pump();
   }
 
+  async function refreshAfterUpload(signal) {
+    while (alive) {
+      const before = album;
+      const next = await api.album(id, { signal });
+      if (!alive) return;
+      if (album !== before) continue;
+      if (next?.id !== id || !Array.isArray(next.photos)) throw new Error('Invalid album response');
+      album = next;
+      render();
+      return;
+    }
+  }
+
   async function pump() {
     uploading = true;
     document.documentElement.setAttribute('data-busy', '');
@@ -196,6 +209,7 @@ export function renderAlbum(app, id) {
         if (!allowWrite()) { queue.length = 0; break; }
         const file = queue.shift();
         const i = tally.total - queue.length;
+        const startingAlbum = album;
         uploadController = new AbortController();
         const signal = uploadController.signal;
         box.querySelector('b').textContent = t('importing', { i, n: tally.total });
@@ -219,9 +233,20 @@ export function renderAlbum(app, id) {
           if (!alive) break;
           if (res.photo) {
             tally.done++;
-            album = { ...album, photos: [...album.photos, res.photo] };
-            if (album.photos.length === 1) render();
-            else grid.append(tile(res.photo, false));
+            if (!album.photos.some((photo) => photo.id === res.photo.id)) {
+              if (album !== startingAlbum) {
+                try { await refreshAfterUpload(signal); }
+                catch (error) {
+                  if (!alive || error.name === 'AbortError') break;
+                  lastFailure = t('upload-refresh-failed');
+                }
+              } else {
+                album = { ...album, photos: [...album.photos, res.photo] };
+                if (album.photos.length === 1) render();
+                else grid.append(tile(res.photo, false));
+              }
+            } else render();
+            if (!alive) break;
             $('.count').textContent = mediaCountText(mediaCounts(album.photos));
           } else if (SKIP[res.skipped]) tally[SKIP[res.skipped]]++;
           else throw Object.assign(new Error('Invalid upload response'), { code: 'bad-response' });

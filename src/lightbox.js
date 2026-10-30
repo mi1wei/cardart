@@ -179,6 +179,7 @@ export function openLightbox({ album, index, onIndex, onAlbum, onClose }) {
         if (p.kind === 'video') { releaseVideo(); img.hidden = false; }
         try {
           const next = await api.deletePhotos(album.id, [p.id]);
+          details.setPending(false);
           onAlbum(next);
           if (!root.isConnected) return;
           if (!next.photos.length) return onClose();
@@ -189,6 +190,7 @@ export function openLightbox({ album, index, onIndex, onAlbum, onClose }) {
             const fresh = await api.album(album.id).catch(() => null);
             if (root.isConnected && Array.isArray(fresh?.photos)) {
               const keep = fresh.photos.findIndex((item) => item.id === p.id);
+              details.setPending(false);
               onAlbum(fresh);
               if (root.isConnected) {
                 if (!fresh.photos.length) onClose();

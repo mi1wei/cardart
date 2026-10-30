@@ -1,7 +1,7 @@
 # 相册里混排视频 设计文档
 
 - 初稿日期：2026-10-28；技术修订：2026-10-30。
-- 状态：本地功能实现与源码、桌面、成品自动化已完成，进入整分支审查；其他目标设备边界见第 8 节。
+- 状态：本地功能与自动化已完成；整分支独立审查的两项重要问题已通过一次 TDD 修复回归，其他目标设备边界见第 8 节。
 - 源码基线：`feat/video-in-albums` / `d48b77666e2de4e77c0f80b80ff87776bcbbc264`。保留现有照片、Details、备注、许可证与手机访问行为。
 - 基础：本地相册管理设计、Folio 界面改版设计，以及已提供的混排 UI 稿。UI 稿中的导入和数据操作是模拟，不是实现验收。
 
@@ -303,9 +303,10 @@ MIME：`.mp4` 和 `.m4v` 为 `video/mp4`，`.mov` 为 `video/quicktime`。不以
 本轮 Apple Silicon / macOS 26.1 已完成以下检查；不替代第 8.4 节：
 
 - `npm test`：201 项，200 通过、1 项既有实包用例按默认环境跳过，无失败。该实包用例另行显式运行，不把 skip 当作成品通过。
-- `npm run test:desktop`：62/62，通过真实 Electron/CSP/沙箱路径覆盖原功能与混排；错误/策略用例有明确的受控故障注入，不冒充物理设备 codec 验收。
+- `npm run test:desktop`：68/68，通过真实 Electron/CSP/沙箱路径覆盖原功能与混排；错误/策略用例有明确的受控故障注入，不冒充物理设备 codec 验收。
 - 目录包使用生产 fuses、原公钥与 ad-hoc 签名；`verify:package` 验证 ASAR、原生资源和共享模块，`internalTest:false`，`readyForDistribution:false`。
 - `FOLIO_PACKAGE_APP` 显式运行：真实目录包 smoke 与结构包回归共 23/23。真实 smoke 验证视频封面重建、原字节/Range、Details、只读备注、拒绝写入、正常退出与库锁释放；没有签发真实许可或启用 inspector。
+- 一次独立整分支审查发现的末项删除导航与上传回执/相册快照竞争均已用真实 Electron 复现 RED→GREEN；额外六项回归覆盖照片/视频直达 URL、丢失确认、较新备注、并发删除及重命名，不追加重复审查。
 
 ## 9. 实施与交付边界
 
