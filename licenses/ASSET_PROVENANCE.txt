@@ -37,10 +37,13 @@ M4V uses an MP4 muxer with the "M4V " major brand. No generator or codec
 dependency is added to the application or required to run tests.
 
 Derived fixtures can be prepared once with:
-  ffmpeg -i h264-aac.mp4 -c copy -metadata:s:v:0 rotate=90 h264-rotated.mp4
+  ffmpeg -display_rotation:v:0 90 -i h264-aac.mp4 -c copy h264-rotated.mp4
   ffmpeg -f lavfi -i testsrc2=size=160x90:rate=12 -t 0.083333 -an \
     -c:v libx264 -preset veryfast -threads 2 -pix_fmt yuv420p \
     -movflags +faststart h264-tiny.mp4
+  ffmpeg -f lavfi -i testsrc2=size=1920x1080:rate=12 -t 0.25 -an \
+    -c:v libx264 -preset ultrafast -threads 2 -crf 32 -pix_fmt yuv420p \
+    -movflags +faststart h264-large.mp4
 
 These fixtures establish repository test provenance, not codec/patent
 distribution clearance or universal playback support.
