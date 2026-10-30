@@ -1,34 +1,62 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
 
 const output = resolve(process.argv[2] ?? fileURLToPath(new URL('../public/', import.meta.url)));
-const source = await readFile(new URL('../src/assets/folio-mark.svg', import.meta.url), 'utf8');
-const mark = source.slice(source.indexOf('>') + 1, source.lastIndexOf('</svg>')).trim();
-const blue = '#1d5f80';
+// Full-colour illustration for app, Dock, browser and Windows icons.
+const app = await readFile(new URL('../src/assets/folio-app-icon.png', import.meta.url));
+// Monochrome vector mark: menu-bar templates must be a single-colour silhouette.
+const mark = await readFile(new URL('../src/assets/folio-mark.svg', import.meta.url), 'utf8');
 
-function svg(background, transform = '') {
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  ${background}
-  <g fill="#fff"${transform ? ` transform="${transform}"` : ''}>${mark.replaceAll('currentColor', '#fff')}</g>
-</svg>
-`;
+function scaled(size, inset = 0) {
+  let image = sharp(app).resize(size - 2 * inset, size - 2 * inset, { kernel: 'lanczos3' });
+  // Small frames lose edge contrast when downsampled; restore it gently.
+  if (size <= 64) image = image.sharpen({ sigma: 0.5, m1: 0.2, m2: 0.8 });
+  if (inset) image = image.extend({ top: inset, bottom: inset, left: inset, right: inset, background: '#0000' });
+  return image.png().toBuffer();
 }
 
-const web = svg(`<rect width="64" height="64" rx="16" fill="${blue}"/>`);
-const touch = svg(`<rect width="64" height="64" fill="${blue}"/>`);
-const mac = svg(
-  `<rect x="4" y="4" width="56" height="56" rx="13" fill="${blue}"/>`,
-  'translate(4 4) scale(.875)',
-);
-const png = (image, size) => sharp(Buffer.from(image)).resize(size).png().toBuffer();
-const tray = (size, density) => sharp(Buffer.from(source.replaceAll('currentColor', '#000')))
+// iOS requires an opaque square and applies its own, tighter corner mask. Fill the transparent
+// corners by extending the tile's own edge colours outward so the mask never reveals a seam.
+async function touchIcon(size) {
+  const grid = 128;
+  const { data } = await sharp(app).resize(grid, grid).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const known = new Uint8Array(grid * grid);
+  for (let i = 0; i < known.length; i++) known[i] = data[i * 4 + 3] === 255 ? 1 : 0;
+  for (let progress = true; progress;) {
+    progress = false;
+    const next = known.slice();
+    for (let i = 0; i < known.length; i++) {
+      if (known[i]) continue;
+      const x = i % grid;
+      const sum = [0, 0, 0];
+      let count = 0;
+      for (const j of [x > 0 ? i - 1 : -1, x < grid - 1 ? i + 1 : -1, i - grid, i + grid]) {
+        if (j < 0 || j >= known.length || !known[j]) continue;
+        for (let c = 0; c < 3; c++) sum[c] += data[j * 4 + c];
+        count++;
+      }
+      if (!count) continue;
+      for (let c = 0; c < 3; c++) data[i * 4 + c] = Math.round(sum[c] / count);
+      data[i * 4 + 3] = 255;
+      next[i] = 1;
+      progress = true;
+    }
+    known.set(next);
+  }
+  const backdrop = await sharp(data, { raw: { width: grid, height: grid, channels: 4 } })
+    .resize(1024, 1024, { kernel: 'cubic' }).blur(6).png().toBuffer();
+  const full = await sharp(backdrop).composite([{ input: app }]).png().toBuffer();
+  return sharp(full).resize(size, size, { kernel: 'lanczos3' }).removeAlpha().png().toBuffer();
+}
+
+const tray = (size, density) => sharp(Buffer.from(mark.replaceAll('currentColor', '#000')))
   .resize(size).withMetadata({ density }).png().toBuffer();
 
 async function windowsIcon() {
   const sizes = [16, 24, 32, 48, 64, 128, 256];
-  const images = await Promise.all(sizes.map((size) => png(web, size)));
+  const images = await Promise.all(sizes.map((size) => scaled(size)));
   const directory = Buffer.alloc(6 + sizes.length * 16);
   directory.writeUInt16LE(1, 2);
   directory.writeUInt16LE(sizes.length, 4);
@@ -53,7 +81,8 @@ async function macIcon() {
     ['ic11', 32], ['ic12', 64], ['ic13', 256], ['ic14', 512],
   ];
   const chunks = await Promise.all(types.map(async ([type, size]) => {
-    const image = await png(mac, size);
+    // A transparent margin of 1/16 per side keeps the Dock tile the same size as other apps.
+    const image = await scaled(size, size / 16);
     const header = Buffer.alloc(8);
     header.write(type, 0, 'ascii');
     header.writeUInt32BE(image.length + 8, 4);
@@ -67,10 +96,10 @@ async function macIcon() {
 
 await mkdir(join(output, 'icons'), { recursive: true });
 await Promise.all([
-  writeFile(join(output, 'favicon.svg'), web),
+  rm(join(output, 'favicon.svg'), { force: true }),
   windowsIcon().then((image) => writeFile(join(output, 'favicon.ico'), image)),
-  png(touch, 180).then((image) => writeFile(join(output, 'apple-touch-icon.png'), image)),
-  png(touch, 1024).then((image) => writeFile(join(output, 'icons/folio-1024.png'), image)),
+  touchIcon(180).then((image) => writeFile(join(output, 'apple-touch-icon.png'), image)),
+  writeFile(join(output, 'icons/folio-1024.png'), app),
   macIcon().then((image) => writeFile(join(output, 'icons/folio.icns'), image)),
   tray(16, 72).then((image) => writeFile(join(output, 'icons/trayTemplate.png'), image)),
   tray(32, 144).then((image) => writeFile(join(output, 'icons/trayTemplate@2x.png'), image)),
