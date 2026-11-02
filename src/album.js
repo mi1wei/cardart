@@ -9,6 +9,18 @@ import { formatDuration, mediaCounts } from '../shared/media.js';
 
 const fine = matchMedia('(pointer: fine)');
 const SKIP = { duplicate: 'dup', unsupported: 'bad', 'too-large': 'big' };
+const DENSITY = ['s', 'm', 'l'];
+// Rough aspect ratios, so the placeholder rows look like photos.
+const SKELETON = [1.5, 0.75, 1.33, 1, 1.5, 0.75, 1.33, 1.5].map((a) => `<i class="skel" style="--a:${a}" aria-hidden="true"></i>`).join('');
+
+function savedDensity() {
+  try {
+    const value = localStorage.getItem('density');
+    return DENSITY.includes(value) ? value : 'm';
+  } catch {
+    return 'm';
+  }
+}
 
 export function renderAlbum(app, id) {
   let album = null;
@@ -35,13 +47,14 @@ export function renderAlbum(app, id) {
         <button class="btn pri" type="button" data-act="3d">${icon('book')}<span>${t('flip-3d')}</span></button>
         <button class="btn" type="button" data-write data-act="upload">${icon('upload')}<span>${t('upload')}</span></button>
         <button class="btn" type="button" data-act="select">${t('select')}</button>
+        <label class="density" title="${t('density')}"><input type="range" min="0" max="2" step="1" aria-label="${t('density')}"></label>
       </div>
       <div class="acts picking" hidden>
         <button class="btn ghost" type="button" data-act="cancel">${t('cancel')}</button>
         <span class="picked"></span>
         <button class="btn danger" type="button" data-write data-act="delete">${icon('trash')}<span>${t('delete')}</span></button>
       </div>
-      <div class="grid" hidden></div>
+      <div class="grid">${SKELETON}</div>
       <div class="drop" hidden>
         ${icon('upload')}
         <b>${t('drop-here')}</b>
@@ -60,6 +73,13 @@ export function renderAlbum(app, id) {
   const grid = $('.grid');
   const input = $('input[type=file]');
   const box = $('.upload');
+  const density = $('.density input');
+  main.dataset.density = savedDensity();
+  density.value = String(DENSITY.indexOf(main.dataset.density));
+  density.addEventListener('input', () => {
+    main.dataset.density = DENSITY[Number(density.value)];
+    try { localStorage.setItem('density', main.dataset.density); } catch {}
+  });
 
   async function load() {
     try {
@@ -72,7 +92,10 @@ export function renderAlbum(app, id) {
     } catch (err) {
       if (!alive) return;
       if (err.status === 404) main.innerHTML = `<p class="empty">${t('album-missing')}<a href="#/albums">${t('back-to-albums')}</a></p>`;
-      else toast(t('load-failed', { reason: err.message }));
+      else {
+        grid.querySelectorAll('.skel').forEach((node) => node.remove());
+        toast(t('load-failed', { reason: err.message }));
+      }
     }
   }
 
@@ -159,6 +182,7 @@ export function renderAlbum(app, id) {
     document.title = `${album.title} · ${t('app')}`;
     $('.drop').hidden = n > 0;
     grid.hidden = n === 0;
+    $('.density').hidden = n === 0;
     for (const b of app.querySelectorAll('[data-act=select], [data-act="3d"]')) b.disabled = n === 0;
     const cover = album.cover ?? album.photos[0]?.id;
     for (const pid of selected) if (!album.photos.some((p) => p.id === pid)) selected.delete(pid);

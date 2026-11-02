@@ -200,6 +200,10 @@ button {
   outline-offset: 2px;
 }
 
+.tile:focus-visible {
+  outline-offset: 6px;
+}
+
 /* Page frame and header */
 .page {
   max-width: 1280px;
@@ -1644,10 +1648,10 @@ button {
    a row has one height and every photo is whole. A photo grows to at most twice the row height, so the
    row before a panorama never turns into giant tiles. */
 .grid {
-  --row: 190px;
+  --row: 180px;
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 14px;
   user-select: none;
   -webkit-user-select: none;
 }
@@ -1655,6 +1659,71 @@ button {
 .grid::after {
   content: '';
   flex: 1e6 1 0px;
+}
+
+/* Thumbnail size (v2 spec §3); phones keep their own row height. */
+@media (min-width: 601px) {
+  .album-page[data-density='s'] .grid {
+    --row: 120px;
+  }
+
+  .album-page[data-density='l'] .grid {
+    --row: 260px;
+  }
+}
+
+.density {
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+}
+
+.density input {
+  width: 96px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+/* Placeholders while the album or the wall loads */
+.skel {
+  flex: calc(var(--a) * 1000) 1 calc(var(--a) * var(--row));
+  max-width: calc(var(--a) * var(--row) * 2);
+  aspect-ratio: var(--a);
+  border-radius: 2px;
+  background: var(--tile);
+}
+
+.folder-skel {
+  display: grid;
+  gap: 12px;
+}
+
+.folder-skel i {
+  display: block;
+  aspect-ratio: 253 / 212;
+  border-radius: 16px;
+  background: var(--ghost);
+}
+
+.folder-skel b {
+  display: block;
+  width: 60%;
+  height: 14px;
+  border-radius: 7px;
+  background: var(--ghost);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .skel,
+  .folder-skel :is(i, b) {
+    animation: skel 1.4s ease-in-out infinite;
+  }
+}
+
+@keyframes skel {
+  50% {
+    opacity: 0.55;
+  }
 }
 
 .tile {
@@ -1666,7 +1735,8 @@ button {
   padding: 0;
   overflow: hidden;
   border: 0;
-  border-radius: 8px;
+  border-radius: 2px;
+  box-shadow: 0 0 0 4px var(--frame), 0 4px 12px -4px oklch(23.5% 0.02 255 / 0.28);
   background: var(--tile);
   cursor: pointer;
 }
@@ -1762,16 +1832,7 @@ button {
 }
 
 .tile.sel {
-  outline: 3px solid var(--accent);
-  outline-offset: -3px;
-}
-
-.tile.sel img {
-  inset: 9px;
-  width: calc(100% - 18px);
-  height: calc(100% - 18px);
-  border-radius: 4px;
-  transform: none;
+  box-shadow: 0 0 0 4px var(--accent);
 }
 
 .tile.sel .chk {
@@ -1792,18 +1853,27 @@ button {
   top: 0;
   z-index: 50;
   pointer-events: none;
-  border-radius: 8px;
-  box-shadow: 0 26px 40px -14px rgb(20 35 55 / 0.55), 0 0 0 3px #fff;
+  border-radius: 2px;
+  box-shadow: 0 26px 40px -14px rgb(20 35 55 / 0.55), 0 0 0 4px var(--frame);
 }
 
 @media (max-width: 600px) {
   .grid {
     --row: 104px;
-    gap: 3px;
+    gap: 8px;
   }
 
   .tile {
-    border-radius: 4px;
+    border-radius: 2px;
+    box-shadow: 0 0 0 3px var(--frame), 0 2px 6px -2px oklch(23.5% 0.02 255 / 0.25);
+  }
+
+  .tile.sel {
+    box-shadow: 0 0 0 3px var(--accent);
+  }
+
+  .density {
+    display: none;
   }
 
   .acts {
@@ -1861,7 +1931,7 @@ button {
 
 .dropping .grid {
   outline: 2px dashed var(--dash);
-  outline-offset: 6px;
+  outline-offset: 10px;
   border-radius: 8px;
 }
 
