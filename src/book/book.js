@@ -11,7 +11,7 @@ const DRAWN = 20; // leaves drawn at once (spec §11)
 const MIDDLE = 11; // local k with ten leaves on each side
 const smoothstep = (t) => t * t * (3 - 2 * t);
 
-export function createBook(container, { title, titlePage = null, pages, photoUrl, itemInfo = () => null, insets, startSpread = 1, onChange, onPhotoClick }) {
+export function createBook(container, { title, titlePage = null, pages, photoUrl, itemInfo = () => null, insets, startSpread = 1, single = false, onChange, onPhotoClick }) {
   const G = Math.max(1, Math.ceil(pages.length / 2)); // leaves in the whole album
   const S = Math.min(DRAWN, G); // leaves drawn
   const binder = createBinder({ sheets: S, title, titlePage });
@@ -39,6 +39,11 @@ export function createBook(container, { title, titlePage = null, pages, photoUrl
   let o = 0;
   let k = 1;
   let ringX = 0;
+  // Upright phones show one page (v2 spec §8): side −1 is the left page of the spread, 1 the right;
+  // pan follows side so the camera glides between them. Page 1 is the title page.
+  let side = 1;
+  let pan = 1;
+  const pageHalf = () => (binder.xb + binder.B) / 2;
   let pointer = null;
   let drag = null;
   let raf = 0;
@@ -50,7 +55,8 @@ export function createBook(container, { title, titlePage = null, pages, photoUrl
   // At rest on the side it belongs to: a leaf told to turn but not yet moving is not settled.
   const settled = (leaf, j) => atRest(leaf) && leaf.wait === 0 && leaf.th === (j < k ? PI : 0);
   const spread = () => (k === 0 ? 0 : o + k);
-  const report = () => onChange({ spread: spread(), spreads: G + 1, closed: k === 0 });
+  const pageNo = () => (k === 0 ? 0 : 2 * spread() - (side < 0 ? 1 : 0));
+  const report = () => onChange({ spread: spread(), spreads: G + 1, closed: k === 0, page: pageNo(), pages: 2 * G + 1, single });
 
   // Real pages for the spreads around the current one; every other face shows the blank film.
   function refreshTextures() {
@@ -102,6 +108,7 @@ export function createBook(container, { title, titlePage = null, pages, photoUrl
     recenter();
     const next = s === 0 ? 0 : s - o;
     if (s > 0 && (next < 1 || next > S + 1)) return; // the drawn leaves cannot follow yet
+    side = s > spread() ? -1 : 1; // forward lands on the new left page, back on the right one
     // Leaves that change side leave one after another, nearest to the current spread first.
     const order = next > k ? leaves.slice(k, next) : leaves.slice(next, k).reverse();
     order.forEach((leaf, i) => {
@@ -113,18 +120,40 @@ export function createBook(container, { title, titlePage = null, pages, photoUrl
   }
 
   // Straight to an album spread, without turning pages.
-  function jump(s) {
+  function jump(s, at = 1) {
     s = Math.max(1, Math.min(G + 1, Math.round(s)));
     pointer = drag = null;
     o = Math.max(0, Math.min(G - S, s - MIDDLE));
     k = s - o;
+    side = s === G + 1 ? -1 : at; // the last spread has no right page
+    pan = side;
     leaves.forEach((leaf, j) => Object.assign(leaf, idle(j, k)));
     report();
     refreshTextures();
   }
 
   // From the cover: if the window has not got back to the start yet, jump there.
-  const open = () => (o > 0 ? jump(1) : setSpread(1));
+  const open = () => (o > 0 ? jump(1, -1) : setSpread(1));
+
+  // One page on: across to the right page, or turn the leaf to the next left page.
+  function nextPage() {
+    if (k === 0) return open();
+    if (side < 0 && spread() <= G) return look(1);
+    setSpread(spread() + 1);
+  }
+
+  function prevPage() {
+    if (k === 0) return;
+    if (side > 0) return look(-1);
+    setSpread(spread() - 1); // from the title page this closes the book
+  }
+
+  function look(next) {
+    side = next;
+    report();
+    requestRender();
+  }
+
   const setLocal = (kk) => setSpread(kk === 0 ? 0 : o + kk);
 
   // Advances every leaf by dt seconds; returns true while anything still moves.
@@ -165,6 +194,12 @@ export function createBook(container, { title, titlePage = null, pages, photoUrl
       if (!dragged && still && Math.abs(leaf.th - goal) < 1e-3) Object.assign(leaf, { th: goal, w: 0, b: 0, bv: 0 });
       else moving = true;
     });
+    if (reduced.matches) pan = side;
+    else if (pan !== side) {
+      pan += (side - pan) * (1 - Math.exp(-dt * 9));
+      if (Math.abs(side - pan) < 1e-3) pan = side;
+    }
+    if (pan !== side) moving = true;
     return moving;
   }
 
@@ -178,7 +213,10 @@ export function createBook(container, { title, titlePage = null, pages, photoUrl
       sheet.update(C, binder.R, psiR + (th / PI) * (psiL - psiR), th, b);
     });
     ringX = C[0];
-    stage.frame(binder.closedCenter * (1 - smoothstep(c)), 1 + 0.15 * Math.sin(PI * c));
+    const opened = smoothstep(c);
+    const zoom = 1 + 0.15 * Math.sin(PI * c);
+    if (single) stage.frame(binder.closedCenter * (1 - opened) + pan * pageHalf() * opened, zoom, pageHalf());
+    else stage.frame(binder.closedCenter * (1 - opened), zoom);
   }
 
   function tick(now) {
@@ -250,7 +288,11 @@ export function createBook(container, { title, titlePage = null, pages, photoUrl
     const vx = dt > 0 ? (e.clientX - x0) / p.scale / W / dt : 0; // sheet widths per second, rightwards
     const v = p.fromRight ? -vx : vx;
     const progress = p.fromRight ? p.edge / PI : 1 - p.edge / PI;
-    if (v > 0.9 || (progress > 0.22 && v >= -0.05)) setLocal(p.fromRight ? Math.max(k, p.j + 1) : Math.min(k, p.j));
+    if (v > 0.9 || (progress > 0.22 && v >= -0.05)) {
+      setLocal(p.fromRight ? Math.max(k, p.j + 1) : Math.min(k, p.j));
+      return true;
+    }
+    return false;
   }
 
   function tap(e, p) {
@@ -264,6 +306,7 @@ export function createBook(container, { title, titlePage = null, pages, photoUrl
       const index = photoAt(pages[face], face, u * W, (1 - first.uv.y) * H);
       if (index >= 0) return onPhotoClick(index);
     }
+    if (single) return p.x < pan * pageHalf() ? prevPage() : nextPage();
     setSpread(spread() + (p.x < ringX ? -1 : 1));
   }
 
@@ -273,7 +316,8 @@ export function createBook(container, { title, titlePage = null, pages, photoUrl
     pointer = null;
     if (drag) {
       drag = null;
-      release(p, e);
+      // On one page a swipe that turns no leaf still moves a page: left page → right page and back.
+      if (!release(p, e) && single && Math.abs(e.clientX - p.x0) > 40) (e.clientX < p.x0 ? nextPage : prevPage)();
     } else if (e.type === 'pointerup' && Math.hypot(e.clientX - p.x0, e.clientY - p.y0) < p.slop) {
       tap(e, p); // a swipe that turned no leaf (e.g. past the last spread) is not a tap
     }
@@ -295,10 +339,17 @@ export function createBook(container, { title, titlePage = null, pages, photoUrl
   place();
 
   return {
-    next: () => (k === 0 ? open() : setSpread(spread() + 1)),
-    prev: () => setSpread(spread() - 1),
+    next: () => (single ? nextPage() : k === 0 ? open() : setSpread(spread() + 1)),
+    prev: () => (single ? prevPage() : setSpread(spread() - 1)),
     toggleCover: () => (k > 0 ? setSpread(0) : open()),
     jump,
+    setSingle(on) {
+      single = on;
+      if (spread() === G + 1) side = -1;
+      pan = side;
+      report();
+      requestRender();
+    },
     stats: () => ({ offset: o, textures: textures.size }),
     dispose() {
       disposed = true;

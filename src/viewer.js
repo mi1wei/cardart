@@ -24,11 +24,11 @@ export function openViewer({ album, onOpenPhoto, onClose, onPerPage }) {
     <div class="ab-stage"></div>
     <div class="ab-progress" hidden><i></i></div>
     <header class="ab-bar">
-      <button class="ab-back" type="button" data-act="close">${icon('close')}<span>${t('back')}</span></button>
+      <button class="ab-back" type="button" data-act="close" aria-label="${t('back')}">${icon('close')}<span>${t('back')}</span></button>
       <h2 class="ab-title"></h2>
       <label class="ab-select"><span>${t('per-page')}</span><select data-write>${DENSITY.map((v) => `<option value="${v}">${t(`per-${v}`)}</option>`).join('')}</select></label>
       <button class="ab-icon" type="button" data-act="fullscreen" aria-label="${t('fullscreen')}" aria-pressed="false">${icon('fullscreen')}</button>
-      <button class="ab-secondary" type="button" data-act="cover">${icon('bookClosed')}<span>${t('close-book')}</span></button>
+      <button class="ab-secondary" type="button" data-act="cover" aria-label="${t('close-book')}">${icon('bookClosed')}<span>${t('close-book')}</span></button>
     </header>
     <footer class="ab-foot">
       <div class="ab-nav ab-turn">
@@ -36,7 +36,7 @@ export function openViewer({ album, onOpenPhoto, onClose, onPerPage }) {
         <span class="ab-count" aria-live="polite"></span>
         <button class="ab-icon ab-round" type="button" data-act="next" aria-label="${t('next-page')}">${icon('next')}</button>
         <span class="ab-sep" aria-hidden="true"></span>
-        <button class="ab-play" type="button" data-act="play">${icon('play')}<span>${t('autoplay')}</span></button>
+        <button class="ab-play" type="button" data-act="play" aria-label="${t('autoplay')}">${icon('play')}<span>${t('autoplay')}</span></button>
       </div>
       <div class="ab-nav ab-player" hidden>
         <button class="ab-icon ab-round" type="button" data-act="pause"></button>
@@ -53,8 +53,7 @@ export function openViewer({ album, onOpenPhoto, onClose, onPerPage }) {
       <p class="ab-hint">${t('hint-open')}</p>
     </footer>
     <p class="ab-about" id="ab-about"></p>
-    <p class="ab-message" hidden>${t('no-webgl')}</p>
-    <div class="ab-rotate">${icon('phone')}<p>${t('rotate')}</p></div>`;
+    <p class="ab-message" hidden>${t('no-webgl')}</p>`;
   const $ = (selector) => root.querySelector(selector);
   const stage = $('.ab-stage');
   const slider = $('.ab-slider');
@@ -95,7 +94,7 @@ export function openViewer({ album, onOpenPhoto, onClose, onPerPage }) {
     const p = pages.findIndex((page) => page.rects.some((r) => r.i === i));
     return p < 0 ? 1 : spreadOfPage(p);
   }
-  const atEnd = () => view.spread === view.spreads;
+  const atEnd = () => (view.single ? view.page === view.pages : view.spread === view.spreads);
 
   // Which bottom group shows: page turning, the auto-flip controls, or open / auto-flip on the cover.
   function paint() {
@@ -118,7 +117,7 @@ export function openViewer({ album, onOpenPhoto, onClose, onPerPage }) {
     view = next;
     const { spread: s, spreads, closed } = next;
     spread = s;
-    $('.ab-count').textContent = `${s} / ${spreads}`;
+    $('.ab-count').textContent = next.single ? t('page-count', { n: next.page, total: next.pages }) : `${s} / ${spreads}`;
     $('[data-act=next]').disabled = atEnd();
     slider.hidden = closed || spreads <= DRAWN + 1;
     slider.max = String(spreads);
@@ -223,6 +222,7 @@ export function openViewer({ album, onOpenPhoto, onClose, onPerPage }) {
         itemInfo: (i) => album.photos[i],
         insets,
         startSpread: spreadOf(i),
+        single: upright.matches,
         onChange,
         onPhotoClick: (index) => {
           player.pause();
@@ -279,6 +279,7 @@ export function openViewer({ album, onOpenPhoto, onClose, onPerPage }) {
   });
 
   function close() {
+    upright.removeEventListener('change', onTurn);
     player.dispose();
     clearTimeout(idleTimer);
     window.removeEventListener('keydown', onKey);
@@ -299,6 +300,11 @@ export function openViewer({ album, onOpenPhoto, onClose, onPerPage }) {
   stage.addEventListener('webglcontextlost', fail, true); // the event does not bubble
   document.body.append(root);
   root.focus();
+
+  // Held upright, a phone shows one page at a time (same query as the CSS).
+  const upright = matchMedia('(max-width: 600px) and (orientation: portrait)');
+  const onTurn = () => book?.setSingle(upright.matches);
+  upright.addEventListener('change', onTurn);
 
   // Read live so the framing follows rotation; in phone landscape the foot floats over the book.
   const phoneLandscape = matchMedia('(orientation: landscape) and (max-height: 519.98px)');

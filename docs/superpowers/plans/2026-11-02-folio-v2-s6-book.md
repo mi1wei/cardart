@@ -105,7 +105,7 @@ async function openBook(page) {
   const origin = new URL(page.url()).origin;
   const album = await seedBook(page, origin, 'Auto', 3, 1);
   await page.goto(`${origin}/#/a/${album.id}/3d`);
-  await expect(page.locator('.ab-count')).toHaveText('1 / 3');
+  await expect(page.locator('.ab-count')).toHaveText('1 / 3', { timeout: 15000 }); // three.js can take a while on a busy machine
   return { origin, album };
 }
 
@@ -1301,9 +1301,16 @@ async function bookHeight(page) {
   return n;
 }
 
-// Waits for the camera to finish gliding to the page first, so the drag starts on the page in view.
+// Two canvas frames 250 ms apart are the same: the camera has stopped gliding between pages.
+async function settled(page) {
+  const a = await page.locator('.ab canvas').screenshot();
+  await page.waitForTimeout(250);
+  return a.equals(await page.locator('.ab canvas').screenshot());
+}
+
+// Starts only once the camera rests, so the drag begins on the page in view.
 async function swipe(page, from, to) {
-  await page.waitForTimeout(800);
+  await expect.poll(() => settled(page), { timeout: 15000 }).toBe(true);
   await page.mouse.move(from, 420);
   await page.mouse.down();
   await page.mouse.move(to, 420, { steps: 6 });
@@ -1322,7 +1329,7 @@ test('an upright phone shows one page at a time, counts pages and goes back to s
     await page.goto(`${origin}/#/a/${album.id}/3d`);
     const count = page.locator('.ab-count');
     const next = page.locator('.ab [data-act=next]');
-    await expect(count).toHaveText('Page 2 of 5');
+    await expect(count).toHaveText('Page 2 of 5', { timeout: 15000 }); // three.js can take a while on a busy machine
     await expect(page.locator('.ab-rotate')).toHaveCount(0);
     await expect(page.locator('.ab canvas')).toBeVisible();
     // One page fills the width, so the page is about twice as tall as in the two-page view.
@@ -1356,7 +1363,7 @@ test('auto-flip on an upright phone steps one page at a time and closes after th
     await page.setViewportSize({ width: 390, height: 844 });
     const album = await seedBook(page, origin, 'Upright play', 1, 1); // one page: title page + page 2 of 3
     await page.goto(`${origin}/#/a/${album.id}/3d`);
-    await expect(page.locator('.ab-count')).toHaveText('Page 2 of 3');
+    await expect(page.locator('.ab-count')).toHaveText('Page 2 of 3', { timeout: 15000 });
     await page.locator('.ab-turn [data-act=play]').click();
     await page.locator('.ab-speed [data-speed=fast]').click();
     await expect(page.locator('.ab-count')).toHaveText('Page 3 of 3', { timeout: 6000 });

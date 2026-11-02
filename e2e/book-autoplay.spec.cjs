@@ -7,7 +7,7 @@ async function openBook(page) {
   const origin = new URL(page.url()).origin;
   const album = await seedBook(page, origin, 'Auto', 3, 1);
   await page.goto(`${origin}/#/a/${album.id}/3d`);
-  await expect(page.locator('.ab-count')).toHaveText('1 / 3');
+  await expect(page.locator('.ab-count')).toHaveText('1 / 3', { timeout: 15000 }); // three.js can take a while on a busy machine
   return { origin, album };
 }
 

@@ -2705,8 +2705,7 @@ body:has(.ab, .lb) {
   white-space: nowrap;
 }
 
-.ab-message,
-.ab-rotate {
+.ab-message {
   position: absolute;
   inset: 0;
   margin: 0;
@@ -2721,30 +2720,9 @@ body:has(.ab, .lb) {
   pointer-events: none;
 }
 
-.ab-rotate {
-  display: none;
-}
-
-.ab-rotate svg {
-  width: 44px;
-  height: 44px;
-  color: var(--ink-3);
-}
-
 .ab[data-error] .ab-stage,
 .ab[data-error] .ab-foot {
   display: none;
-}
-
-@media (max-width: 600px) and (orientation: portrait) {
-  .ab-rotate {
-    display: flex;
-  }
-
-  .ab-stage,
-  .ab-foot {
-    visibility: hidden;
-  }
 }
 
 /* Touch screens get no hint, as on the original. */
@@ -2770,15 +2748,15 @@ body:has(.ab, .lb) {
   }
 }
 
-/* Phones: the back and auto-flip buttons keep only their icons. */
+/* Phones: back, close-book and auto-flip keep only their icons, so the album name has room. */
 @media (max-width: 600px) {
-  .ab-back {
+  :is(.ab-back, .ab-bar .ab-secondary) {
     width: 36px;
     padding: 0;
     justify-content: center;
   }
 
-  :is(.ab-back, .ab-turn .ab-play) span {
+  :is(.ab-back, .ab-bar .ab-secondary, .ab-turn .ab-play) span {
     display: none;
   }
 
