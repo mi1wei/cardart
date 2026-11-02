@@ -349,9 +349,11 @@ export function renderAlbum(app, id) {
     if (uploading) { toast(t('upload-wait')); return; }
     const text = t('delete-album-text', { name: album.title });
     if (!(await dialog({ title: t('delete-album'), text, ok: t('delete'), danger: true })) || !alive) return;
+    // An import may have started while the confirmation was open.
+    if (uploading) { toast(t('upload-wait')); return; }
     try {
       await api.deleteAlbum(id);
-      open('#/albums');
+      if (alive) open('#/albums');
     } catch (err) {
       toast(t('failed', { reason: err.message }));
     }

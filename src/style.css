@@ -289,6 +289,7 @@ button {
   position: relative;
   min-width: 0;
   cursor: pointer;
+  container-type: inline-size;
 }
 
 .pocket {
@@ -425,6 +426,25 @@ button {
   height: 26px;
   margin-right: -4px;
   margin-left: auto;
+}
+
+/* Narrow cards (phones, the four-up home row): the count gets its own line so the title stays readable. */
+@container (max-width: 279px) {
+  .folder .meta {
+    flex-wrap: wrap;
+    row-gap: 0;
+    height: auto;
+    min-height: 22px;
+  }
+
+  .folder h3 {
+    flex: 1 1 0;
+  }
+
+  .folder .n {
+    order: 1;
+    flex-basis: 100%;
+  }
 }
 
 @media (hover: hover) {
