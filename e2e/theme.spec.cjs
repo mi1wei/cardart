@@ -129,3 +129,21 @@ test('the 3D book background follows the theme while the book is open', async ()
     await expect.poll(async () => near(await corner(page), [247, 249, 251]), { timeout: 15000 }).toBe(true);
   } finally { await fixture.close(); }
 });
+
+test('the album top bar with the theme switch fits a 320px phone in both languages', async () => {
+  const fixture = await desktopFixture();
+  try {
+    const { page } = await fixture.launch();
+    const origin = new URL(page.url()).origin;
+    const album = await seed(page, origin, 'Narrow', 1);
+    await page.goto(`${origin}/#/a/${album.id}`);
+    await expect(page.locator('.tile')).toHaveCount(1);
+    await page.setViewportSize({ width: 320, height: 700 });
+    for (const lang of ['en', 'zh']) {
+      await page.locator(`.nav [data-lang=${lang}]`).click();
+      await expect(page.locator('.nav .theme')).toBeVisible();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      await expect(page.locator('.nav .logo')).toHaveAccessibleName(/册页|Folio/);
+    }
+  } finally { await fixture.close(); }
+});

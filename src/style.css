@@ -1266,6 +1266,31 @@ button {
   }
 }
 
+/* The narrowest phones: the wordmark stays for screen readers so the theme and language switches fit. */
+@media (max-width: 380px) {
+  .logo span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  /* Outranks the album and licence page rule above. */
+  :root .nav a.nl {
+    padding: 0 6px;
+  }
+
+  .logo {
+    margin-right: 0;
+  }
+
+  .theme {
+    margin-right: 2px;
+  }
+}
+
 /* Home */
 .home {
   overflow-x: clip;
