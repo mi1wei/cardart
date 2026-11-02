@@ -40,13 +40,14 @@ export function renderAlbum(app, id) {
 
   app.innerHTML = `
     <main class="page album-page">
-      <p class="crumb"><a href="#/albums">${t('albums')}</a><span>/</span></p>
+      <p class="crumb"><a href="#/albums">${t('albums')}</a><span>/</span><b class="crumb-here"></b></p>
       <h1 class="t1"><button class="title" type="button" data-write data-act="rename" title="${t('rename-hint')}"></button><span class="pen">${icon('pen')}</span></h1>
       <p class="sub count"></p>
       <div class="acts normal">
         <button class="btn pri" type="button" data-act="3d">${icon('book')}<span>${t('flip-3d')}</span></button>
         <button class="btn" type="button" data-write data-act="upload">${icon('upload')}<span>${t('upload')}</span></button>
-        <button class="btn" type="button" data-act="select">${t('select')}</button>
+        <button class="btn" type="button" data-act="select">${icon('select')}<span>${t('select')}</span></button>
+        <span class="menu-host"><button class="btn only-icon" type="button" data-act="menu" aria-label="${t('more')}" aria-haspopup="menu">${icon('more')}</button></span>
         <label class="density" title="${t('density')}"><input type="range" min="0" max="2" step="1" aria-label="${t('density')}"></label>
       </div>
       <div class="acts picking" hidden>
@@ -178,6 +179,7 @@ export function renderAlbum(app, id) {
   function render() {
     const n = album.photos.length;
     $('.title').textContent = album.title;
+    $('.crumb-here').textContent = album.title;
     $('.count').textContent = mediaCountText(mediaCounts(album.photos));
     document.title = `${album.title} · ${t('app')}`;
     $('.drop').hidden = n > 0;
@@ -326,7 +328,30 @@ export function renderAlbum(app, id) {
     try {
       album = await api.updateAlbum(id, { title });
       $('.title').textContent = album.title;
+      $('.crumb-here').textContent = album.title;
       document.title = `${album.title} · ${t('app')}`;
+    } catch (err) {
+      toast(t('failed', { reason: err.message }));
+    }
+  }
+
+  function toggleMenu(button) {
+    const shown = button.parentElement.querySelector('.menu');
+    if (shown) return shown.remove();
+    button.insertAdjacentHTML(
+      'afterend',
+      `<div class="menu" role="menu"><button type="button" role="menuitem" data-write data-act="rename">${t('rename')}</button><button type="button" role="menuitem" data-write class="red" data-act="delete-album">${t('delete-album')}</button></div>`,
+    );
+  }
+
+  async function removeAlbum() {
+    if (!allowWrite()) return;
+    if (uploading) { toast(t('upload-wait')); return; }
+    const text = t('delete-album-text', { name: album.title });
+    if (!(await dialog({ title: t('delete-album'), text, ok: t('delete'), danger: true })) || !alive) return;
+    try {
+      await api.deleteAlbum(id);
+      open('#/albums');
     } catch (err) {
       toast(t('failed', { reason: err.message }));
     }
@@ -344,7 +369,8 @@ export function renderAlbum(app, id) {
 
   function onClick(e) {
     const act = e.target.closest('[data-act]')?.dataset.act;
-    if (['upload', 'rename', 'delete'].includes(act) && !allowWrite()) return;
+    if (act !== 'menu') app.querySelector('.acts .menu')?.remove();
+    if (['upload', 'rename', 'delete', 'delete-album'].includes(act) && !allowWrite()) return;
     const t = e.target.closest('.tile');
     if (t && !act) return onTile(t);
     if (!album) return;
@@ -355,6 +381,8 @@ export function renderAlbum(app, id) {
       render();
     } else if (act === 'delete') removeSelected();
     else if (act === 'rename') rename();
+    else if (act === 'menu') toggleMenu(e.target.closest('[data-act=menu]'));
+    else if (act === 'delete-album') removeAlbum();
     else if (act === '3d') open(`#/a/${id}/3d`);
   }
 

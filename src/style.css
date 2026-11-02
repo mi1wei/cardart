@@ -401,7 +401,7 @@ button {
 }
 
 .folder h3 {
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
   margin: 0;
   overflow: hidden;
@@ -413,8 +413,10 @@ button {
 }
 
 .folder .n {
+  flex: none;
   color: var(--ink-3);
-  font-size: 15px;
+  font-size: 12px;
+  white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
 
@@ -422,6 +424,7 @@ button {
   width: 26px;
   height: 26px;
   margin-right: -4px;
+  margin-left: auto;
 }
 
 @media (hover: hover) {
@@ -454,6 +457,7 @@ button {
   border: 0;
   border-radius: 8px;
   background: none;
+  color: var(--ink);
   font-size: 14px;
   line-height: 20px;
   text-align: left;
@@ -1590,6 +1594,30 @@ button {
 
 .crumb a:hover {
   color: var(--ink);
+}
+
+.crumb-here {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink-2);
+  font-weight: 500;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.menu-host {
+  position: relative;
+}
+
+.menu-host .menu {
+  left: 0;
+  right: auto;
+}
+
+.btn.only-icon {
+  width: 36px;
+  padding: 0;
+  justify-content: center;
 }
 
 .album-page .t1 {

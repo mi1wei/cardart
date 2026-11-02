@@ -15,7 +15,7 @@ export function openLightbox({ album, index, onIndex, onAlbum, onClose }) {
   root.innerHTML = `
     <header class="lb-bar">
       <button class="lb-back" type="button" data-act="close" aria-label="${t('close')}">${icon('prev')}<span>${t('albums')}</span></button>
-      <span class="lb-brand">${brandLogo()} Folio</span><span class="lb-album-name"></span>
+      <span class="lb-brand">${brandLogo()} ${t('app')}</span><span class="lb-album-name"></span>
       <b class="lb-count"></b><span class="sp"></span>
       <button class="ibtn lb-nav l" type="button" data-act="prev" aria-label="${t('prev-photo')}">${icon('prev')}</button>
       <button class="ibtn lb-nav r" type="button" data-act="next" aria-label="${t('next-photo')}">${icon('next')}</button>
@@ -25,7 +25,6 @@ export function openLightbox({ album, index, onIndex, onAlbum, onClose }) {
       <div class="lb-stage"><img class="lb-img" alt=""><span class="lb-missing">${t('image-missing')}</span>
         <div class="lb-media-status" role="status" hidden><p></p><button class="btn" type="button" data-act="video-retry" hidden>${t('video-retry')}</button></div>
       </div>
-      <p class="lb-fit">${t('details-fit')}</p>
     </section></div>`;
   const $ = (s) => root.querySelector(s);
   const img = $('.lb-img');
@@ -69,7 +68,6 @@ export function openLightbox({ album, index, onIndex, onAlbum, onClose }) {
     img.src = mediaUrl(album.id, p.id, 1600);
     img.alt = p.name;
     img.hidden = p.kind === 'video';
-    $('.lb-fit').textContent = t(p.kind === 'video' ? 'video-controls' : 'details-fit');
     if (p.kind !== 'video') return;
     const node = document.createElement('video');
     node.className = 'lb-video';
