@@ -1,4 +1,5 @@
 :root {
+  color-scheme: light;
   --bg: #f7f9fb;
   --raised: #fff;
   --ink: oklch(23.5% 0.02 255);
@@ -9,15 +10,83 @@
   --accent: #1d5f80;
   --accent-hover: oklch(40.5% 0.085 240);
   --accent-soft: oklch(95.2% 0.018 237);
+  --on-accent: oklch(99% 0.004 240);
+  --danger: #b42318;
+  /* Photo mounts: the white border every photo gets, like a print in an album */
+  --frame: #fff;
+  --tile: #e4e9ee;
+  --ghost: oklch(93.5% 0.018 230);
+  --press: oklch(23.5% 0.02 255 / 0.06);
+  --track: oklch(23.5% 0.02 255 / 0.05);
+  --rule: oklch(82.3% 0.009 235);
+  --soft: oklch(96.5% 0.012 235);
+  --soft-strong: oklch(93% 0.025 235);
+  --dash: oklch(75% 0.05 235);
+  --pocket-top: #eaeff4;
+  --pocket-bottom: #e0e6ec;
+  --glass-top: rgb(255 255 255 / 0.55);
+  --glass-bottom: rgb(255 255 255 / 0.82);
+  --glass-edge: rgb(255 255 255 / 0.95);
+  --warn-ink: #997024;
+  --warn-soft: #fbf3e5;
+  --ok-ink: #36795f;
+  --ok-soft: #edf6f1;
+  --bad-soft: #faf0ee;
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --font: 'Geist Variable', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei UI',
     'Noto Sans CJK SC', system-ui, sans-serif;
-  --danger: #b42318;
   /* Floating layers (menus, upload progress, dialogs) and cards, as on cardart.cc */
   --panel: 0 0 0 1px oklch(23.5% 0.02 255 / 0.06), 0 8px 24px oklch(23.5% 0.02 255 / 0.08),
     0 32px 64px -16px oklch(23.5% 0.02 255 / 0.22);
   --card: 0 0 0 1px oklch(23.5% 0.02 255 / 0.05), 0 2px 6px oklch(23.5% 0.02 255 / 0.04),
     0 14px 32px -12px oklch(23.5% 0.02 255 / 0.16);
+}
+
+/* Dark mode (v2 spec §3). Each colour carries both values; color-scheme picks one: the system's by
+   default, or the choice in data-theme. Browsers without light-dark() keep the light values above. */
+@supports (color: light-dark(#000, #fff)) {
+  :root {
+    color-scheme: light dark;
+    --bg: light-dark(#f7f9fb, #121417);
+    --raised: light-dark(#fff, #1a1d21);
+    --ink: light-dark(oklch(23.5% 0.02 255), #e9ecef);
+    --ink-2: light-dark(oklch(46.5% 0.022 248), #a7b0ba);
+    --ink-3: light-dark(oklch(52.5% 0.016 248), #8a949f);
+    --line: light-dark(oklch(92.2% 0.007 245), #2a2f35);
+    --hover: light-dark(oklch(95.5% 0.007 242), #22262b);
+    --accent: light-dark(#1d5f80, #7fc0e0);
+    --accent-hover: light-dark(oklch(40.5% 0.085 240), #9fd0ea);
+    --accent-soft: light-dark(oklch(95.2% 0.018 237), #1c2a33);
+    --on-accent: light-dark(oklch(99% 0.004 240), #0f1a20);
+    --danger: light-dark(#b42318, #ff8a7a);
+    --frame: light-dark(#fff, #2a2e33);
+    --tile: light-dark(#e4e9ee, #22262b);
+    --ghost: light-dark(oklch(93.5% 0.018 230), #262b31);
+    --press: light-dark(oklch(23.5% 0.02 255 / 0.06), rgb(255 255 255 / 0.08));
+    --track: light-dark(oklch(23.5% 0.02 255 / 0.05), rgb(255 255 255 / 0.06));
+    --rule: light-dark(oklch(82.3% 0.009 235), #3a4047);
+    --soft: light-dark(oklch(96.5% 0.012 235), #182026);
+    --soft-strong: light-dark(oklch(93% 0.025 235), #1f2b33);
+    --dash: light-dark(oklch(75% 0.05 235), #3d5566);
+    --pocket-top: light-dark(#eaeff4, #262a2f);
+    --pocket-bottom: light-dark(#e0e6ec, #1f2327);
+    --glass-top: light-dark(rgb(255 255 255 / 0.55), rgb(38 42 48 / 0.55));
+    --glass-bottom: light-dark(rgb(255 255 255 / 0.82), rgb(30 33 38 / 0.85));
+    --glass-edge: light-dark(rgb(255 255 255 / 0.95), rgb(255 255 255 / 0.1));
+    --warn-ink: light-dark(#997024, #e2b66a);
+    --warn-soft: light-dark(#fbf3e5, #2b2416);
+    --ok-ink: light-dark(#36795f, #6cc4a0);
+    --ok-soft: light-dark(#edf6f1, #16261f);
+    --bad-soft: light-dark(#faf0ee, #2d1a18);
+  }
+
+  :root[data-theme='light'] {
+    color-scheme: light;
+  }
+
+  :root[data-theme='dark'] {
+    color-scheme: dark;
+  }
 }
 
 *,
@@ -75,7 +144,7 @@ button {
 .btn.pri {
   background: var(--accent);
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.14), 0 1px 2px oklch(23.5% 0.02 255 / 0.14);
-  color: oklch(99% 0.004 240);
+  color: var(--on-accent);
 }
 
 .btn.pri svg,
@@ -232,8 +301,8 @@ button {
   top: 41%;
   bottom: 0;
   border-radius: 14px 14px 16px 16px;
-  background: linear-gradient(#eaeff4, #e0e6ec);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.85), inset 0 0 0 1px oklch(23.5% 0.02 255 / 0.09),
+  background: linear-gradient(var(--pocket-top), var(--pocket-bottom));
+  box-shadow: inset 0 1px 0 var(--glass-edge), inset 0 0 0 1px oklch(23.5% 0.02 255 / 0.09),
     0 14px 26px -12px oklch(23.5% 0.02 255 / 0.3);
 }
 
@@ -243,16 +312,16 @@ button {
   width: 81%;
   aspect-ratio: 4 / 3;
   object-fit: cover;
-  border: 5px solid #fff;
+  border: 5px solid var(--frame);
   border-radius: 6px;
-  background: #fff;
+  background: var(--frame);
   box-shadow: 0 0.4px 1px oklch(23.5% 0.02 255 / 0.12), 0 3.5px 7.6px -3px oklch(23.5% 0.02 255 / 0.32);
   transition: transform 0.45s var(--ease-out);
 }
 
 .pocket .ghost {
   border: 0;
-  background: oklch(93.5% 0.018 230);
+  background: var(--ghost);
   box-shadow: inset 0 0 0 1px oklch(23.5% 0.02 255 / 0.05);
 }
 
@@ -281,10 +350,10 @@ button {
   top: 45%;
   bottom: 0;
   border-radius: 16px;
-  background: linear-gradient(rgb(255 255 255 / 0.55), rgb(255 255 255 / 0.82));
+  background: linear-gradient(var(--glass-top), var(--glass-bottom));
   -webkit-backdrop-filter: blur(8px) saturate(1.3);
   backdrop-filter: blur(8px) saturate(1.3);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.95), inset 0 0 0 1px oklch(23.5% 0.02 255 / 0.07);
+  box-shadow: inset 0 1px 0 var(--glass-edge), inset 0 0 0 1px oklch(23.5% 0.02 255 / 0.07);
   /* the half-round notch in the middle of the front edge */
   -webkit-mask: radial-gradient(circle at 50% 0, transparent 15px, #000 15.5px);
   mask: radial-gradient(circle at 50% 0, transparent 15px, #000 15.5px);
@@ -297,7 +366,7 @@ button {
   width: 32px;
   height: 16px;
   margin-left: -16px;
-  border: 1px solid rgb(255 255 255 / 0.95);
+  border: 1px solid var(--glass-edge);
   border-top: 0;
   border-radius: 0 0 16px 16px;
   box-shadow: 0 1px 0 oklch(23.5% 0.02 255 / 0.06);
@@ -449,7 +518,7 @@ button {
 }
 
 .license-workspace {
-  --license-success: #36795f;
+  --license-success: var(--ok-ink);
   display: grid;
   grid-template-columns: minmax(0, 0.94fr) minmax(0, 1.16fr);
   border: 1px solid var(--line);
@@ -503,18 +572,18 @@ button {
 }
 
 .license-workspace[data-tone="expired"] .license-status-icon {
-  color: #997024;
-  background: #fbf3e5;
+  color: var(--warn-ink);
+  background: var(--warn-soft);
 }
 
 .license-workspace[data-tone="active"] :is(.license-status-icon, .license-status-badge) {
   color: var(--license-success);
-  background: #edf6f1;
+  background: var(--ok-soft);
 }
 
 .license-workspace[data-tone="invalid"] .license-status-icon {
   color: var(--danger);
-  background: #faf0ee;
+  background: var(--bad-soft);
 }
 
 .license-status-title {
@@ -829,12 +898,12 @@ button {
 
 .license-result[data-result="error"] {
   color: var(--danger);
-  background: #faf0ee;
+  background: var(--bad-soft);
 }
 
 .license-result[data-result="success"] {
   color: var(--license-success);
-  background: #edf6f1;
+  background: var(--ok-soft);
 }
 
 .license-help-details {
@@ -1096,7 +1165,7 @@ button {
 }
 
 .nl[aria-current='page'] {
-  background: oklch(23.5% 0.02 255 / 0.06);
+  background: var(--press);
   color: var(--ink);
 }
 
@@ -1109,7 +1178,7 @@ button {
   display: inline-flex;
   padding: 3px;
   border-radius: 999px;
-  background: oklch(23.5% 0.02 255 / 0.05);
+  background: var(--track);
 }
 
 .lang button {
@@ -1210,7 +1279,7 @@ button {
   width: 1px;
   height: 12px;
   margin: 0 4px;
-  background: oklch(82.3% 0.009 235);
+  background: var(--rule);
 }
 
 .h1 {
@@ -1576,7 +1645,7 @@ button {
   overflow: hidden;
   border: 0;
   border-radius: 8px;
-  background: #e4e9ee;
+  background: var(--tile);
   cursor: pointer;
 }
 
@@ -1639,6 +1708,7 @@ button {
   border-radius: 999px;
   background: rgb(255 255 255 / 0.94);
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.12);
+  color: #1c2430;
   font-size: 12px;
   line-height: 20px;
   font-weight: 600;
@@ -1732,9 +1802,9 @@ button {
   gap: 4px;
   min-height: 330px;
   margin-top: 4px;
-  border: 2px dashed oklch(75% 0.05 235);
+  border: 2px dashed var(--dash);
   border-radius: 20px;
-  background: oklch(96.5% 0.012 235);
+  background: var(--soft);
   color: var(--ink-2);
   text-align: center;
 }
@@ -1768,13 +1838,13 @@ button {
 }
 
 .dropping .grid {
-  outline: 2px dashed oklch(75% 0.05 235);
+  outline: 2px dashed var(--dash);
   outline-offset: 6px;
   border-radius: 8px;
 }
 
 .dropping .drop {
-  background: oklch(93% 0.025 235);
+  background: var(--soft-strong);
 }
 
 .fab {
@@ -1863,6 +1933,7 @@ button {
   padding: 22px 24px;
   border: 0;
   border-radius: 20px;
+  background: var(--raised);
   box-shadow: var(--panel);
   color: var(--ink);
   font-size: 14px;
@@ -1893,6 +1964,7 @@ button {
   border-radius: 10px;
   background: var(--hover);
   box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--ink);
   font: inherit;
 }
 
@@ -2063,7 +2135,7 @@ body:has(.ab, .lb) {
   gap: 4px;
   margin: 0;
   padding: 6px max(env(safe-area-inset-right, 0px), 6px) 6px max(env(safe-area-inset-left, 0px), 14px);
-  background: oklch(96.5% 0.012 235);
+  background: var(--soft);
   color: var(--ink-2);
   font-size: 13px;
   line-height: 19px;
@@ -2215,7 +2287,7 @@ body:has(.ab, .lb) {
   height: 36px;
   padding: 0 4px 0 12px;
   border-radius: 999px;
-  background: #fff;
+  background: var(--raised);
   box-shadow: inset 0 0 0 1px var(--line);
   color: var(--ink-2);
   font-size: 13px;
@@ -2255,7 +2327,7 @@ body:has(.ab, .lb) {
 }
 
 .ab-round {
-  background: #fff;
+  background: var(--raised);
   box-shadow: inset 0 0 0 1px var(--line);
 }
 
@@ -2275,7 +2347,7 @@ body:has(.ab, .lb) {
   border: 0;
   border-radius: 999px;
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -2294,7 +2366,7 @@ body:has(.ab, .lb) {
   padding: 0 16px 0 14px;
   border: 0;
   border-radius: 999px;
-  background: #fff;
+  background: var(--raised);
   box-shadow: inset 0 0 0 1px var(--line);
   color: var(--ink-2);
   display: inline-flex;

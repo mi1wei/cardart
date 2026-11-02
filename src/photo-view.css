@@ -4,6 +4,8 @@
   z-index: 80;
   overflow: auto;
   overscroll-behavior: contain;
+  /* Light until the v2 lightbox (S2) makes it dark: var() colours inside resolve to their light values. */
+  color-scheme: light;
   background: #f5f7f9;
   color: #26333e;
   touch-action: pan-y;
