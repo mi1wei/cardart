@@ -91,3 +91,63 @@ test('opening a photo pauses auto-flip, and moving the mouse brings the faded co
     await expect(page.locator('.ab')).toHaveAttribute('data-autoplay', 'paused');
   } finally { await fixture.close(); }
 });
+
+test('faded controls stay hidden across page turns until the mouse moves', async () => {
+  test.setTimeout(60_000);
+  const fixture = await desktopFixture();
+  try {
+    const { page } = await fixture.launch();
+    await openBook(page);
+    await page.locator('.ab-turn [data-act=play]').click();
+    await page.locator('.ab-speed [data-speed=fast]').click();
+    await page.mouse.move(5, 5);
+    await expect(page.locator('.ab')).toHaveAttribute('data-idle', '', { timeout: 5000 });
+    await page.evaluate(() => {
+      window.shown = 0;
+      const ab = document.querySelector('.ab');
+      new MutationObserver(() => { if (!ab.hasAttribute('data-idle')) window.shown++; }).observe(ab, { attributes: true, attributeFilter: ['data-idle'] });
+    });
+    await expect(page.locator('.ab-count')).toHaveText('2 / 3', { timeout: 6000 });
+    await page.waitForTimeout(300);
+    expect(await page.evaluate(() => window.shown)).toBe(0);
+  } finally { await fixture.close(); }
+});
+
+test('holding a page while auto-flip plays waits a full step after the press', async () => {
+  test.setTimeout(60_000);
+  const fixture = await desktopFixture();
+  try {
+    const { page } = await fixture.launch();
+    await openBook(page);
+    await page.locator('.ab-turn [data-act=play]').click();
+    await page.locator('.ab-speed [data-speed=slow]').click(); // the next step is 8 s from here
+    await page.waitForTimeout(6000);
+    const box = await page.locator('.ab canvas').boundingBox();
+    const [x, y] = [box.x + box.width * 0.75, box.y + box.height / 2];
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(x - 30, y, { steps: 3 });
+    await page.waitForTimeout(4000); // well past the old 8 s mark, well before press + 8 s
+    expect(await page.locator('.ab-count').textContent()).toBe('1 / 3');
+    await page.mouse.move(x, y, { steps: 3 });
+    await page.mouse.up();
+  } finally { await fixture.close(); }
+});
+
+test('when auto-flip ends, focus returns to the play button; a lost GL context stops it', async () => {
+  test.setTimeout(60_000);
+  const fixture = await desktopFixture();
+  try {
+    const { page } = await fixture.launch();
+    await openBook(page);
+    await page.locator('.ab-turn [data-act=play]').click();
+    await expect(page.locator('.ab-player [data-act=pause]')).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(page.locator('.ab-turn [data-act=play]')).toBeFocused();
+    await page.locator('.ab-turn [data-act=play]').click();
+    await page.locator('.ab canvas').evaluate((canvas) => canvas.getContext('webgl2').getExtension('WEBGL_lose_context').loseContext());
+    await expect(page.locator('.ab')).toHaveAttribute('data-error', '');
+    await expect(page.locator('.ab[data-autoplay]')).toHaveCount(0);
+    await expect(page.locator('.ab-progress')).toBeHidden();
+  } finally { await fixture.close(); }
+});

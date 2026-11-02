@@ -66,6 +66,7 @@ export function openViewer({ album, onOpenPhoto, onClose, onPerPage }) {
   let view = { spread: 1, spreads: 1, closed: false };
   let speed = savedSpeed();
   let stepping = false;
+  let playState = 'off';
   let idleTimer = 0;
   const player = createFlipPlayer({ step, onState });
 
@@ -94,6 +95,9 @@ export function openViewer({ album, onOpenPhoto, onClose, onPerPage }) {
     const p = pages.findIndex((page) => page.rects.some((r) => r.i === i));
     return p < 0 ? 1 : spreadOfPage(p);
   }
+  // The photo in view: on an upright phone the page shown, otherwise the spread's first photo.
+  const shownPhoto = () => (view.single && view.page > 1 ? pages[view.page - 2]?.rects[0]?.i : undefined) ?? firstPhotoOf(spread);
+  const onTitlePage = () => view.single && view.page === 1;
   const atEnd = () => (view.single ? view.page === view.pages : view.spread === view.spreads);
 
   // Which bottom group shows: page turning, the auto-flip controls, or open / auto-flip on the cover.
@@ -152,15 +156,21 @@ export function openViewer({ album, onOpenPhoto, onClose, onPerPage }) {
   }
 
   function onState({ state, speed: chosen, ms }) {
+    // Timer steps reschedule with the same state: only a real change shows the faded controls.
+    const changed = state !== playState || chosen !== speed;
+    const focused = $('.ab-player').contains(document.activeElement);
+    playState = state;
     speed = chosen;
     paint();
+    // The player controls hide when auto-flip ends: keep focus inside the dialog.
+    if (state === 'off' && focused) $(view.closed ? '.ab-shut [data-act=cover]' : '.ab-turn [data-act=play]').focus();
     const fill = $('.ab-progress i');
     fill.style.animation = 'none';
     if (state === 'playing') {
       void fill.offsetWidth; // start the line again for this step
       fill.style.animation = `ab-progress ${ms}ms linear forwards`;
     }
-    wake();
+    if (changed) wake();
   }
 
   // From the cover, auto-flip opens the book straight away.
@@ -193,16 +203,18 @@ export function openViewer({ album, onOpenPhoto, onClose, onPerPage }) {
       e.stopPropagation();
       e.preventDefault();
     }
+    player.restart(); // a page held or dragged gets a full step before auto-flip turns it
     wake();
   }
 
   function fail() {
+    player.stop();
     root.dataset.error = '';
     $('.ab-message').hidden = false;
   }
 
-  // (Re)builds the book from the album, opened at the spread that shows photo i.
-  function build(i = 0) {
+  // (Re)builds the book from the album, opened at the page that shows photo i (or the title page).
+  function build(i = 0, titlePage = false) {
     player.stop();
     book?.dispose();
     book = null;
@@ -221,7 +233,8 @@ export function openViewer({ album, onOpenPhoto, onClose, onPerPage }) {
         photoUrl,
         itemInfo: (i) => album.photos[i],
         insets,
-        startSpread: spreadOf(i),
+        startSpread: titlePage ? 1 : spreadOf(i),
+        startSide: titlePage || pages.findIndex((page) => page.rects.some((r) => r.i === i)) % 2 === 1 ? -1 : 1,
         single: upright.matches,
         onChange,
         onPhotoClick: (index) => {
@@ -271,9 +284,10 @@ export function openViewer({ album, onOpenPhoto, onClose, onPerPage }) {
   });
   per.addEventListener('change', () => {
     if (!allowWrite()) { per.value = String(album.perPage); return; }
-    const i = firstPhotoOf(spread);
+    const i = shownPhoto();
+    const title = onTitlePage();
     album = { ...album, perPage: Number(per.value) };
-    build(i);
+    build(i, title);
     per.blur(); // ← → turn pages again
     onPerPage(album.perPage);
   });
@@ -321,12 +335,13 @@ export function openViewer({ album, onOpenPhoto, onClose, onPerPage }) {
   return {
     close,
     refresh(next) {
-      const old = firstPhotoOf(spread);
+      const old = shownPhoto();
+      const title = onTitlePage();
       const keep = album.photos[old]?.id;
       album = next;
       if (!album.photos.length) return onClose();
       const i = album.photos.findIndex((p) => p.id === keep);
-      build(i >= 0 ? i : Math.min(old, album.photos.length - 1));
+      build(i >= 0 ? i : Math.min(old, album.photos.length - 1), title);
     },
   };
 }

@@ -86,3 +86,26 @@ test('auto-flip on an upright phone steps one page at a time and closes after th
     await expect(page.locator('.ab[data-autoplay]')).toHaveCount(0);
   } finally { await fixture.close(); }
 });
+
+test('an upright phone stays on the page it shows when the album changes under the book', async () => {
+  test.setTimeout(60_000);
+  const fixture = await desktopFixture();
+  try {
+    const { page } = await fixture.launch();
+    const origin = new URL(page.url()).origin;
+    await page.setViewportSize({ width: 390, height: 844 });
+    const album = await seedBook(page, origin, 'Stay', 3, 1);
+    await page.goto(`${origin}/#/a/${album.id}/3d`);
+    const count = page.locator('.ab-count');
+    await expect(count).toHaveText('Page 2 of 5', { timeout: 15000 });
+    await page.locator('.ab [data-act=next]').click();
+    await expect(count).toHaveText('Page 3 of 5'); // the left page: photo 2
+    await page.evaluate((hash) => { location.hash = hash; }, `#/a/${album.id}/3d/p/${album.photos[1].id}`);
+    await expect(page.locator('.lb')).toBeVisible();
+    await page.locator('.lb [data-act=cover]').evaluate((el) => el.click());
+    await expect.poll(async () => (await (await page.request.get(`${origin}/api/albums/${album.id}`)).json()).cover).toBe(album.photos[1].id);
+    await page.locator('.lb [data-act=close]').evaluate((el) => el.click());
+    await expect(page.locator('.lb')).toHaveCount(0);
+    await expect(count).toHaveText('Page 3 of 5');
+  } finally { await fixture.close(); }
+});

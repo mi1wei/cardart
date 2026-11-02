@@ -11,7 +11,7 @@ const DRAWN = 20; // leaves drawn at once (spec §11)
 const MIDDLE = 11; // local k with ten leaves on each side
 const smoothstep = (t) => t * t * (3 - 2 * t);
 
-export function createBook(container, { title, titlePage = null, pages, photoUrl, itemInfo = () => null, insets, startSpread = 1, single = false, onChange, onPhotoClick }) {
+export function createBook(container, { title, titlePage = null, pages, photoUrl, itemInfo = () => null, insets, startSpread = 1, startSide = 1, single = false, onChange, onPhotoClick }) {
   const G = Math.max(1, Math.ceil(pages.length / 2)); // leaves in the whole album
   const S = Math.min(DRAWN, G); // leaves drawn
   const binder = createBinder({ sheets: S, title, titlePage });
@@ -335,7 +335,7 @@ export function createBook(container, { title, titlePage = null, pages, photoUrl
   });
   observer.observe(container);
   stage.resize();
-  jump(startSpread);
+  jump(startSpread, startSide);
   place();
 
   return {
