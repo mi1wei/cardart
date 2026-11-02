@@ -107,3 +107,25 @@ test('blocked storage falls back to auto and a choice still applies for this vis
     await expect.poll(() => bg(page)).toBe('rgb(18, 20, 23)');
   } finally { await fixture.close(); }
 });
+
+async function corner(page) {
+  const png = await page.locator('.ab canvas').screenshot();
+  const { data } = await sharp(png).extract({ left: 2, top: 2, width: 1, height: 1 }).raw().toBuffer({ resolveWithObject: true });
+  return [...data.subarray(0, 3)];
+}
+const near = (a, b) => a.every((v, i) => Math.abs(v - b[i]) <= 3);
+
+test('the 3D book background follows the theme while the book is open', async () => {
+  const fixture = await desktopFixture();
+  try {
+    const { page } = await fixture.launch();
+    const origin = new URL(page.url()).origin;
+    const album = await seed(page, origin, '3D theme', 2);
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await page.goto(`${origin}/#/a/${album.id}/3d`);
+    await expect(page.locator('.ab canvas')).toBeVisible();
+    await expect.poll(async () => near(await corner(page), [18, 20, 23]), { timeout: 15000 }).toBe(true);
+    await page.emulateMedia({ colorScheme: 'light' });
+    await expect.poll(async () => near(await corner(page), [247, 249, 251]), { timeout: 15000 }).toBe(true);
+  } finally { await fixture.close(); }
+});
