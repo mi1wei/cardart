@@ -1,6 +1,7 @@
 import { mediaUrl } from './api.js';
 import { createBook } from './book/book.js';
 import { layoutPages, spreadOfPage } from './book/layout.js';
+import { createFlipPlayer, savedSpeed, SPEEDS } from './flip-player.js';
 import { fullscreenTip, icon, toast } from './ui.js';
 import { t } from './i18n.js';
 import { allowWrite } from './license.js';
@@ -8,6 +9,7 @@ import { allowWrite } from './license.js';
 const KEYS = { ArrowLeft: 'prev', PageUp: 'prev', ArrowRight: 'next', PageDown: 'next' };
 const DENSITY = [1, 2, 3];
 const DRAWN = 20; // the slider shows once the album has more leaves than the book draws
+const IDLE = 2500; // ms without input before auto-flip fades the controls
 
 export function openViewer({ album, onOpenPhoto, onClose, onPerPage }) {
   const opener = document.activeElement;
@@ -18,22 +20,33 @@ export function openViewer({ album, onOpenPhoto, onClose, onPerPage }) {
   root.setAttribute('aria-modal', 'true');
   root.innerHTML = `
     <div class="ab-stage"></div>
+    <div class="ab-progress" hidden><i></i></div>
     <header class="ab-bar">
-      <button class="ab-icon" type="button" data-act="close" aria-label="${t('close')}">${icon('close')}</button>
+      <button class="ab-back" type="button" data-act="close">${icon('close')}<span>${t('back')}</span></button>
       <h2 class="ab-title"></h2>
       <label class="ab-select"><span>${t('per-page')}</span><select data-write>${DENSITY.map((v) => `<option value="${v}">${t(`per-${v}`)}</option>`).join('')}</select></label>
       <button class="ab-icon" type="button" data-act="fullscreen" aria-label="${t('fullscreen')}" aria-pressed="false">${icon('fullscreen')}</button>
-      <button class="ab-secondary" type="button" data-act="cover" data-open>${icon('bookClosed')}<span>${t('close-book')}</span></button>
+      <button class="ab-secondary" type="button" data-act="cover">${icon('bookClosed')}<span>${t('close-book')}</span></button>
     </header>
     <footer class="ab-foot">
-      <div class="ab-nav" data-open>
+      <div class="ab-nav ab-turn">
         <button class="ab-icon ab-round" type="button" data-act="prev" aria-label="${t('prev-page')}">${icon('prev')}</button>
         <span class="ab-count" aria-live="polite"></span>
         <button class="ab-icon ab-round" type="button" data-act="next" aria-label="${t('next-page')}">${icon('next')}</button>
+        <span class="ab-sep" aria-hidden="true"></span>
+        <button class="ab-play" type="button" data-act="play">${icon('play')}<span>${t('autoplay')}</span></button>
+      </div>
+      <div class="ab-nav ab-player" hidden>
+        <button class="ab-icon ab-round" type="button" data-act="pause"></button>
+        <span class="ab-sep" aria-hidden="true"></span>
+        <span class="ab-speed" role="group" aria-label="${t('speed')}">${Object.keys(SPEEDS).map((s) => `<button type="button" data-speed="${s}">${t(`speed-${s}`)}</button>`).join('')}</span>
+        <span class="ab-sep" aria-hidden="true"></span>
+        <button class="ab-icon ab-round" type="button" data-act="stop" aria-label="${t('autoplay-stop')}">${icon('close')}</button>
       </div>
       <input class="ab-slider" type="range" min="1" step="1" aria-label="${t('jump-spread')}" hidden>
-      <div class="ab-nav" data-closed hidden>
+      <div class="ab-nav ab-shut" hidden>
         <button class="ab-primary" type="button" data-act="cover">${icon('bookOpen')}${t('open-book')}</button>
+        <button class="ab-secondary" type="button" data-act="play">${icon('play')}<span>${t('autoplay')}</span></button>
       </div>
       <p class="ab-hint">${t('hint-open')}</p>
     </footer>
@@ -48,6 +61,11 @@ export function openViewer({ album, onOpenPhoto, onClose, onPerPage }) {
   let pages = [];
   let spread = 1;
   let sliding = false;
+  let view = { spread: 1, spreads: 1, closed: false };
+  let speed = savedSpeed();
+  let stepping = false;
+  let idleTimer = 0;
+  const player = createFlipPlayer({ step, onState });
 
   // Full screen is the whole page, so the lightbox shows over the book too (spec §9). iPhone has no
   // Fullscreen API: the button explains the Home Screen, and opened from there it is not needed.
@@ -74,17 +92,106 @@ export function openViewer({ album, onOpenPhoto, onClose, onPerPage }) {
     const p = pages.findIndex((page) => page.rects.some((r) => r.i === i));
     return p < 0 ? 1 : spreadOfPage(p);
   }
+  const atEnd = () => view.spread === view.spreads;
 
-  function onChange({ spread: s, spreads, closed }) {
+  // Which bottom group shows: page turning, the auto-flip controls, or open / auto-flip on the cover.
+  function paint() {
+    const state = player.state();
+    const on = state !== 'off';
+    $('.ab-bar [data-act=cover]').hidden = view.closed;
+    $('.ab-turn').hidden = view.closed || on;
+    $('.ab-player').hidden = !on;
+    $('.ab-shut').hidden = !view.closed || on;
+    $('.ab-progress').hidden = state !== 'playing';
+    if (on) root.dataset.autoplay = state;
+    else delete root.dataset.autoplay;
+    const pause = $('[data-act=pause]');
+    pause.innerHTML = icon(state === 'playing' ? 'pause' : 'play');
+    pause.setAttribute('aria-label', t(state === 'playing' ? 'autoplay-pause' : 'autoplay-resume'));
+    for (const b of root.querySelectorAll('[data-speed]')) b.setAttribute('aria-pressed', String(b.dataset.speed === speed));
+  }
+
+  function onChange(next) {
+    view = next;
+    const { spread: s, spreads, closed } = next;
     spread = s;
-    for (const open of root.querySelectorAll('[data-open]')) open.hidden = closed;
-    $('[data-closed]').hidden = !closed;
     $('.ab-count').textContent = `${s} / ${spreads}`;
-    $('[data-act=next]').disabled = s === spreads;
+    $('[data-act=next]').disabled = atEnd();
     slider.hidden = closed || spreads <= DRAWN + 1;
     slider.max = String(spreads);
     if (!sliding) slider.value = String(s);
     $('.ab-hint').textContent = t(closed ? 'hint-closed' : 'hint-open');
+    if (!stepping && player.state() !== 'off') {
+      if (closed) player.stop(); // closed by hand
+      else player.restart(); // turned by hand: wait a full step from here
+    }
+    paint();
+  }
+
+  // One auto-flip step; false once the book has been closed at the end.
+  function step() {
+    if (!book) return false;
+    // Never turn pages under the lightbox or a confirmation.
+    if (document.querySelector('.lb, dialog[open]')) {
+      player.pause();
+      return true;
+    }
+    stepping = true;
+    try {
+      if (!view.closed && atEnd()) {
+        book.toggleCover();
+        return false;
+      }
+      book.next();
+      return true;
+    } finally {
+      stepping = false;
+    }
+  }
+
+  function onState({ state, speed: chosen, ms }) {
+    speed = chosen;
+    paint();
+    const fill = $('.ab-progress i');
+    fill.style.animation = 'none';
+    if (state === 'playing') {
+      void fill.offsetWidth; // start the line again for this step
+      fill.style.animation = `ab-progress ${ms}ms linear forwards`;
+    }
+    wake();
+  }
+
+  // From the cover, auto-flip opens the book straight away.
+  function startPlaying() {
+    if (!book) return;
+    if (view.closed) {
+      stepping = true;
+      book.next();
+      stepping = false;
+    }
+    player.play();
+    $('[data-act=pause]').focus();
+  }
+
+  function togglePlay() {
+    if (player.state() === 'off') startPlaying();
+    else player.toggle();
+  }
+
+  // While playing, the controls fade after a moment; any input brings them back.
+  function wake() {
+    root.removeAttribute('data-idle');
+    clearTimeout(idleTimer);
+    if (player.state() === 'playing') idleTimer = setTimeout(() => root.setAttribute('data-idle', ''), IDLE);
+  }
+
+  function onPointerDown(e) {
+    // On a touch screen the first tap only brings the faded controls back.
+    if (root.hasAttribute('data-idle') && e.pointerType !== 'mouse') {
+      e.stopPropagation();
+      e.preventDefault();
+    }
+    wake();
   }
 
   function fail() {
@@ -94,6 +201,7 @@ export function openViewer({ album, onOpenPhoto, onClose, onPerPage }) {
 
   // (Re)builds the book from the album, opened at the spread that shows photo i.
   function build(i = 0) {
+    player.stop();
     book?.dispose();
     book = null;
     pages = layoutPages(album.photos.map((p) => p.w / p.h), album.perPage ?? 2);
@@ -109,7 +217,10 @@ export function openViewer({ album, onOpenPhoto, onClose, onPerPage }) {
         insets,
         startSpread: spreadOf(i),
         onChange,
-        onPhotoClick: onOpenPhoto,
+        onPhotoClick: (index) => {
+          player.pause();
+          onOpenPhoto(index);
+        },
       });
     } catch (err) {
       if (err.message !== 'webgl') throw err;
@@ -120,17 +231,27 @@ export function openViewer({ album, onOpenPhoto, onClose, onPerPage }) {
   function onKey(e) {
     // The menu and the slider keep their keys; so do the lightbox and confirmations above the book.
     if (e.target.closest?.('select, input') || document.querySelector('.lb, dialog[open]')) return;
-    if (e.key === 'Escape') onClose();
+    wake();
+    if (e.key === 'Escape') {
+      if (player.state() !== 'off') player.stop();
+      else onClose();
+    } else if (e.key === ' ') togglePlay(); // cancelling keydown also stops a focused button's click
     else if (KEYS[e.key] && book) book[KEYS[e.key]]();
     else return;
     e.preventDefault();
   }
 
   function onClick(e) {
-    const act = e.target.closest('[data-act]')?.dataset.act;
-    if (act === 'close') onClose();
+    const target = e.target.closest('[data-act], [data-speed]');
+    if (!target) return;
+    const act = target.dataset.act;
+    if (target.dataset.speed) player.setSpeed(target.dataset.speed);
+    else if (act === 'close') onClose();
     else if (act === 'fullscreen') toggleFullscreen();
-    else if (act && book) book[act === 'cover' ? 'toggleCover' : act]();
+    else if (act === 'play') startPlaying();
+    else if (act === 'pause') player.toggle();
+    else if (act === 'stop') player.stop();
+    else if (book) book[act === 'cover' ? 'toggleCover' : act]();
   }
 
   slider.addEventListener('input', () => {
@@ -151,6 +272,8 @@ export function openViewer({ album, onOpenPhoto, onClose, onPerPage }) {
   });
 
   function close() {
+    player.dispose();
+    clearTimeout(idleTimer);
     window.removeEventListener('keydown', onKey);
     document.removeEventListener('fullscreenchange', onFullscreen);
     if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
@@ -162,6 +285,8 @@ export function openViewer({ album, onOpenPhoto, onClose, onPerPage }) {
   }
 
   root.addEventListener('click', onClick);
+  root.addEventListener('pointermove', wake);
+  root.addEventListener('pointerdown', onPointerDown, true);
   window.addEventListener('keydown', onKey);
   document.addEventListener('fullscreenchange', onFullscreen);
   stage.addEventListener('webglcontextlost', fail, true); // the event does not bubble

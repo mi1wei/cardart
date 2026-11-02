@@ -2383,6 +2383,7 @@ body:has(.ab, .lb) {
   left: 0;
   right: 0;
   pointer-events: none;
+  transition: opacity 0.4s var(--ease-out);
 }
 
 .ab-bar button,
@@ -2425,6 +2426,142 @@ body:has(.ab, .lb) {
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+/* Turning, auto-flip and the cover share one capsule at the bottom (v2 spec §8). */
+.ab-turn,
+.ab-player {
+  padding: 4px;
+  border-radius: 999px;
+  background: var(--raised);
+  box-shadow: inset 0 0 0 1px var(--line), 0 8px 22px -14px oklch(23.5% 0.02 255 / 0.45);
+}
+
+.ab-turn .ab-round,
+.ab-player .ab-round {
+  background: transparent;
+  box-shadow: none;
+}
+
+.ab-sep {
+  width: 1px;
+  height: 20px;
+  margin: 0 4px;
+  background: var(--line);
+}
+
+.ab-play {
+  height: 36px;
+  padding: 0 14px 0 10px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.ab-play:hover {
+  background: var(--hover);
+}
+
+.ab-play svg {
+  width: 16px;
+  height: 16px;
+  color: var(--accent);
+}
+
+.ab-speed {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: 999px;
+  background: var(--track);
+}
+
+.ab-speed button {
+  min-width: 36px;
+  height: 30px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.ab-speed button[aria-pressed='true'] {
+  background: var(--raised);
+  color: var(--ink);
+  box-shadow: 0 1px 2px oklch(23.5% 0.02 255 / 0.12), inset 0 0 0 1px var(--line);
+}
+
+.ab-progress {
+  position: absolute;
+  top: env(safe-area-inset-top, 0px);
+  left: 0;
+  right: 0;
+  z-index: 1;
+  height: 3px;
+  background: var(--track);
+  pointer-events: none;
+}
+
+.ab-progress i {
+  display: block;
+  width: 0;
+  height: 100%;
+  background: var(--accent);
+}
+
+@keyframes ab-progress {
+  to {
+    width: 100%;
+  }
+}
+
+/* While auto-flip plays and nothing moves, the controls fade; the progress line stays. */
+.ab[data-idle] :is(.ab-bar, .ab-foot) {
+  opacity: 0;
+}
+
+.ab[data-idle] :is(.ab-bar, .ab-foot) * {
+  pointer-events: none;
+}
+
+.ab-back {
+  height: 36px;
+  margin-left: -8px;
+  padding: 0 12px 0 8px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-2);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.ab-back:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.ab-back svg {
+  width: 18px;
+  height: 18px;
 }
 
 .ab-count {
@@ -2552,7 +2689,7 @@ body:has(.ab, .lb) {
   height: 16px;
 }
 
-:is(.ab-icon, .ab-primary, .ab-secondary):focus-visible {
+:is(.ab-icon, .ab-primary, .ab-secondary, .ab-back, .ab-play, .ab-speed button):focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
@@ -2607,7 +2744,7 @@ body:has(.ab, .lb) {
   }
 }
 
-/* Phone landscape (same query as viewer.js): compact bar, ‹ › on the screen edges over the book. */
+/* Phone landscape (same query as viewer.js): compact bar; the capsule floats over the bottom of the book. */
 @media (orientation: landscape) and (max-height: 519.98px) {
   .ab-bar {
     min-height: 44px;
@@ -2615,34 +2752,29 @@ body:has(.ab, .lb) {
   }
 
   .ab-foot {
-    top: 0;
-    flex-direction: row;
-    justify-content: center;
-    padding: 0 max(env(safe-area-inset-right, 0px), 8px) 0 max(env(safe-area-inset-left, 0px), 8px);
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 8px);
   }
 
-  .ab-nav[data-open] {
-    width: 100%;
-    justify-content: space-between;
-  }
-
-  .ab-nav[data-closed] {
-    position: absolute;
-    left: 50%;
-    bottom: calc(env(safe-area-inset-bottom, 0px) + 10px);
-    translate: -50%;
-  }
-
-  .ab-count,
   .ab-hint {
     display: none;
   }
+}
 
-  .ab-slider {
-    position: absolute;
-    left: 50%;
-    bottom: calc(env(safe-area-inset-bottom, 0px) + 8px);
-    width: min(320px, 46vw);
-    translate: -50%;
+/* Phones: the back and auto-flip buttons keep only their icons. */
+@media (max-width: 600px) {
+  .ab-back {
+    width: 36px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  :is(.ab-back, .ab-turn .ab-play) span {
+    display: none;
+  }
+
+  .ab-turn .ab-play {
+    width: 36px;
+    padding: 0;
+    justify-content: center;
   }
 }

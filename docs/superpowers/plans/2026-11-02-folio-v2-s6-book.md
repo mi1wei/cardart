@@ -183,7 +183,7 @@ test('opening a photo pauses auto-flip, and moving the mouse brings the faded co
     await page.evaluate((hash) => { location.hash = hash; }, `#/a/${album.id}/3d/p/${album.photos[0].id}`);
     await expect(page.locator('.lb')).toBeVisible();
     await page.waitForTimeout(6500); // longer than one step at the default speed
-    await page.keyboard.press('Escape');
+    await page.locator('.lb [data-act=close]').click(); // Escape would close Details first
     await expect(page.locator('.lb')).toHaveCount(0);
     await expect(page.locator('.ab-count')).toHaveText('1 / 3');
     await expect(page.locator('.ab')).toHaveAttribute('data-autoplay', 'paused');
