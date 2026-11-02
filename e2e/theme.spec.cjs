@@ -31,3 +31,79 @@ test('the dark palette covers page surfaces and the lightbox stays light', async
     expect(await style(page, 'body', 'backgroundColor')).toBe('rgb(247, 249, 251)');
   } finally { await fixture.close(); }
 });
+
+const bg = (page) => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+
+test('auto follows the system and a manual choice survives a reload', async () => {
+  const fixture = await desktopFixture();
+  try {
+    const { page } = await fixture.launch();
+    const origin = new URL(page.url()).origin;
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await page.goto(`${origin}/#/albums`);
+    await expect(page.locator('.theme [data-theme-mode=auto]')).toHaveAttribute('aria-pressed', 'true');
+    await expect.poll(() => bg(page)).toBe('rgb(18, 20, 23)');
+    await page.emulateMedia({ colorScheme: 'light' });
+    await expect.poll(() => bg(page)).toBe('rgb(247, 249, 251)');
+    await page.locator('.theme [data-theme-mode=dark]').click();
+    await expect(page.locator('.theme [data-theme-mode=dark]')).toHaveAttribute('aria-pressed', 'true');
+    await expect.poll(() => bg(page)).toBe('rgb(18, 20, 23)');
+    expect(await page.evaluate(() => localStorage.getItem('theme'))).toBe('dark');
+    expect(await page.locator('head script[src="/theme-boot.js"]').count()).toBe(1);
+    await page.reload();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+    await expect.poll(() => bg(page)).toBe('rgb(18, 20, 23)');
+    await page.locator('.theme [data-theme-mode=auto]').click();
+    expect(await page.evaluate(() => document.documentElement.hasAttribute('data-theme'))).toBe(false);
+    expect(await page.evaluate(() => localStorage.getItem('theme'))).toBeNull();
+    await expect.poll(() => bg(page)).toBe('rgb(247, 249, 251)');
+  } finally { await fixture.close(); }
+});
+
+test('theme can change during an import while the language cannot', async () => {
+  const fixture = await desktopFixture();
+  try {
+    const { page } = await fixture.launch();
+    const origin = new URL(page.url()).origin;
+    await page.goto(`${origin}/#/albums`);
+    await page.locator('.nav [data-lang=zh]').click();
+    await page.evaluate(() => document.documentElement.setAttribute('data-busy', ''));
+    await page.locator('.theme [data-theme-mode=dark]').click();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+    await page.locator('.nav [data-lang=en]').click({ force: true });
+    await expect(page.locator('html')).toHaveAttribute('lang', 'zh-CN');
+  } finally { await fixture.close(); }
+});
+
+test('without light-dark support the switch is hidden and the page stays light', async () => {
+  const fixture = await desktopFixture();
+  try {
+    const { page } = await fixture.launch();
+    const origin = new URL(page.url()).origin;
+    await page.addInitScript(() => {
+      const supports = CSS.supports.bind(CSS);
+      CSS.supports = (...args) => (args.join(' ').includes('light-dark') ? false : supports(...args));
+    });
+    await page.goto(`${origin}/#/albums`);
+    await page.reload();
+    await expect(page.locator('.nav .logo')).toBeVisible();
+    await expect(page.locator('.theme')).toHaveCount(0);
+  } finally { await fixture.close(); }
+});
+
+test('blocked storage falls back to auto and a choice still applies for this visit', async () => {
+  const fixture = await desktopFixture();
+  try {
+    const { page } = await fixture.launch();
+    const origin = new URL(page.url()).origin;
+    await page.addInitScript(() => {
+      Object.defineProperty(window, 'localStorage', { get() { throw new DOMException('blocked', 'SecurityError'); } });
+    });
+    await page.goto(`${origin}/#/albums`);
+    await page.reload();
+    await expect(page.locator('.theme [data-theme-mode=auto]')).toHaveAttribute('aria-pressed', 'true');
+    await page.locator('.theme [data-theme-mode=dark]').click();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+    await expect.poll(() => bg(page)).toBe('rgb(18, 20, 23)');
+  } finally { await fixture.close(); }
+});

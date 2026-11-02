@@ -79,7 +79,7 @@ function ownerOf(path) {
 }
 
 function permittedWeb(file) {
-  return /^(index\.html|favicon\.(svg|ico)|apple-touch-icon\.png|geist-OFL\.txt)$/.test(file) ||
+  return /^(index\.html|theme-boot\.js|favicon\.(svg|ico)|apple-touch-icon\.png|geist-OFL\.txt)$/.test(file) ||
     /^icons\/(folio-1024\.png|folio-logo\.png|folio\.icns|trayTemplate(?:@2x)?\.png)$/.test(file) ||
     /^assets\/[A-Za-z0-9_.-]+\.(js|css)$/.test(file) ||
     /^assets\/geist-[A-Za-z0-9_.-]+\.woff2$/.test(file) ||
