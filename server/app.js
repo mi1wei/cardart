@@ -12,7 +12,7 @@ import { MAX_LICENSE_BYTES } from './license.js';
 import { isPhotoMetadata, readPhotoMetadata } from './photo-metadata.js';
 import { importVideo, parseVideoParameters } from './video-importer.js';
 import { readVideoMetadata } from './video-metadata.js';
-import { disposition, downloadZip } from './download.js';
+import { createDownloadTickets, disposition, downloadZip } from './download.js';
 
 const LOOPBACK = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
 const MIME = {
@@ -202,7 +202,7 @@ function gate(lib, req, res, url) {
   return { local };
 }
 
-async function api(lib, req, res, url, local, license) {
+async function api(lib, req, res, url, local, license, downloads) {
   const [, , name, id, sub, action, detail, ...rest] = url.pathname.split('/');
   const m = req.method;
   const requireWrite = () => {
@@ -280,6 +280,14 @@ async function api(lib, req, res, url, local, license) {
       return send(res, 200, await lib.transfer(id, await readJson(req)));
     }
     if (download) {
+      if (m === 'POST' && url.searchParams.get('prepare') === '1') {
+        return send(res, 200, { ticket: downloads.issue(id, (await readJson(req)).ids) });
+      }
+      if (m === 'GET' && url.searchParams.has('ticket')) {
+        if (url.searchParams.getAll('ticket').length !== 1 || url.searchParams.has('ids')) throw fail(400, 'bad-request');
+        const ids = downloads.take(id, url.searchParams.get('ticket'));
+        return lib.queue(id, () => downloadZip(lib, id, ids, req, res));
+      }
       if (m === 'GET' && url.searchParams.getAll('ids').length !== 1) throw fail(400, 'none-selected');
       const { ids } = m === 'GET' ? { ids: (url.searchParams.get('ids') ?? '').split(',') } : await readJson(req);
       return lib.queue(id, () => downloadZip(lib, id, ids, req, res));
@@ -337,6 +345,7 @@ async function trashMedia(lib, req, res, url) {
 }
 
 export function createHandler(lib, { license = null } = {}) {
+  const downloads = createDownloadTickets(lib);
   return async (req, res, next) => {
     try {
       const url = new URL(req.url, 'http://local');
@@ -346,7 +355,7 @@ export function createHandler(lib, { license = null } = {}) {
       }
       const who = gate(lib, req, res, url);
       if (!who) return;
-      if (url.pathname.startsWith('/api/')) return await api(lib, req, res, url, who.local, license);
+      if (url.pathname.startsWith('/api/')) return await api(lib, req, res, url, who.local, license, downloads);
       if (url.pathname.startsWith('/media/')) return await media(lib, req, res, url);
       if (url.pathname.startsWith('/trash-media/')) return await trashMedia(lib, req, res, url);
       return await next();
@@ -385,8 +394,11 @@ export async function startServer({ dir, port = 5180, host = '0.0.0.0', dist, fa
   let closing;
   const server = http.createServer((req, res) => {
     if (stopping) return send(res, 503, { error: say(langOf(req), 'server-stopping') }, { Connection: 'close' });
+    let url;
+    try { url = new URL(req.url, 'http://local'); }
+    catch { return send(res, 400, { error: say(langOf(req), 'wrong-address') }, { Connection: 'close' }); }
     const reading = ['GET', 'HEAD'].includes(req.method) ||
-      req.method === 'POST' && /^\/api\/albums\/[^/]+\/photos\/download$/.test(new URL(req.url, 'http://local').pathname);
+      req.method === 'POST' && /^\/api\/albums\/[^/]+\/photos\/download$/.test(url.pathname);
     if (reading) {
       readers.add(res);
       res.once('close', () => readers.delete(res));

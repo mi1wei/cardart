@@ -122,3 +122,47 @@ test('a photo with a note gets a one-line caption under it; blank notes change n
     expect(result.blankCorner[0]).toBeLessThan(80); // a blank note keeps the full photo
   } finally { await fixture.close(); }
 });
+
+test('a caption never collapses a panoramic photo shorter than the caption line', async () => {
+  const fixture = await desktopFixture();
+  try {
+    const { page } = await fixture.launch();
+    const { layoutPages } = await import('../src/book/layout.js');
+    const layout = layoutPages([6000 / 200], 1)[0];
+    expect(layout.rects[0].h).toBeLessThan(6);
+    await serveModule(page, 'src/book/textures.js', '/__folio-panorama-test.js');
+    const jpeg = await sharp({ create: { width: 6000, height: 200, channels: 3, background: '#2b6187' } }).jpeg().toBuffer();
+    const result = await page.evaluate(async ({ layout, image }) => {
+      const { createPageTexture } = await import('/__folio-panorama-test.js');
+      const draws = [];
+      const captions = [];
+      const drawImage = CanvasRenderingContext2D.prototype.drawImage;
+      const fillText = CanvasRenderingContext2D.prototype.fillText;
+      CanvasRenderingContext2D.prototype.drawImage = function (image, ...args) {
+        draws.push(args);
+        return drawImage.call(this, image, ...args);
+      };
+      CanvasRenderingContext2D.prototype.fillText = function (text, ...args) {
+        captions.push({ text, x: args[0], y: args[1] });
+        return fillText.call(this, text, ...args);
+      };
+      let ready;
+      const loaded = new Promise((resolve) => { ready = resolve; });
+      let texture;
+      try {
+        texture = createPageTexture(0, layout, () => image, ready, () => ({ note: 'Panorama' }));
+        await loaded;
+        return { draws, captions };
+      } finally {
+        texture?.dispose();
+        CanvasRenderingContext2D.prototype.drawImage = drawImage;
+        CanvasRenderingContext2D.prototype.fillText = fillText;
+      }
+    }, { layout, image: `data:image/jpeg;base64,${jpeg.toString('base64')}` });
+    const [x, y, w, h] = result.draws[0];
+    expect(x).toBeGreaterThan(0);
+    expect(w).toBeGreaterThan(100);
+    expect(h).toBeCloseTo(layout.rects[0].h);
+    expect(result.captions.find((item) => item.text === 'Panorama').y).toBeGreaterThan(y + h);
+  } finally { await fixture.close(); }
+});

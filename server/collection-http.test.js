@@ -5,6 +5,7 @@ import http from 'node:http';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { spawnSync } from 'node:child_process';
 import yauzl from 'yauzl';
 import { startServer } from './app.js';
 import { openLibrary } from './library.js';
@@ -54,6 +55,31 @@ async function unzip(buffer) {
     zip.readEntry();
   });
 }
+
+test('a malformed POST URL returns a client error without terminating the server', async (t) => {
+  const f = await fixture(t);
+  await f.runtime.close();
+  const child = spawnSync(process.execPath, ['--input-type=module', '-e', `
+    import assert from 'node:assert/strict';
+    import http from 'node:http';
+    import { startServer } from ${JSON.stringify(new URL('./app.js', import.meta.url).href)};
+    const runtime = await startServer({ dir: process.argv[1], dist: process.argv[2], port: 0 });
+    try {
+      const status = await new Promise((resolve, reject) => {
+        const request = http.request(runtime.url, {
+          method: 'POST', path: 'http://[', headers: { 'Content-Length': '0', Connection: 'close' },
+        }, (response) => { response.resume(); response.once('end', () => resolve(response.statusCode)); });
+        request.on('error', reject);
+        request.end();
+      });
+      assert.equal(status, 400);
+      const response = await fetch(runtime.url + 'api/albums');
+      assert.equal(response.status, 200);
+      assert.equal((await response.json()).length, 2);
+    } finally { await runtime.close(); }
+  `, f.dir, join(f.dir, '..', 'web')], { encoding: 'utf8', timeout: 10000 });
+  assert.equal(child.status, 0, child.stderr || child.error?.message);
+});
 
 test('HTTP deletion retains album shape and complete trash entries; restore and purge are write-gated', async (t) => {
   const f = await fixture(t);
@@ -112,6 +138,42 @@ test('ZIP is uncompressed, sanitizes and numbers duplicate names, and remains av
   for (const query of ['', '?ids=p001,p001', '?ids=../secret', '?ids=p001&ids=p002', '?ids=p001,']) {
     assert.equal((await fetch(f.runtime.url + `api/albums/${f.album.id}/photos/download${query}`)).status, 400);
   }
+});
+
+test('large native ZIP selections use bounded single-use tickets instead of oversized URLs', async (t) => {
+  const f = await fixture(t);
+  await f.runtime.close();
+  const lib = await openLibrary(f.dir);
+  const photos = Array.from({ length: 2200 }, (_, i) => ({
+    ...f.photos[0], id: `p${String(i + 1).padStart(3, '0')}`, name: `photo-${i + 1}.jpg`,
+  }));
+  await lib.save({ ...lib.get(f.album.id), photos, nextSeq: 2201 });
+  await lib.close();
+  const runtime = await startServer({
+    dir: f.dir, dist: join(f.dir, '..', 'web'), port: 0,
+    license: { status: () => ({ state: 'expired', canWrite: false }) },
+  });
+  try {
+    const prepare = async (ids) => fetch(`${runtime.url}api/albums/${f.album.id}/photos/download?prepare=1`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids }),
+    });
+    const prepared = await prepare(photos.map((p) => p.id));
+    assert.equal(prepared.status, 200);
+    assert.match(prepared.headers.get('content-type'), /application\/json/);
+    const { ticket } = await prepared.json();
+    assert.match(ticket, /^[0-9a-f-]{36}$/);
+    const path = `api/albums/${f.album.id}/photos/download?ticket=${ticket}`;
+    assert.ok(path.length < 150);
+    assert.equal((await fetch(`${runtime.url}api/albums/${f.target.id}/photos/download?ticket=${ticket}`)).status, 404);
+    const response = await fetch(runtime.url + path);
+    assert.equal(response.status, 200);
+    const files = await unzip(Buffer.from(await response.arrayBuffer()));
+    assert.equal(files.length, 2200);
+    assert.equal(files[2199].name, 'photo-2200.jpg');
+    assert.equal((await fetch(runtime.url + path)).status, 404);
+    assert.equal((await prepare(['p999999'])).status, 404);
+    assert.equal((await prepare(['p001', 'p001'])).status, 400);
+  } finally { await runtime.close(); }
 });
 
 test('API mutations and transfer return sorted snapshots and invalid sort is rejected', async (t) => {

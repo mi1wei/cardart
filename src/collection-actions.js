@@ -61,11 +61,13 @@ export async function chooseAlbum(sourceId, mode = 'move') {
 export async function downloadPhotos(album, ids) {
   const photos = album.photos.filter((p) => ids.includes(p.id));
   if (!photos.length) throw new Error(t('album-missing'));
+  const ticket = photos.length > 1 ? (await api.prepareDownload(album.id, ids)).ticket : null;
+  if (photos.length > 1 && !/^[0-9a-f-]{36}$/.test(ticket ?? '')) throw new Error(t('upload-bad-response'));
   const link = document.createElement('a');
   // Let the browser stream to disk: a multi-video ZIP must not be buffered in renderer memory.
   link.href = photos.length === 1
     ? `${mediaUrl(album.id, photos[0].id, 'original')}?download=1`
-    : `/api/albums/${album.id}/photos/download?${new URLSearchParams({ ids: ids.join(',') })}`;
+    : `/api/albums/${album.id}/photos/download?${new URLSearchParams({ ticket })}`;
   link.download = photos.length === 1 ? photos[0].name : `${album.title}.zip`;
   document.body.append(link);
   link.click();

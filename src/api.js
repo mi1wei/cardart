@@ -25,6 +25,7 @@ export const api = {
   restoreTrash: (ids) => call('POST', '/api/trash/restore', { ids }),
   purgeTrash: (ids, all = false) => call('POST', '/api/trash/purge', all ? { all: true } : { ids }),
   transferPhotos: (id, ids, targetId, mode) => call('POST', `/api/albums/${id}/photos/transfer`, { ids, targetId, mode }),
+  prepareDownload: (id, ids) => call('POST', `/api/albums/${id}/photos/download?prepare=1`, { ids }),
   phone: () => call('GET', '/api/phone'),
   setPhone: (enabled) => call('PATCH', '/api/phone', { enabled }),
   async upload(id, file, { signal } = {}) {

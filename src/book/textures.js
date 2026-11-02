@@ -17,7 +17,8 @@ const noteOf = (info) => (typeof info?.note === 'string' ? info.note.replace(/\s
 
 // Where the photo sits in its slot: a note takes a line under it and the photo keeps its shape.
 function photoBox(r, note) {
-  if (!note) return r;
+  // Very short panoramas occupy a page alone, with ample space below their centred slot.
+  if (!note || r.h < CAPTION * 2) return r;
   const h = r.h - CAPTION;
   const w = (h * r.w) / r.h;
   return { x: r.x + (r.w - w) / 2, y: r.y, w, h };
@@ -57,7 +58,8 @@ function drawPage(ctx, face, page, itemInfo) {
       ctx.font = `italic 3.4px ${SERIF}`;
       ctx.textAlign = 'center';
       ctx.fillStyle = INK;
-      ctx.fillText(fitText(ctx, note, r.w - 2), x0 + POCKET.pad + r.x + r.w / 2, y0 + POCKET.pad + r.y + r.h - 1.6);
+      const below = r.h < CAPTION * 2 ? CAPTION : 0;
+      ctx.fillText(fitText(ctx, note, r.w - 2), x0 + POCKET.pad + r.x + r.w / 2, y0 + POCKET.pad + r.y + r.h + below - 1.6);
       ctx.restore();
     }
   }

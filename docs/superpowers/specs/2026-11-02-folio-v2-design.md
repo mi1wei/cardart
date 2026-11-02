@@ -1,7 +1,7 @@
 # 册页 Folio v2：界面与功能改版（设计文档）
 
 - 日期：2026-11-02
-- 状态：待用户审阅
+- 状态：设计已确认；S1–S7 已实现，代码评审与自动化验收通过（见文末实现索引）
 - 基础：现有功能以 `2026-10-26-photo-album-manager-design.md`、`2026-10-27-folio-redesign-design.md`、`2026-10-28-video-in-albums-design.md` 为准；本文只写变化。
 - 界面稿（已逐页确认）：`docs/superpowers/mockups/2026-11-02-folio-v2/`
   - `visual-direction.html`：视觉基调（选 A + B 的白边与日期范围）
@@ -147,3 +147,19 @@ API：`GET /api/trash`、`POST /api/trash/restore { ids }`、`POST /api/trash/pu
 
 - README：删除、排序与搜索、深色模式、导出 PDF、手机竖屏 3D。
 - 第三方声明：`yazl` 进入运行时依赖。
+
+## 13. 实现索引与验证
+
+| 子项目 | 主要实现 | 自动化覆盖 |
+|---|---|---|
+| S1 视觉基础 | `theme.js`、`theme-boot.js`、`style.css` | `theme.spec.cjs`、`album-polish.spec.cjs` |
+| S2 看大图 | `lightbox.js`、`lightbox-zoom.js`、`lightbox-filmstrip.js`、`photo-details.js`、`photo-view.css` | `lightbox-v2.spec.cjs`、照片详情/备注与视频播放回归 |
+| S3 排序搜索 | `library.js`、`album.js`、`wall.js`、`folder.js`、`home.js` | `collection.test.js`、`collection-http.test.js`、`collection-v2.spec.cjs` |
+| S4 最近删除 | `library-transactions.js`、`library.js`、`trash.js`、`undo.js` | 回收站回滚/启动恢复/过期/ID 冲突与界面恢复、撤销、彻底删除 |
+| S5 批量操作 | `library.js`、`download.js`、`collection-actions.js`、相册页底部悬浮条 | 跨相册复制移动、重复跳过、ZIP 中断/重名、键盘多选、手机长按、原生下载 |
+| S6 3D 增强 | `viewer.js`、`flip-player.js`、`book/` | `book-autoplay.spec.cjs`、`book-pages.spec.cjs`、`book-portrait.spec.cjs`、`video-book.spec.cjs` |
+| S7 PDF 导出 | `pdf-export.js`、`print-layout.js`、`print.html`、`desktop/pdf-export.cjs` | PDF 原生导出、浏览器打印、预览选项、取消、故障清理与 IPC 边界 |
+
+最终评审发现的异常请求、超长下载链接和全景照片图注问题均已通过先失败、后通过的回归测试修复。批量下载先以 POST 申请限时、单次使用的下载凭证，再使用短链接流式下载，避免 URL 长度限制与渲染进程内存缓冲。
+
+本次整合已实际运行 Node 全套测试（243 通过、1 项需要真实安装包的测试跳过）与 Electron 全套端到端测试（119 通过、1 项非 macOS 测试跳过），并通过生产构建；不是用 Chromium 替身代替 Electron。回收站覆盖模拟中断与恢复，未进行物理断电试验；触摸手势经过自动化验证，iPhone 真机验收仍需在目标设备上执行。
