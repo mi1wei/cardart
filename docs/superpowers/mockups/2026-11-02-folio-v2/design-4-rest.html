@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>册页 Folio v2 · 最近删除 · 导出 PDF · 首页 · 手机</title>
+<style>
+    /*
+     * BRAINSTORM COMPANION FRAME TEMPLATE
+     *
+     * This template provides a consistent frame with:
+     * - OS-aware light/dark theming
+     * - Header branding and connection status
+     * - Scrollable main content area
+     * - CSS helpers for common UI patterns
+     *
+     * Content is injected via placeholder comment in #frame-content.
+     */
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; }
+
+    /* ===== THEME VARIABLES ===== */
+    :root {
+      --bg-primary: #f5f5f7;
+      --bg-secondary: #ffffff;
+      --bg-tertiary: #e5e5e7;
+      --border: #d1d1d6;
+      --text-primary: #1d1d1f;
+      --text-secondary: #86868b;
+      --text-tertiary: #aeaeb2;
+      --accent: #0071e3;
+      --accent-hover: #0077ed;
+      --success: #34c759;
+      --warning: #ff9f0a;
+      --error: #ff3b30;
+      --selected-bg: #e8f4fd;
+      --selected-border: #0071e3;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg-primary: #1d1d1f;
+        --bg-secondary: #2d2d2f;
+        --bg-tertiary: #3d3d3f;
+        --border: #424245;
+        --text-primary: #f5f5f7;
+        --text-secondary: #86868b;
+        --text-tertiary: #636366;
+        --accent: #0a84ff;
+        --accent-hover: #409cff;
+        --selected-bg: rgba(10, 132, 255, 0.15);
+        --selected-border: #0a84ff;
+      }
+    }
+
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      display: flex;
+      flex-direction: column;
+      line-height: 1.5;
+    }
+
+    /* ===== FRAME STRUCTURE ===== */
+    .brand { display: flex; align-items: center; min-width: 0; overflow: hidden; color: var(--text-secondary); line-height: 1; }
+    .brand a { color: inherit; text-decoration: none; display: flex; align-items: center; gap: 0.5rem; min-width: 0; max-width: 100%; line-height: 1; }
+    .brand-copy { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1; transform: translateY(-1px); }
+    .brand-logo { display: block; height: 1em; width: auto; max-width: 180px; flex-shrink: 0; filter: invert(1); }
+    @media (prefers-color-scheme: dark) {
+      .brand-logo { filter: none; }
+    }
+    .status { font-size: 0.7rem; color: var(--status-color, var(--success)); display: flex; align-items: center; gap: 0.4rem; justify-self: end; white-space: nowrap; line-height: 1; }
+    .status::before { content: ''; width: 6px; height: 6px; background: var(--status-color, var(--success)); border-radius: 50%; }
+
+    .main { flex: 1; overflow-y: auto; }
+    #frame-content { padding: 2rem; min-height: 100%; }
+
+    .header {
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border);
+      padding: 0.5rem 1.5rem;
+      flex-shrink: 0;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 1rem;
+      min-height: 42px;
+    }
+    .header .brand { justify-self: start; width: 100%; font-size: 0.75rem; line-height: 1; }
+    .header .status { grid-column: 2; line-height: 1; }
+    .header span {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+    }
+    .header .selected-text {
+      color: var(--accent);
+      font-weight: 500;
+    }
+
+    /* ===== TYPOGRAPHY ===== */
+    h2 { font-size: 1.5rem; font-weight: 600; margin-bottom: 0.5rem; }
+    h3 { font-size: 1.1rem; font-weight: 600; margin-bottom: 0.25rem; }
+    .subtitle { color: var(--text-secondary); margin-bottom: 1.5rem; }
+    .section { margin-bottom: 2rem; }
+    .label { font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; }
+
+    /* ===== OPTIONS (for A/B/C choices) ===== */
+    .options { display: flex; flex-direction: column; gap: 0.75rem; }
+    .option {
+      background: var(--bg-secondary);
+      border: 2px solid var(--border);
+      border-radius: 12px;
+      padding: 1rem 1.25rem;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: flex;
+      align-items: flex-start;
+      gap: 1rem;
+    }
+    .option:hover { border-color: var(--accent); }
+    .option.selected { background: var(--selected-bg); border-color: var(--selected-border); }
+    .option .letter {
+      background: var(--bg-tertiary);
+      color: var(--text-secondary);
+      width: 1.75rem; height: 1.75rem;
+      border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 600; font-size: 0.85rem; flex-shrink: 0;
+    }
+    .option.selected .letter { background: var(--accent); color: white; }
+    .option .content { flex: 1; }
+    .option .content h3 { font-size: 0.95rem; margin-bottom: 0.15rem; }
+    .option .content p { color: var(--text-secondary); font-size: 0.85rem; margin: 0; }
+
+    /* ===== CARDS (for showing designs/mockups) ===== */
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; }
+    .card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .card:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    .card.selected { border-color: var(--selected-border); border-width: 2px; }
+    .card-image { background: var(--bg-tertiary); aspect-ratio: 16/10; display: flex; align-items: center; justify-content: center; }
+    .card-body { padding: 1rem; }
+    .card-body h3 { margin-bottom: 0.25rem; }
+    .card-body p { color: var(--text-secondary); font-size: 0.85rem; }
+
+    /* ===== MOCKUP CONTAINER ===== */
+    .mockup {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      margin-bottom: 1.5rem;
+    }
+    .mockup-header {
+      background: var(--bg-tertiary);
+      padding: 0.5rem 1rem;
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      border-bottom: 1px solid var(--border);
+    }
+    .mockup-body { padding: 1.5rem; }
+
+    /* ===== SPLIT VIEW (side-by-side comparison) ===== */
+    .split { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+    @media (max-width: 700px) { .split { grid-template-columns: 1fr; } }
+
+    /* ===== PROS/CONS ===== */
+    .pros-cons { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 1rem 0; }
+    .pros, .cons { background: var(--bg-secondary); border-radius: 8px; padding: 1rem; }
+    .pros h4 { color: var(--success); font-size: 0.85rem; margin-bottom: 0.5rem; }
+    .cons h4 { color: var(--error); font-size: 0.85rem; margin-bottom: 0.5rem; }
+    .pros ul, .cons ul { margin-left: 1.25rem; font-size: 0.85rem; color: var(--text-secondary); }
+    .pros li, .cons li { margin-bottom: 0.25rem; }
+
+    /* ===== PLACEHOLDER (for mockup areas) ===== */
+    .placeholder {
+      background: var(--bg-tertiary);
+      border: 2px dashed var(--border);
+      border-radius: 8px;
+      padding: 2rem;
+      text-align: center;
+      color: var(--text-tertiary);
+    }
+
+    /* ===== INLINE MOCKUP ELEMENTS ===== */
+    .mock-nav { background: var(--accent); color: white; padding: 0.75rem 1rem; display: flex; gap: 1.5rem; font-size: 0.9rem; }
+    .mock-sidebar { background: var(--bg-tertiary); padding: 1rem; min-width: 180px; }
+    .mock-content { padding: 1.5rem; flex: 1; }
+    .mock-button { background: var(--accent); color: white; border: none; padding: 0.5rem 1rem; border-radius: 6px; font-size: 0.85rem; }
+    .mock-input { background: var(--bg-primary); border: 1px solid var(--border); border-radius: 6px; padding: 0.5rem; width: 100%; }
+  
+html, body { height: auto; overflow: auto; }
+</style>
+<script>function toggleSelect(el){const multi=el.parentElement.hasAttribute("data-multiselect");if(!multi)for(const s of el.parentElement.children)if(s!==el)s.classList.remove("selected");el.classList.toggle("selected");}</script>
+</head>
+<body>
+<div class="main"><div id="frame-content">
+<style>
+  .fx{--bg:#f7f9fb;--r:#fff;--ink:#1c2430;--ink2:#5a6573;--ink3:#8a94a0;--l:#e6eaee;--h:#eef2f5;--a:#1d5f80;--ao:#fff;--sh:0 0 0 1px rgba(28,36,48,.05),0 2px 6px rgba(28,36,48,.05);--frame:#fff;
+    background:var(--bg);color:var(--ink);font-family:-apple-system,'PingFang SC',sans-serif;font-size:12px;border-radius:12px;overflow:hidden;position:relative}
+  .nav{display:flex;align-items:center;gap:6px;padding:10px 18px;border-bottom:1px solid var(--l)}
+  .logo{width:22px;height:22px;border-radius:6px;background:linear-gradient(135deg,#2d7aa0,#1d5f80);margin-right:4px}
+  .nl{padding:4px 10px;border-radius:99px;color:var(--ink2)}.nl.on{background:var(--h);color:var(--ink);font-weight:600}
+  .sp{flex:1}
+  .pill{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--l);border-radius:99px;padding:5px 11px;background:var(--r);color:var(--ink);white-space:nowrap}
+  .pill.p{background:var(--a);border-color:var(--a);color:var(--ao)}.pill.d{color:#b42318}
+  .seg{display:inline-flex;background:var(--h);border-radius:99px;padding:2px}.seg span{padding:3px 8px;border-radius:99px;color:var(--ink3)}.seg span.on{background:var(--r);color:var(--ink);box-shadow:var(--sh)}
+  .page{padding:22px 40px 40px}
+  h1{font-size:26px;margin:0;font-weight:700}
+  .sub{color:var(--ink2);margin-top:3px}
+  .crumb{color:var(--ink3);margin-bottom:6px}.crumb b{color:var(--ink2);font-weight:500}
+  .row{display:flex;align-items:center;gap:8px}
+  .banner{display:flex;align-items:center;gap:10px;background:#fff8e6;border:1px solid #f1e0b0;color:#6b5418;border-radius:10px;padding:9px 12px;margin-top:14px}
+  .grp{font-weight:600;color:var(--ink2);margin:18px 0 8px}
+  .grid{display:flex;flex-wrap:wrap;gap:12px}
+  .t{height:96px;border-radius:2px;box-shadow:0 0 0 4px var(--frame),0 3px 10px rgba(0,0,0,.12);position:relative;opacity:.92}
+  .t .days{position:absolute;left:6px;bottom:6px;background:rgba(0,0,0,.6);color:#fff;font-size:10px;padding:1px 6px;border-radius:99px}
+  .t .from{position:absolute;left:6px;top:6px;background:rgba(255,255,255,.92);color:#1c2430;font-size:10px;padding:1px 6px;border-radius:99px}
+  .t.sel{box-shadow:0 0 0 4px var(--a)}.t.sel::after{content:'✓';position:absolute;right:6px;top:6px;width:18px;height:18px;border-radius:99px;background:var(--a);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px}
+  .alb{width:200px}.alb .pk{height:96px;border-radius:12px;background:var(--h);position:relative;overflow:hidden}.alb .pk i{position:absolute;left:12%;right:12%;top:10px;height:70px;border-radius:2px;box-shadow:0 0 0 3px #fff}
+  .alb .meta{display:flex;gap:6px;margin-top:6px;align-items:baseline}.alb small{color:var(--ink3)}
+  .float{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);background:#1c2430;color:#fff;border-radius:16px;padding:9px 14px;display:flex;gap:16px;align-items:center;white-space:nowrap;box-shadow:0 12px 32px rgba(0,0,0,.3)}
+  .float .d{color:#ff9b8f}
+  .toast{position:absolute;right:20px;bottom:16px;background:#1c2430;color:#fff;border-radius:10px;padding:9px 14px;display:flex;gap:14px;align-items:center;box-shadow:0 10px 26px rgba(0,0,0,.25)}
+  .toast u{color:#9fd3f0;text-decoration:none;font-weight:600}
+  .cap{color:var(--text-secondary,#888);font-size:11.5px;margin:8px 2px 0}
+  /* modal */
+  .scrim{background:rgba(20,26,34,.35);padding:30px;display:flex;justify-content:center;border-radius:12px}
+  .modal{background:#fff;border-radius:16px;width:640px;box-shadow:0 24px 60px rgba(0,0,0,.25);display:flex;overflow:hidden;font-family:-apple-system,'PingFang SC',sans-serif;font-size:12px;color:#1c2430}
+  .modal .prev{flex:1;background:#eef2f5;padding:18px;display:flex;flex-direction:column;align-items:center;gap:8px}
+  .sheet{width:220px;height:155px;background:#fff;box-shadow:0 4px 14px rgba(0,0,0,.15);display:flex;padding:10px;gap:8px;box-sizing:border-box;position:relative}
+  .sheet.cover::after{display:none}
+  .sheet::after{content:'';position:absolute;left:50%;top:8px;bottom:8px;border-left:1px dashed #dfe5ea}
+  .sheet .half{flex:1;display:flex;flex-direction:column;gap:5px}
+  .sheet i{display:block;border-radius:1px}
+  .sheet .c{font-size:7px;color:#7a838e;font-style:italic;font-family:'Songti SC',Georgia,serif}
+  .modal .opts{width:250px;padding:18px;display:flex;flex-direction:column;gap:12px}
+  .modal h3{margin:0;font-size:15px}
+  .f label{display:block;color:#5a6573;margin-bottom:5px}
+  .chk{display:flex;gap:6px;align-items:center}.chk b{width:14px;height:14px;border-radius:4px;background:#1d5f80;color:#fff;font-size:9px;display:inline-flex;align-items:center;justify-content:center}
+  /* phone */
+  .phones{display:flex;gap:26px;justify-content:center;flex-wrap:wrap;padding:10px}
+  .phwrap{text-align:center}.phwrap p{color:var(--text-secondary,#888);font-size:12px;margin:8px auto 0;max-width:230px}
+  .phone{width:220px;height:450px;border-radius:30px;border:7px solid #1c2430;overflow:hidden;position:relative;font-family:-apple-system,'PingFang SC',sans-serif;font-size:10px;background:#f7f9fb;color:#1c2430;text-align:left}
+  .phone .tb{display:flex;align-items:center;gap:6px;padding:12px 12px 8px}
+  .phone h1{font-size:19px}.phone .sub{font-size:10px}
+  .phone .g{display:flex;flex-wrap:wrap;gap:6px;padding:10px 10px}
+  .phone .g i{height:62px;display:block;border-radius:2px;box-shadow:0 0 0 2.5px #fff,0 1px 4px rgba(0,0,0,.12)}
+  .fab{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);display:flex;gap:6px;background:#1c2430;border-radius:99px;padding:5px}
+  .fab span{color:#fff;padding:6px 11px;border-radius:99px;white-space:nowrap}.fab span.p{background:#2d7aa0}
+  .hero{text-align:center;padding:30px 40px 10px}
+  .eyebrow{display:inline-flex;gap:6px;align-items:center;color:var(--ink2);border:1px solid var(--l);border-radius:99px;padding:4px 10px;background:var(--r)}
+  .hero h2{font-size:34px;margin:14px 0 8px;letter-spacing:-.02em;color:var(--ink)}
+  .hero p{color:var(--ink2);margin:0 auto;max-width:440px;line-height:1.6}
+  .feats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding:14px 40px 0}
+  .feat{background:var(--r);border-radius:12px;padding:12px;box-shadow:var(--sh)}.feat b{display:block;margin:6px 0 3px}.feat span{color:var(--ink2);font-size:11px}
+  .s1{background:radial-gradient(circle at 70% 30%,#fbe7a8 0 10%,transparent 11%),linear-gradient(#9fd0ea 0 55%,#2a6f93 56%)}
+  .s2{background:radial-gradient(circle at 30% 60%,#ffd9a0 0 9%,transparent 10%),linear-gradient(#f4b37a,#b44f3c 70%,#3a2a4a)}
+  .s3{background:linear-gradient(160deg,transparent 55%,#2f6a45 56%),linear-gradient(20deg,transparent 50%,#4d8a5c 51%),linear-gradient(#dfeee0,#a8cfae)}
+  .s4{background:linear-gradient(140deg,transparent 50%,#5b4a8a 51%),linear-gradient(#e2d4f0,#9a86c4)}
+  .s5{background:radial-gradient(circle at 50% 40%,#fff3c4 0 12%,transparent 13%),linear-gradient(#f6dc8c,#c58b2a)}
+  .s6{background:linear-gradient(transparent 70%,#1e2c4a 71%),radial-gradient(circle at 60% 30%,#fff 0 3%,transparent 4%),linear-gradient(#5d7fb5,#1e2c4a)}
+</style>
+
+<h2>设计稿 ④ 最近删除 · 导出 PDF · 首页 · 手机</h2>
+<p class="subtitle">最后一批。</p>
+
+<div class="mockup"><div class="mockup-header">最近删除（从相册墙最后一张卡进入）</div><div class="mockup-body" style="padding:0">
+<div class="fx">
+  <div class="page" style="padding-bottom:70px">
+    <div class="crumb">相册 / <b>最近删除</b></div>
+    <div class="row"><div><h1>最近删除</h1><div class="sub">1 本相册 · 4 张照片 · 1 段视频</div></div><span class="sp"></span><span class="pill">☑ 选择</span><span class="pill d">全部彻底删除</span></div>
+    <div class="banner">ⓘ 删除的内容会在这里保留 30 天，之后自动永久清除。恢复会放回原相册；原相册已删除时会一起恢复。</div>
+    <div class="grp">相册</div>
+    <div class="row"><div class="alb"><div class="pk"><i class="s6"></i></div><div class="meta"><b>旧手机导入</b><small>23 张 · 剩 28 天</small></div></div></div>
+    <div class="grp">照片和视频</div>
+    <div class="grid">
+      <i class="t s2 sel" style="width:150px"><span class="from">海边夏天 2026</span><span class="days">剩 29 天</span></i>
+      <i class="t s4 sel" style="width:90px"><span class="days">剩 29 天</span></i>
+      <i class="t s5" style="width:140px"><span class="from">京都旅行</span><span class="days">剩 12 天</span></i>
+      <i class="t s3" style="width:130px"><span class="days">剩 3 天</span></i>
+    </div>
+  </div>
+  <div class="float"><b>已选 2</b><span>↺ 恢复</span><span class="d">✕ 彻底删除</span><span style="opacity:.5">✕</span></div>
+</div></div></div>
+<p class="cap">点单张：进看大图（只读），顶栏只有「↺ 恢复」「✕ 彻底删除」。彻底删除需二次确认。为空时相册墙不显示这张卡。删除任意内容后右下角出现撤销条：</p>
+<div class="fx" style="height:64px;margin-top:6px"><div class="toast">已移到「最近删除」· 2 张照片 <u>撤销</u></div></div>
+
+<div class="mockup" style="margin-top:20px"><div class="mockup-header">导出 PDF（相册页「⋯」→ 导出 PDF）</div><div class="mockup-body" style="padding:0">
+<div class="scrim"><div class="modal fx" style="border-radius:16px;background:#fff">
+  <div class="prev">
+    <div class="sheet cover" style="background:linear-gradient(135deg,#2d6f91,#1d4f6a);color:#fff;align-items:center;justify-content:center;flex-direction:column;gap:6px"><i class="s1" style="width:90px;height:60px;box-shadow:0 0 0 3px #fff"></i><b style="font-family:'Songti SC',Georgia,serif">海边夏天 2026</b><span style="font-size:8px;opacity:.8">2026.07.02 – 07.15</span></div>
+    <div class="sheet"><div class="half"><i class="s2" style="flex:1"></i><span class="c">日落前十分钟。</span></div><div class="half"><i class="s4" style="flex:1"></i><i class="s5" style="flex:1"></i></div></div>
+    <span style="color:#7a838e">预览 · 共 6 页</span>
+  </div>
+  <div class="opts"><h3>导出 PDF</h3>
+    <div class="f"><label>纸张</label><span class="seg"><span class="on">A4 横向</span><span>Letter 横向</span></span></div>
+    <div class="f"><label>每页照片</label><span class="seg"><span>1</span><span class="on">2</span><span>3</span></span> <small style="color:#8a94a0">同 3D 设置</small></div>
+    <div class="f"><label>画质</label><span class="seg"><span>标准</span><span class="on">高（打印）</span></span></div>
+    <div class="chk"><b>✓</b>封面页（相册名 + 日期）</div>
+    <div class="chk"><b>✓</b>备注作为图注</div>
+    <small style="color:#8a94a0">视频只放封面帧，并标注「视频」。</small>
+    <span class="sp"></span>
+    <div class="row"><span class="sp"></span><span class="pill">取消</span><span class="pill p">⤓ 导出</span></div>
+  </div>
+</div></div></div></div>
+<p class="cap">在电脑本地生成，进度显示在按钮上；完成后保存到「下载」。手机端不提供导出。</p>
+
+<div class="mockup" style="margin-top:20px"><div class="mockup-header">首页（结构不变，改：最近相册排序、深色适配）</div><div class="mockup-body" style="padding:0">
+<div class="fx">
+  <div class="nav"><span class="logo"></span><b style="margin-right:10px">册页</b><span class="nl on">首页</span><span class="nl">相册</span><span class="sp"></span><span class="seg"><span class="on">☀</span><span>☾</span><span>自动</span></span><span class="seg"><span class="on">中</span><span>EN</span></span></div>
+  <div class="hero"><span class="eyebrow">● 本地相册 · 不上传 │ 3 本相册 · 14 张照片</span><h2>照片留在自己电脑上，<br>翻起来像一本真的相册</h2><p>导入、整理、写备注，用 3D 翻页的方式回看；同一 Wi‑Fi 下手机扫码就能看。</p>
+    <div class="row" style="justify-content:center;margin-top:14px"><span class="pill p">打开相册 →</span><span class="pill">在手机上看</span></div></div>
+  <div class="feats"><div class="feat">💻<b>存在本机</b><span>不上传任何服务器</span></div><div class="feat">📖<b>3D 翻阅</b><span>自动翻页、手机竖屏可看</span></div><div class="feat">🗂<b>按拍摄时间</b><span>排序、搜索、批量整理</span></div><div class="feat">♻️<b>误删可找回</b><span>30 天内随时恢复</span></div></div>
+  <div class="page" style="padding-top:16px"><div class="row"><b style="font-size:15px">最近更新</b><span class="sp"></span><span style="color:var(--ink3)">全部相册 →</span></div>
+    <div class="row" style="gap:16px;margin-top:10px"><div class="alb"><div class="pk"><i class="s1"></i></div><div class="meta"><b>海边夏天 2026</b><small>9 张</small></div></div><div class="alb"><div class="pk"><i class="s5"></i></div><div class="meta"><b>京都旅行</b><small>5 张</small></div></div></div></div>
+</div></div></div>
+<p class="cap">「最近的相册」改为「最近更新」，跳过空相册；功能卡第 3、4 张换成新功能。</p>
+
+<div class="mockup" style="margin-top:20px"><div class="mockup-header">手机 · 相册页 / 选择中 / 深色</div><div class="mockup-body">
+<div class="phones">
+  <div class="phwrap"><div class="phone">
+    <div class="tb"><span>‹ 相册</span><span class="sp"></span><span>⌕</span><span>⇅</span><span>⋯</span></div>
+    <div style="padding:0 12px"><h1>海边夏天 2026</h1><div class="sub">9 张 · 2026.07.02 – 07.15</div></div>
+    <div class="g"><i class="s1" style="width:46%"></i><i class="s2" style="width:46%"></i><i class="s3" style="width:30%"></i><i class="s4" style="width:62%"></i><i class="s5" style="width:46%"></i><i class="s6" style="width:46%"></i></div>
+    <div class="fab"><span>⤒ 上传</span><span>☑ 选择</span><span class="p">📖 3D</span></div>
+  </div><p>顶栏：返回、搜索、排序、⋯。底部悬浮：上传 / 选择 / 3D。</p></div>
+  <div class="phwrap"><div class="phone">
+    <div class="tb"><span>全选</span><span class="sp"></span><b>已选 2</b><span class="sp"></span><span style="color:#1d5f80;font-weight:600">完成</span></div>
+    <div class="g" style="padding-top:4px"><i class="s1" style="width:46%;box-shadow:0 0 0 2.5px #1d5f80"></i><i class="s2" style="width:46%"></i><i class="s3" style="width:30%;box-shadow:0 0 0 2.5px #1d5f80"></i><i class="s4" style="width:62%"></i><i class="s5" style="width:46%"></i><i class="s6" style="width:46%"></i></div>
+    <div class="fab" style="border-radius:14px;padding:6px 8px"><span>↗ 移动</span><span>⤓</span><span style="color:#ff9b8f">🗑</span></div>
+  </div><p>选择时悬浮条原地换成批量操作（复制在「移动」菜单里）。长按照片直接进入选择。</p></div>
+  <div class="phwrap"><div class="phone" style="background:#121417;color:#e9ecef">
+    <div class="tb"><span>‹ 相册</span><span class="sp"></span><span>⌕</span><span>⇅</span><span>⋯</span></div>
+    <div style="padding:0 12px"><h1>海边夏天 2026</h1><div class="sub" style="color:#a7b0ba">9 张 · 2026.07.02 – 07.15</div></div>
+    <div class="g"><i class="s1" style="width:46%;box-shadow:0 0 0 2.5px #2a2e33"></i><i class="s2" style="width:46%;box-shadow:0 0 0 2.5px #2a2e33"></i><i class="s3" style="width:30%;box-shadow:0 0 0 2.5px #2a2e33"></i><i class="s4" style="width:62%;box-shadow:0 0 0 2.5px #2a2e33"></i></div>
+    <div class="fab" style="background:#e9ecef"><span style="color:#111">⤒ 上传</span><span style="color:#111">☑ 选择</span><span class="p">📖 3D</span></div>
+  </div><p>深色跟随手机系统设置。</p></div>
+</div></div></div>
+</div></div>
+</body>
+</html>
