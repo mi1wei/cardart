@@ -78,3 +78,47 @@ test('title page text leaves out a missing date range and cuts a long name to on
     expect(result.labels[1].text).toBe('2 photos');
   } finally { await fixture.close(); }
 });
+
+test('a photo with a note gets a one-line caption under it; blank notes change nothing', async () => {
+  const fixture = await desktopFixture();
+  try {
+    const { page } = await fixture.launch();
+    await serveModule(page, 'src/book/textures.js', '/__folio-caption-test.js');
+    const image = `data:image/jpeg;base64,${(await posterBytes()).toString('base64')}`;
+    const long = `Long note ${'that keeps going '.repeat(12)}\nsecond line`;
+    const result = await page.evaluate(async ({ image, long }) => {
+      const { createPageTexture } = await import('/__folio-caption-test.js');
+      const labels = [];
+      const fillText = CanvasRenderingContext2D.prototype.fillText;
+      CanvasRenderingContext2D.prototype.fillText = function (text, ...args) { labels.push(text); return fillText.call(this, text, ...args); };
+      const page = { rects: [{ i: 0, x: 0, y: 0, w: 60, h: 40 }, { i: 1, x: 80, y: 0, w: 60, h: 40 }, { i: 2, x: 0, y: 60, w: 60, h: 40 }] };
+      const notes = ['Hi', long, ' \n '];
+      let loaded;
+      const ready = new Promise((resolve) => { loaded = resolve; });
+      let paints = 0;
+      const texture = createPageTexture(0, page, () => image, () => { if (++paints === 3) loaded(); }, (i) => ({ kind: 'photo', note: notes[i] }));
+      await ready;
+      CanvasRenderingContext2D.prototype.fillText = fillText;
+      const canvas = texture.image;
+      const context = canvas.getContext('2d');
+      const pixel = (mmX, mmY) => [...context.getImageData(Math.round(mmX * canvas.width / 209.8), Math.round(mmY * canvas.height / 192.4), 1, 1).data];
+      // Pocket origin on a front face: x 22 + 5, y 6.4 + 5 mm.
+      const out = {
+        labels,
+        captionedCorner: pixel(27 + 1.5, 11.4 + 40 - 1),
+        captionedTop: pixel(27 + 30, 11.4 + 10),
+        blankCorner: pixel(27 + 1.5, 11.4 + 60 + 40 - 1),
+      };
+      texture.dispose();
+      return out;
+    }, { image, long });
+    expect(result.labels).toContain('Hi');
+    const cut = result.labels.find((text) => text.startsWith('Long note'));
+    expect(cut.endsWith('…')).toBe(true);
+    expect(cut).not.toContain('\n');
+    expect(result.labels).toHaveLength(2);
+    expect(result.captionedCorner[0]).toBeGreaterThan(180); // the photo moved up and in: film shows
+    expect(result.captionedTop[0]).toBeLessThan(80); // the photo is still there
+    expect(result.blankCorner[0]).toBeLessThan(80); // a blank note keeps the full photo
+  } finally { await fixture.close(); }
+});
