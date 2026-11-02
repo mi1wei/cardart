@@ -21,6 +21,10 @@ export const api = {
   updateAlbum: (id, patch) => call('PATCH', `/api/albums/${id}`, patch),
   deleteAlbum: (id) => call('DELETE', `/api/albums/${id}`),
   deletePhotos: (id, ids) => call('POST', `/api/albums/${id}/photos/delete`, { ids }),
+  trash: () => call('GET', '/api/trash'),
+  restoreTrash: (ids) => call('POST', '/api/trash/restore', { ids }),
+  purgeTrash: (ids, all = false) => call('POST', '/api/trash/purge', all ? { all: true } : { ids }),
+  transferPhotos: (id, ids, targetId, mode) => call('POST', `/api/albums/${id}/photos/transfer`, { ids, targetId, mode }),
   phone: () => call('GET', '/api/phone'),
   setPhone: (enabled) => call('PATCH', '/api/phone', { enabled }),
   async upload(id, file, { signal } = {}) {

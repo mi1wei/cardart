@@ -1,5 +1,6 @@
 import '@fontsource-variable/geist';
 import './style.css';
+import './collection.css';
 import { renderAlbum } from './album.js';
 import { renderHome } from './home.js';
 import { lang, t } from './i18n.js';
@@ -7,6 +8,7 @@ import { createNav } from './nav.js';
 import { start, swap } from './router.js';
 import { fullscreenTip, icon, toast } from './ui.js';
 import { renderWall } from './wall.js';
+import { renderTrash } from './trash.js';
 import { initLicense, renderLicense, refreshLicense } from './license.js';
 
 lang(); // the cookie tells the server our language before the first request
@@ -42,12 +44,12 @@ function show(next, again = false, previousHash) {
   const key = next.album ?? next.page;
   if (again || view?.key !== key) {
     view?.destroy();
-    const page = next.album ? renderAlbum(app, next.album) : next.page === 'albums' ? renderWall(app) : next.page === 'license' ? renderLicense(app) : renderHome(app);
+    const page = next.album ? renderAlbum(app, next.album) : next.page === 'albums' ? renderWall(app) : next.page === 'trash' ? renderTrash(app) : next.page === 'license' ? renderLicense(app) : renderHome(app);
     view = { key, ...page };
     if (!again) scrollTo(0, 0);
   }
   view.update?.(next);
-  nav.update(next.album ? 'albums' : next.page);
+  nav.update(next.album || next.page === 'trash' ? 'albums' : next.page);
 }
 
 start((next, previousHash) => show(next, false, previousHash));

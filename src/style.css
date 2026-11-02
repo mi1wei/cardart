@@ -317,7 +317,7 @@ button {
   width: 81%;
   aspect-ratio: 4 / 3;
   object-fit: cover;
-  border: 5px solid var(--frame);
+  border: 4px solid var(--frame);
   border-radius: 6px;
   background: var(--frame);
   box-shadow: 0 0.4px 1px oklch(23.5% 0.02 255 / 0.12), 0 3.5px 7.6px -3px oklch(23.5% 0.02 255 / 0.32);
@@ -1938,11 +1938,11 @@ button {
 
   .tile {
     border-radius: 2px;
-    box-shadow: 0 0 0 3px var(--frame), 0 2px 6px -2px oklch(23.5% 0.02 255 / 0.25);
+    box-shadow: 0 0 0 2.5px var(--frame), 0 2px 6px -2px oklch(23.5% 0.02 255 / 0.25);
   }
 
   .tile.sel {
-    box-shadow: 0 0 0 3px var(--accent);
+    box-shadow: 0 0 0 2.5px var(--accent);
   }
 
   .density {

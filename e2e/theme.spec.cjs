@@ -3,7 +3,7 @@ const sharp = require('sharp');
 const { desktopFixture } = require('./fixtures.cjs');
 const { seed, style } = require('./ui-helpers.cjs');
 
-test('the dark palette covers page surfaces and the lightbox stays light', async () => {
+test('the dark palette covers page surfaces and the lightbox stays dark', async () => {
   const fixture = await desktopFixture();
   try {
     const { page } = await fixture.launch();
@@ -22,7 +22,7 @@ test('the dark palette covers page surfaces and the lightbox stays light', async
     await page.keyboard.press('Escape');
     await page.locator('.tile').click();
     await expect(page.locator('.lb')).toBeVisible();
-    expect(await style(page, '.lb', 'backgroundColor')).toBe('rgb(245, 247, 249)');
+    expect(await style(page, '.lb', 'backgroundColor')).toBe('rgb(13, 15, 17)');
     await page.goto(`${origin}/#/albums`);
     await expect(page.locator('.lb')).toHaveCount(0);
     await expect(page.locator('.folder')).toHaveCount(1);
@@ -72,6 +72,7 @@ test('theme can change during an import while the language cannot', async () => 
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
     await page.locator('.nav [data-lang=en]').click({ force: true });
     await expect(page.locator('html')).toHaveAttribute('lang', 'zh-CN');
+    await page.evaluate(() => document.documentElement.removeAttribute('data-busy'));
   } finally { await fixture.close(); }
 });
 

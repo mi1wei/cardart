@@ -6,7 +6,7 @@ let emittedHash;
 export function parse(hash) {
   const m = /^#\/a\/([0-9a-f-]{36})(\/3d)?(?:\/p\/(p\d{3,}))?$/.exec(hash);
   if (m) return { page: 'album', album: m[1], three: !!m[2], photo: m[3] ?? null };
-  return { page: hash === '#/albums' ? 'albums' : hash === '#/license' ? 'license' : 'home', album: null, three: false, photo: null };
+  return { page: hash === '#/albums' ? 'albums' : hash === '#/trash' ? 'trash' : hash === '#/license' ? 'license' : 'home', album: null, three: false, photo: null };
 }
 
 const emit = () => {

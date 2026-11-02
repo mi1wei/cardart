@@ -108,7 +108,7 @@ export async function importVideo(lib, albumId, req, rawName, options = {}) {
       owned.add(posterPath);
       const photo = {
         id, kind: 'video', file, poster, name: basename(String(rawName ?? '')).slice(0, 200) || 'video',
-        w, h, ...posterSize, duration, sha256,
+        w, h, ...posterSize, duration, sha256, addedAt: new Date().toISOString(),
         metadata: makeVideoMetadata({ format: container.format, bytes: videoBytes, lastModified }),
       };
       await lib.save({ ...album, nextSeq: sequence + 1, photos: [...album.photos, photo] });

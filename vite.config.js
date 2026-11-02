@@ -6,6 +6,7 @@ let library;
 // Dev only: the same API as `npm start`, in the Vite process (spec §4). Added directly in
 // configureServer, so it runs before Vite's own middlewares and guards every request.
 export default defineConfig({
+  build: { rollupOptions: { input: { main: 'index.html', print: 'print.html' } } },
   plugins: [
     {
       name: 'album-api',

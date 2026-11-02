@@ -5,9 +5,10 @@ import { folder, folderClick } from './folder.js';
 import { t } from './i18n.js';
 import { onComputer, openPhoneDialog } from './phone.js';
 import { brandLogo, icon, toast } from './ui.js';
+import { c } from './collection-text.js';
 
 const still = matchMedia('(prefers-reduced-motion: reduce)');
-const FEATURES = [['laptop', 'f1'], ['bookOpen', 'f2'], ['layout', 'f3'], ['phone', 'f4']];
+const FEATURES = [['laptop', 'f1'], ['bookOpen', 'f2'], ['layout', 'f3'], ['trash', 'f4']];
 
 // The home page (spec §6): what the app is for, the recorded book, and the newest albums.
 export function renderHome(app) {
@@ -33,10 +34,10 @@ export function renderHome(app) {
       </section>
       <section class="sec">
         <h2>${t('what-it-does')}</h2>
-        <div class="feats">${FEATURES.map(([ic, k]) => `<div class="feat"><span class="ic">${icon(ic)}</span><h3>${t(`${k}-title`)}</h3><p>${t(`${k}-text`)}</p></div>`).join('')}</div>
+        <div class="feats">${FEATURES.map(([ic, k]) => `<div class="feat"><span class="ic">${icon(ic)}</span><h3>${k === 'f3' ? c('sortFeature') : k === 'f4' ? c('trashFeature') : t(`${k}-title`)}</h3><p>${k === 'f3' ? c('sortFeatureText') : k === 'f4' ? c('trashFeatureText') : t(`${k}-text`)}</p></div>`).join('')}</div>
       </section>
       <section class="sec recent" hidden>
-        <div class="sec-h"><h2>${t('recent')}</h2><a class="more" href="#/albums">${t('all-albums')} →</a></div>
+        <div class="sec-h"><h2>${c('recent')}</h2><a class="more" href="#/albums">${t('all-albums')} →</a></div>
         <div class="folders"></div>
       </section>
       <footer class="sec"><div class="foot"><span class="logo">${brandLogo()}${t('app')}</span><span>${t('footer')}</span></div></footer>
@@ -50,7 +51,7 @@ export function renderHome(app) {
         p: list.reduce((n, a) => n + (a.photoCount ?? a.count - (a.videoCount ?? 0)), 0),
         v: list.reduce((n, a) => n + (a.videoCount ?? 0), 0) });
       app.querySelector('.stats').hidden = false;
-      const filled = list.filter((a) => a.count > 0);
+      const filled = list.filter((a) => a.count > 0).sort((a, b) => (b.updatedAt ?? b.createdAt).localeCompare(a.updatedAt ?? a.createdAt));
       if (!filled.length) return;
       app.querySelector('.recent .folders').replaceChildren(...filled.slice(0, 4).map((a) => folder(a)));
       app.querySelector('.recent').hidden = false;

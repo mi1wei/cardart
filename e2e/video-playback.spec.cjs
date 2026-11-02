@@ -2,7 +2,18 @@ const { test, expect } = require('@playwright/test');
 const { readFile } = require('node:fs/promises');
 const { join } = require('node:path');
 const { desktopFixture } = require('./fixtures.cjs');
-const { seedMixed, openAlbum } = require('./video-fixtures.cjs');
+const { seedMixed, openAlbum: openBaseAlbum } = require('./video-fixtures.cjs');
+
+async function openAlbum(...args) {
+  const launched = await openBaseAlbum(...args);
+  await launched.page.evaluate(() => localStorage.setItem('lightbox-details', 'true'));
+  if (args[2]?.suffix?.includes('/p/')) {
+    const trigger = launched.page.locator('.lb-bar [data-act=details]');
+    await expect(trigger).toBeVisible();
+    if (await trigger.getAttribute('aria-expanded') === 'false') await trigger.click();
+  }
+  return launched;
+}
 
 async function playFrame(page) {
   const video = page.locator('.lb-video');

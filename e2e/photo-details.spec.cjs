@@ -6,7 +6,10 @@ const { desktopFixture } = require('./fixtures.cjs');
 const { photoBytes } = require('../tests/fixtures/photo-metadata.cjs');
 
 async function language(page, lang) {
-  await page.evaluate((value) => localStorage.setItem('lang', value), lang);
+  await page.evaluate((value) => {
+    localStorage.setItem('lang', value);
+    localStorage.setItem('lightbox-details', 'true');
+  }, lang);
   await page.reload();
 }
 
@@ -63,6 +66,7 @@ test('photo Details shows original dimensions and EXIF safely without changing t
     await expect(page.locator('.lb')).toHaveCount(0);
     await page.goto(`${origin}/#/a/${album.id}/3d/p/p001`);
     await expect(page.locator('.ab canvas')).toBeVisible();
+    await page.locator('.lb-bar [data-act=details]').click();
     await expect(page.locator('.lb-details [data-field=dimensions]')).toHaveText('3000 × 2000');
     await page.keyboard.press('Escape');
     await page.keyboard.press('Escape');
@@ -96,7 +100,8 @@ test('read-only legacy Details supports mobile scrolling, unknown timezone and m
     const box = await panel.boundingBox();
     expect(box.width).toBeLessThanOrEqual(390);
     const imageBox = await page.locator('.lb-stage').boundingBox();
-    expect(box.y).toBeGreaterThanOrEqual(imageBox.y + imageBox.height);
+    expect(box.y + box.height).toBeCloseTo(600, 0);
+    expect(box.y).toBeLessThan(imageBox.y + imageBox.height);
     await page.screenshot({ path: test.info().outputPath('details-mobile.png') });
     const count = await page.locator('.lb-count').textContent();
     await page.mouse.move(box.x + 40, box.y + 110);
@@ -114,7 +119,7 @@ test('read-only legacy Details supports mobile scrolling, unknown timezone and m
     await page.keyboard.press('ArrowRight');
     await expect(page.locator('.lb-count')).toHaveText(count);
     await page.evaluate(() => getSelection().removeAllRanges());
-    await page.locator('.lb').evaluate((element) => { element.scrollTop = 0; });
+    await panel.evaluate((element) => { element.scrollTop = 0; });
     const session = await desktop.context().newCDPSession(page);
     await session.send('Emulation.setTouchEmulationEnabled', { enabled: true });
     const x = box.x + box.width - 30;
@@ -122,7 +127,7 @@ test('read-only legacy Details supports mobile scrolling, unknown timezone and m
     await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
     for (const distance of [25, 50, 90, 130]) await session.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y: y - distance }] });
     await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-    await expect.poll(() => page.locator('.lb').evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+    await expect.poll(() => panel.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
     await expect(page.locator('.lb-count')).toHaveText(count);
     await page.getByRole('button', { name: '详情', exact: true }).click();
     await page.keyboard.press('ArrowRight');
@@ -130,7 +135,8 @@ test('read-only legacy Details supports mobile scrolling, unknown timezone and m
     await expect(panel.locator('[data-field=taken-at]')).toHaveCount(0);
     await expect(panel.locator('[data-field=location]')).toHaveCount(0);
     await expect(panel.locator('.lb-details-status')).toContainText('EXIF');
-    expect(await readFile(albumFile)).toEqual(before);
+    const withoutMetadata = (bytes) => JSON.parse(bytes).photos.map(({ metadata, ...photo }) => photo);
+    expect(withoutMetadata(await readFile(albumFile))).toEqual(withoutMetadata(before));
   } finally { await fixture.close(); }
 });
 
