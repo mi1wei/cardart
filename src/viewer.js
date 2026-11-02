@@ -1,6 +1,7 @@
 import { mediaUrl } from './api.js';
 import { createBook } from './book/book.js';
 import { layoutPages, spreadOfPage } from './book/layout.js';
+import { titlePageText } from './book/title-page.js';
 import { createFlipPlayer, savedSpeed, SPEEDS } from './flip-player.js';
 import { fullscreenTip, icon, toast } from './ui.js';
 import { t } from './i18n.js';
@@ -18,6 +19,7 @@ export function openViewer({ album, onOpenPhoto, onClose, onPerPage }) {
   root.tabIndex = -1;
   root.setAttribute('role', 'dialog');
   root.setAttribute('aria-modal', 'true');
+  root.setAttribute('aria-describedby', 'ab-about');
   root.innerHTML = `
     <div class="ab-stage"></div>
     <div class="ab-progress" hidden><i></i></div>
@@ -50,6 +52,7 @@ export function openViewer({ album, onOpenPhoto, onClose, onPerPage }) {
       </div>
       <p class="ab-hint">${t('hint-open')}</p>
     </footer>
+    <p class="ab-about" id="ab-about"></p>
     <p class="ab-message" hidden>${t('no-webgl')}</p>
     <div class="ab-rotate">${icon('phone')}<p>${t('rotate')}</p></div>`;
   const $ = (selector) => root.querySelector(selector);
@@ -208,9 +211,13 @@ export function openViewer({ album, onOpenPhoto, onClose, onPerPage }) {
     per.value = String(album.perPage ?? 2);
     $('.ab-title').textContent = album.title;
     root.setAttribute('aria-label', album.title);
+    // The canvas cannot be read aloud: the title page's lines describe the book instead.
+    const about = titlePageText(album);
+    $('.ab-about').textContent = [about.dates, about.count].filter(Boolean).join(' · ');
     try {
       book = createBook(stage, {
         title: album.title,
+        titlePage: about,
         pages,
         photoUrl,
         itemInfo: (i) => album.photos[i],

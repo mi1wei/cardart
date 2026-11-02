@@ -2695,6 +2695,16 @@ body:has(.ab, .lb) {
 }
 
 /* Errors and portrait hint */
+.ab-about {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 .ab-message,
 .ab-rotate {
   position: absolute;

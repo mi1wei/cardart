@@ -15,6 +15,7 @@ import {
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { DIM } from './layout.js';
 import { arc, restEdgeX } from './sheet.js';
+import { createTitleTexture } from './title-page.js';
 
 const { H, T, CT, HB, h, drop } = DIM;
 const clamp01 = (v) => Math.min(1, Math.max(0, v));
@@ -104,7 +105,7 @@ function contactShadowTexture() {
   return new CanvasTexture(canvas);
 }
 
-export function createBinder({ sheets, title }) {
+export function createBinder({ sheets, title, titlePage = null }) {
   const { R, D, xb, B, closedCenter } = binderSize(sheets);
   const group = new Group();
   const frost = new MeshPhysicalMaterial({
@@ -154,6 +155,19 @@ export function createBinder({ sheets, title }) {
   );
   label.position.set(24 + tw / 2, CT / 2 + 0.05, HB / 2 - 37);
   cover.add(label);
+
+  // The title page sits on the inside of the cover, which faces up once the book is open. Turned
+  // half a turn in its own plane, it reads the right way round from the front (v2 spec §8).
+  if (titlePage) {
+    const pw = B - 28;
+    const ph = H - 40;
+    const inside = new Mesh(
+      new PlaneGeometry(pw, ph).rotateZ(Math.PI).rotateX(Math.PI / 2),
+      new MeshBasicMaterial({ map: createTitleTexture(titlePage, pw, ph), transparent: true, depthWrite: false }),
+    );
+    inside.position.set(16 + pw / 2, -CT / 2 - 0.05, 0);
+    cover.add(inside);
+  }
 
   const shadowMaterial = new MeshBasicMaterial({
     color: 0x000000,

@@ -889,7 +889,7 @@ test('the title page names the album with its date range and count, inside the c
     // The left page at spread 1 is the inside of the cover: the title page puts dark text there.
     await expect.poll(() => darkPixels(page, { left: 200, top: 300, width: 320, height: 260 }), { timeout: 15000 }).toBeGreaterThan(80);
     await page.locator('.ab [data-act=next]').click();
-    await expect(page.locator('.ab-count')).toHaveText('2 / 3');
+    await expect(page.locator('.ab-count')).toHaveText('2 / 2'); // three photos at two a page
   } finally { await fixture.close(); }
 });
 
