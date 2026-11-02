@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>册页 Folio v2 · 3D 翻阅</title>
+<style>
+    /*
+     * BRAINSTORM COMPANION FRAME TEMPLATE
+     *
+     * This template provides a consistent frame with:
+     * - OS-aware light/dark theming
+     * - Header branding and connection status
+     * - Scrollable main content area
+     * - CSS helpers for common UI patterns
+     *
+     * Content is injected via placeholder comment in #frame-content.
+     */
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; }
+
+    /* ===== THEME VARIABLES ===== */
+    :root {
+      --bg-primary: #f5f5f7;
+      --bg-secondary: #ffffff;
+      --bg-tertiary: #e5e5e7;
+      --border: #d1d1d6;
+      --text-primary: #1d1d1f;
+      --text-secondary: #86868b;
+      --text-tertiary: #aeaeb2;
+      --accent: #0071e3;
+      --accent-hover: #0077ed;
+      --success: #34c759;
+      --warning: #ff9f0a;
+      --error: #ff3b30;
+      --selected-bg: #e8f4fd;
+      --selected-border: #0071e3;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg-primary: #1d1d1f;
+        --bg-secondary: #2d2d2f;
+        --bg-tertiary: #3d3d3f;
+        --border: #424245;
+        --text-primary: #f5f5f7;
+        --text-secondary: #86868b;
+        --text-tertiary: #636366;
+        --accent: #0a84ff;
+        --accent-hover: #409cff;
+        --selected-bg: rgba(10, 132, 255, 0.15);
+        --selected-border: #0a84ff;
+      }
+    }
+
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      display: flex;
+      flex-direction: column;
+      line-height: 1.5;
+    }
+
+    /* ===== FRAME STRUCTURE ===== */
+    .brand { display: flex; align-items: center; min-width: 0; overflow: hidden; color: var(--text-secondary); line-height: 1; }
+    .brand a { color: inherit; text-decoration: none; display: flex; align-items: center; gap: 0.5rem; min-width: 0; max-width: 100%; line-height: 1; }
+    .brand-copy { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1; transform: translateY(-1px); }
+    .brand-logo { display: block; height: 1em; width: auto; max-width: 180px; flex-shrink: 0; filter: invert(1); }
+    @media (prefers-color-scheme: dark) {
+      .brand-logo { filter: none; }
+    }
+    .status { font-size: 0.7rem; color: var(--status-color, var(--success)); display: flex; align-items: center; gap: 0.4rem; justify-self: end; white-space: nowrap; line-height: 1; }
+    .status::before { content: ''; width: 6px; height: 6px; background: var(--status-color, var(--success)); border-radius: 50%; }
+
+    .main { flex: 1; overflow-y: auto; }
+    #frame-content { padding: 2rem; min-height: 100%; }
+
+    .header {
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border);
+      padding: 0.5rem 1.5rem;
+      flex-shrink: 0;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 1rem;
+      min-height: 42px;
+    }
+    .header .brand { justify-self: start; width: 100%; font-size: 0.75rem; line-height: 1; }
+    .header .status { grid-column: 2; line-height: 1; }
+    .header span {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+    }
+    .header .selected-text {
+      color: var(--accent);
+      font-weight: 500;
+    }
+
+    /* ===== TYPOGRAPHY ===== */
+    h2 { font-size: 1.5rem; font-weight: 600; margin-bottom: 0.5rem; }
+    h3 { font-size: 1.1rem; font-weight: 600; margin-bottom: 0.25rem; }
+    .subtitle { color: var(--text-secondary); margin-bottom: 1.5rem; }
+    .section { margin-bottom: 2rem; }
+    .label { font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; }
+
+    /* ===== OPTIONS (for A/B/C choices) ===== */
+    .options { display: flex; flex-direction: column; gap: 0.75rem; }
+    .option {
+      background: var(--bg-secondary);
+      border: 2px solid var(--border);
+      border-radius: 12px;
+      padding: 1rem 1.25rem;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: flex;
+      align-items: flex-start;
+      gap: 1rem;
+    }
+    .option:hover { border-color: var(--accent); }
+    .option.selected { background: var(--selected-bg); border-color: var(--selected-border); }
+    .option .letter {
+      background: var(--bg-tertiary);
+      color: var(--text-secondary);
+      width: 1.75rem; height: 1.75rem;
+      border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 600; font-size: 0.85rem; flex-shrink: 0;
+    }
+    .option.selected .letter { background: var(--accent); color: white; }
+    .option .content { flex: 1; }
+    .option .content h3 { font-size: 0.95rem; margin-bottom: 0.15rem; }
+    .option .content p { color: var(--text-secondary); font-size: 0.85rem; margin: 0; }
+
+    /* ===== CARDS (for showing designs/mockups) ===== */
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; }
+    .card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .card:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    .card.selected { border-color: var(--selected-border); border-width: 2px; }
+    .card-image { background: var(--bg-tertiary); aspect-ratio: 16/10; display: flex; align-items: center; justify-content: center; }
+    .card-body { padding: 1rem; }
+    .card-body h3 { margin-bottom: 0.25rem; }
+    .card-body p { color: var(--text-secondary); font-size: 0.85rem; }
+
+    /* ===== MOCKUP CONTAINER ===== */
+    .mockup {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      margin-bottom: 1.5rem;
+    }
+    .mockup-header {
+      background: var(--bg-tertiary);
+      padding: 0.5rem 1rem;
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      border-bottom: 1px solid var(--border);
+    }
+    .mockup-body { padding: 1.5rem; }
+
+    /* ===== SPLIT VIEW (side-by-side comparison) ===== */
+    .split { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+    @media (max-width: 700px) { .split { grid-template-columns: 1fr; } }
+
+    /* ===== PROS/CONS ===== */
+    .pros-cons { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 1rem 0; }
+    .pros, .cons { background: var(--bg-secondary); border-radius: 8px; padding: 1rem; }
+    .pros h4 { color: var(--success); font-size: 0.85rem; margin-bottom: 0.5rem; }
+    .cons h4 { color: var(--error); font-size: 0.85rem; margin-bottom: 0.5rem; }
+    .pros ul, .cons ul { margin-left: 1.25rem; font-size: 0.85rem; color: var(--text-secondary); }
+    .pros li, .cons li { margin-bottom: 0.25rem; }
+
+    /* ===== PLACEHOLDER (for mockup areas) ===== */
+    .placeholder {
+      background: var(--bg-tertiary);
+      border: 2px dashed var(--border);
+      border-radius: 8px;
+      padding: 2rem;
+      text-align: center;
+      color: var(--text-tertiary);
+    }
+
+    /* ===== INLINE MOCKUP ELEMENTS ===== */
+    .mock-nav { background: var(--accent); color: white; padding: 0.75rem 1rem; display: flex; gap: 1.5rem; font-size: 0.9rem; }
+    .mock-sidebar { background: var(--bg-tertiary); padding: 1rem; min-width: 180px; }
+    .mock-content { padding: 1.5rem; flex: 1; }
+    .mock-button { background: var(--accent); color: white; border: none; padding: 0.5rem 1rem; border-radius: 6px; font-size: 0.85rem; }
+    .mock-input { background: var(--bg-primary); border: 1px solid var(--border); border-radius: 6px; padding: 0.5rem; width: 100%; }
+  
+html, body { height: auto; overflow: auto; }
+</style>
+<script>function toggleSelect(el){const multi=el.parentElement.hasAttribute("data-multiselect");if(!multi)for(const s of el.parentElement.children)if(s!==el)s.classList.remove("selected");el.classList.toggle("selected");}</script>
+</head>
+<body>
+<div class="main"><div id="frame-content">
+<style>
+  .ab{background:radial-gradient(ellipse at 50% 40%,#fbfcfd,#e4e9ee);color:#1c2430;font-family:-apple-system,'PingFang SC',sans-serif;font-size:12px;border-radius:12px;overflow:hidden;position:relative;height:470px;display:flex;flex-direction:column}
+  .ab.dark{background:radial-gradient(ellipse at 50% 40%,#2a2f35,#121417);color:#e9ecef}
+  .bar{display:flex;align-items:center;gap:8px;padding:12px 16px}
+  .sp{flex:1}
+  .ib{display:inline-flex;align-items:center;gap:5px;height:30px;min-width:30px;justify-content:center;padding:0 11px;border-radius:99px;background:rgba(255,255,255,.85);border:1px solid #dfe5ea;white-space:nowrap}
+  .dark .ib{background:#1f2327;border-color:#2f353b}
+  .ib.p{background:#1d5f80;color:#fff;border-color:#1d5f80}
+  .stage{flex:1;display:flex;align-items:center;justify-content:center;perspective:900px}
+  .book{display:flex;transform:rotateX(14deg);filter:drop-shadow(0 22px 22px rgba(20,30,40,.25))}
+  .pg{width:300px;height:220px;background:#fdfcf9;position:relative;padding:16px;box-sizing:border-box;display:flex;flex-direction:column;gap:8px}
+  .pg.l{border-radius:4px 0 0 4px;box-shadow:inset -14px 0 18px -14px rgba(0,0,0,.35)}
+  .pg.r{border-radius:0 4px 4px 0;box-shadow:inset 14px 0 18px -14px rgba(0,0,0,.35)}
+  .rings{position:absolute;left:-7px;top:0;bottom:0;display:flex;flex-direction:column;justify-content:space-evenly;z-index:2}.rings i{width:14px;height:8px;border:2.5px solid #9aa3ad;border-radius:8px;display:block}
+  .pg i.ph{display:block;border-radius:1px;box-shadow:0 0 0 3px #fff,0 1px 3px rgba(0,0,0,.18)}
+  .capn{font-size:9.5px;color:#6b7480;font-family:'Songti SC',Georgia,serif;font-style:italic}
+  .title{margin:auto;text-align:center;color:#2b3440}
+  .title h3{font-family:'Songti SC',Georgia,serif;font-size:22px;margin:0 0 6px;font-weight:700}
+  .title .rule{width:36px;height:1px;background:#c5ccd3;margin:10px auto}
+  .title small{color:#7a838e;display:block;line-height:1.7}
+  .foot{display:flex;align-items:center;justify-content:center;gap:12px;padding:10px 0 16px}
+  .seg{display:inline-flex;background:rgba(255,255,255,.85);border:1px solid #dfe5ea;border-radius:99px;padding:2px}.seg span{padding:3px 9px;border-radius:99px;color:#7a838e}.seg span.on{background:#1d5f80;color:#fff}
+  .grp{display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.85);border:1px solid #dfe5ea;border-radius:99px;padding:3px 4px 3px 4px}.dark .grp{background:#1f2327;border-color:#2f353b}.grp .ib{border:none;background:transparent;height:26px}.grp .div{width:1px;height:18px;background:#d3dae0}.dark .grp .div{background:#353b42}
+  .prog{position:absolute;top:0;left:0;height:3px;background:#1d5f80;width:38%}
+  .cap{color:var(--text-secondary,#888);font-size:11.5px;margin:8px 2px 0}
+  .phone{width:220px;height:440px;border-radius:30px;border:7px solid #1c2430;overflow:hidden;position:relative;font-family:-apple-system,'PingFang SC',sans-serif;font-size:10px;display:flex;flex-direction:column;background:radial-gradient(ellipse at 50% 40%,#fbfcfd,#e4e9ee);color:#1c2430}
+  .phones{display:flex;gap:28px;justify-content:center;flex-wrap:wrap;padding:10px}
+  .phwrap{text-align:center}.phwrap p{color:var(--text-secondary,#888);font-size:12px;margin:8px auto 0;max-width:240px}
+  .ppg{flex:1;margin:4px 16px 0 22px;background:#fdfcf9;border-radius:0 5px 5px 0;box-shadow:inset 12px 0 14px -12px rgba(0,0,0,.35),0 10px 22px rgba(0,0,0,.15);position:relative;padding:14px;display:flex;flex-direction:column;gap:10px;text-align:left}
+  .curl{position:absolute;right:0;bottom:0;width:46px;height:46px;background:linear-gradient(225deg,#e9eef3 46%,#c9d0d7 50%,#f3f1ec 58%);border-radius:0 0 5px 0}
+  .s1{background:radial-gradient(circle at 70% 30%,#fbe7a8 0 10%,transparent 11%),linear-gradient(#9fd0ea 0 55%,#2a6f93 56%)}
+  .s2{background:radial-gradient(circle at 30% 60%,#ffd9a0 0 9%,transparent 10%),linear-gradient(#f4b37a,#b44f3c 70%,#3a2a4a)}
+  .s3{background:linear-gradient(160deg,transparent 55%,#2f6a45 56%),linear-gradient(20deg,transparent 50%,#4d8a5c 51%),linear-gradient(#dfeee0,#a8cfae)}
+  .s4{background:linear-gradient(140deg,transparent 50%,#5b4a8a 51%),linear-gradient(#e2d4f0,#9a86c4)}
+  .s5{background:radial-gradient(circle at 50% 40%,#fff3c4 0 12%,transparent 13%),linear-gradient(#f6dc8c,#c58b2a)}
+</style>
+
+<h2>设计稿 ③ 3D 翻阅</h2>
+<p class="subtitle">书本身（纸、环、翻页手感）不变。改：扉页、备注图注、自动翻阅、按钮文字、手机竖屏单页。</p>
+
+<div class="mockup"><div class="mockup-header">桌面 · 刚翻开：左页是扉页</div><div class="mockup-body" style="padding:0">
+<div class="ab">
+  <div class="bar"><span class="ib">✕ 返回</span><b style="font-size:14px;margin-left:6px">海边夏天 2026</b><span class="sp"></span>
+    <span class="ib">每页 2 张 ▾</span><span class="ib">⛶</span><span class="ib">📕 合上</span></div>
+  <div class="stage"><div class="book">
+    <div class="pg l"><div class="title"><h3>海边夏天 2026</h3><div class="rule"></div><small>2026.07.02 – 07.15<br>9 张照片 · 1 段视频</small></div></div>
+    <div class="pg r"><span class="rings"><i></i><i></i><i></i><i></i></span>
+      <i class="ph s1" style="height:56%"></i><span class="capn">第一天，海水比想象中更蓝。</span>
+      <div style="display:flex;gap:10px;flex:1"><i class="ph s3" style="flex:1"></i></div></div>
+  </div></div>
+  <div class="foot"><span class="grp"><span class="ib">‹</span><span>1 / 6</span><span class="ib">›</span><span class="div"></span><span class="ib">▶ 自动翻阅</span></span></div>
+</div></div></div>
+<p class="cap">扉页：相册名（衬线）、日期范围、数量，自动生成不可编辑。有备注的照片在下方显示一行图注（超长截断，点开看全文）。「合上」改为图标 + 文字。</p>
+
+<div class="mockup" style="margin-top:18px"><div class="mockup-header">桌面 · 合上状态（封面）</div><div class="mockup-body" style="padding:0">
+<div class="ab" style="height:330px">
+  <div class="bar"><span class="ib">✕ 返回</span><b style="font-size:14px;margin-left:6px">海边夏天 2026</b><span class="sp"></span><span class="ib">每页 2 张 ▾</span><span class="ib">⛶</span></div>
+  <div class="stage"><div class="book"><div class="pg r" style="width:230px;height:190px;background:linear-gradient(135deg,#2d6f91,#1d4f6a);color:#fff;border-radius:4px;align-items:center;justify-content:center"><span class="rings"><i></i><i></i><i></i><i></i></span>
+    <div style="width:70%;height:58%;box-shadow:0 0 0 4px #fff" class="s1"></div><b style="font-family:'Songti SC',Georgia,serif;font-size:15px;margin-top:8px">海边夏天 2026</b></div></div></div>
+  <div class="foot"><span class="ib p">📖 打开相册</span><span class="ib">▶ 自动翻阅</span></div>
+</div></div></div>
+<p class="cap">合上时底部是「打开相册」（主按钮）+「▶ 自动翻阅」（次按钮），可直接从封面开始播放。</p>
+
+<div class="mockup" style="margin-top:18px"><div class="mockup-header">桌面 · 自动翻阅中（深色主题下的场景）</div><div class="mockup-body" style="padding:0">
+<div class="ab dark" style="height:400px"><div class="prog"></div>
+  <div class="stage"><div class="book" style="transform:rotateX(14deg) scale(.88)">
+    <div class="pg l"><i class="ph s2" style="flex:1"></i><span class="capn">日落前十分钟。</span></div>
+    <div class="pg r"><span class="rings"><i></i><i></i><i></i><i></i></span><div style="display:flex;gap:10px;flex:1"><i class="ph s4" style="flex:1"></i><i class="ph s5" style="flex:1"></i></div></div>
+  </div></div>
+  <div class="foot"><span class="grp"><span class="ib">⏸</span><span class="div"></span><span class="seg" style="background:transparent;border:none"><span>慢</span><span class="on">中</span><span>快</span></span><span class="div"></span><span class="ib">✕</span></span></div>
+</div></div></div>
+<p class="cap">▶ 与翻页同在底部一组；播放时这组原地变成 ⏸ · 慢中快 · ✕，顶栏淡出、只留顶部进度线；鼠标移动或点按恢复。速度：慢 / 中 / 快（每跨页 8 / 6 / 4 秒），每台设备记住。翻到最后一页自动合上并停止。空格 = 播放/暂停。场景背景随深色主题变暗。</p>
+
+<div class="mockup" style="margin-top:18px"><div class="mockup-header">手机 · 竖屏单页 / 横屏双页</div><div class="mockup-body">
+<div class="phones">
+  <div class="phwrap"><div class="phone">
+    <div style="display:flex;gap:6px;padding:10px 12px;align-items:center"><span>✕</span><b>海边夏天 2026</b><span class="sp"></span><span>⋯</span></div>
+    <div class="ppg"><span class="rings" style="left:-7px"><i></i><i></i><i></i><i></i><i></i></span>
+      <i class="ph s1" style="height:40%;display:block;box-shadow:0 0 0 3px #fff,0 1px 3px rgba(0,0,0,.18)"></i><span class="capn">第一天，海水比想象中更蓝。</span>
+      <i class="ph s3" style="height:34%;display:block;box-shadow:0 0 0 3px #fff,0 1px 3px rgba(0,0,0,.18)"></i><span class="curl"></span></div>
+    <div style="text-align:center;padding:8px 0 12px;color:#6b7480"><span class="grp" style="font-size:10px"><span class="ib" style="height:22px;padding:0 6px">‹</span>2 / 11 页<span class="ib" style="height:22px;padding:0 6px">›</span><span class="div"></span><span class="ib" style="height:22px;padding:0 8px">▶</span></span></div>
+  </div><p>竖屏只显示一页，环扣在左；左右滑翻页，页角卷起。页码按「页」计。</p></div>
+  <div class="phwrap"><div style="width:420px;height:210px;border-radius:26px;border:7px solid #1c2430;overflow:hidden;background:radial-gradient(ellipse at 50% 40%,#fbfcfd,#e4e9ee);display:flex;align-items:center;justify-content:center;position:relative;margin-top:110px">
+    <span style="position:absolute;left:12px;top:8px;font-size:10px">✕</span><span style="position:absolute;right:12px;top:8px;font-size:10px">⋯</span><span style="position:absolute;left:50%;bottom:8px;transform:translateX(-50%);font-size:9px;color:#6b7480">‹ 3/6 › │ ▶</span>
+    <div class="book" style="transform:scale(.55)"><div class="pg l"><i class="ph s2" style="flex:1"></i></div><div class="pg r"><span class="rings"><i></i><i></i><i></i><i></i></span><i class="ph s4" style="flex:1"></i></div></div>
+  </div><p>横屏保持双页（与现在一致），控件悬浮。</p></div>
+</div></div></div>
+</div></div>
+</body>
+</html>

@@ -19,6 +19,7 @@ import {
   WebGLRenderer,
 } from 'three';
 import { DIM } from './layout.js';
+import { onThemeChange } from '../theme.js';
 
 const TAN = Math.tan((12 * Math.PI) / 180); // half of the 24° fov
 const TILT = (9 * Math.PI) / 180;
@@ -68,7 +69,7 @@ function groundMaterial(halfWidth) {
   return material;
 }
 
-export function createStage(container, halfWidth, insets) {
+export function createStage(container, halfWidth, insets, onRepaint = () => {}) {
   let renderer;
   try {
     renderer = new WebGLRenderer({ antialias: true });
@@ -84,7 +85,13 @@ export function createStage(container, halfWidth, insets) {
   container.append(renderer.domElement);
 
   const scene = new Scene();
-  scene.background = new Color('#f7f9fb');
+  // The book sits on the page colour, light or dark (v2 spec §3).
+  const pageColour = () => new Color(getComputedStyle(document.body).backgroundColor);
+  scene.background = pageColour();
+  const stopTheme = onThemeChange(() => {
+    scene.background = pageColour();
+    onRepaint();
+  });
   const pmrem = new PMREMGenerator(renderer);
   const env = studio();
   const envMap = pmrem.fromScene(env, 0.02);
@@ -146,6 +153,7 @@ export function createStage(container, halfWidth, insets) {
       renderer.render(scene, camera);
     },
     dispose() {
+      stopTheme();
       envMap.dispose();
       ground.geometry.dispose();
       ground.material.dispose();

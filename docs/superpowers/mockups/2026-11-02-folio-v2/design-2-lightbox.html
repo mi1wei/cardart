@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>册页 Folio v2 · 看大图</title>
+<style>
+    /*
+     * BRAINSTORM COMPANION FRAME TEMPLATE
+     *
+     * This template provides a consistent frame with:
+     * - OS-aware light/dark theming
+     * - Header branding and connection status
+     * - Scrollable main content area
+     * - CSS helpers for common UI patterns
+     *
+     * Content is injected via placeholder comment in #frame-content.
+     */
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; }
+
+    /* ===== THEME VARIABLES ===== */
+    :root {
+      --bg-primary: #f5f5f7;
+      --bg-secondary: #ffffff;
+      --bg-tertiary: #e5e5e7;
+      --border: #d1d1d6;
+      --text-primary: #1d1d1f;
+      --text-secondary: #86868b;
+      --text-tertiary: #aeaeb2;
+      --accent: #0071e3;
+      --accent-hover: #0077ed;
+      --success: #34c759;
+      --warning: #ff9f0a;
+      --error: #ff3b30;
+      --selected-bg: #e8f4fd;
+      --selected-border: #0071e3;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg-primary: #1d1d1f;
+        --bg-secondary: #2d2d2f;
+        --bg-tertiary: #3d3d3f;
+        --border: #424245;
+        --text-primary: #f5f5f7;
+        --text-secondary: #86868b;
+        --text-tertiary: #636366;
+        --accent: #0a84ff;
+        --accent-hover: #409cff;
+        --selected-bg: rgba(10, 132, 255, 0.15);
+        --selected-border: #0a84ff;
+      }
+    }
+
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      display: flex;
+      flex-direction: column;
+      line-height: 1.5;
+    }
+
+    /* ===== FRAME STRUCTURE ===== */
+    .brand { display: flex; align-items: center; min-width: 0; overflow: hidden; color: var(--text-secondary); line-height: 1; }
+    .brand a { color: inherit; text-decoration: none; display: flex; align-items: center; gap: 0.5rem; min-width: 0; max-width: 100%; line-height: 1; }
+    .brand-copy { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1; transform: translateY(-1px); }
+    .brand-logo { display: block; height: 1em; width: auto; max-width: 180px; flex-shrink: 0; filter: invert(1); }
+    @media (prefers-color-scheme: dark) {
+      .brand-logo { filter: none; }
+    }
+    .status { font-size: 0.7rem; color: var(--status-color, var(--success)); display: flex; align-items: center; gap: 0.4rem; justify-self: end; white-space: nowrap; line-height: 1; }
+    .status::before { content: ''; width: 6px; height: 6px; background: var(--status-color, var(--success)); border-radius: 50%; }
+
+    .main { flex: 1; overflow-y: auto; }
+    #frame-content { padding: 2rem; min-height: 100%; }
+
+    .header {
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border);
+      padding: 0.5rem 1.5rem;
+      flex-shrink: 0;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 1rem;
+      min-height: 42px;
+    }
+    .header .brand { justify-self: start; width: 100%; font-size: 0.75rem; line-height: 1; }
+    .header .status { grid-column: 2; line-height: 1; }
+    .header span {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+    }
+    .header .selected-text {
+      color: var(--accent);
+      font-weight: 500;
+    }
+
+    /* ===== TYPOGRAPHY ===== */
+    h2 { font-size: 1.5rem; font-weight: 600; margin-bottom: 0.5rem; }
+    h3 { font-size: 1.1rem; font-weight: 600; margin-bottom: 0.25rem; }
+    .subtitle { color: var(--text-secondary); margin-bottom: 1.5rem; }
+    .section { margin-bottom: 2rem; }
+    .label { font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; }
+
+    /* ===== OPTIONS (for A/B/C choices) ===== */
+    .options { display: flex; flex-direction: column; gap: 0.75rem; }
+    .option {
+      background: var(--bg-secondary);
+      border: 2px solid var(--border);
+      border-radius: 12px;
+      padding: 1rem 1.25rem;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: flex;
+      align-items: flex-start;
+      gap: 1rem;
+    }
+    .option:hover { border-color: var(--accent); }
+    .option.selected { background: var(--selected-bg); border-color: var(--selected-border); }
+    .option .letter {
+      background: var(--bg-tertiary);
+      color: var(--text-secondary);
+      width: 1.75rem; height: 1.75rem;
+      border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 600; font-size: 0.85rem; flex-shrink: 0;
+    }
+    .option.selected .letter { background: var(--accent); color: white; }
+    .option .content { flex: 1; }
+    .option .content h3 { font-size: 0.95rem; margin-bottom: 0.15rem; }
+    .option .content p { color: var(--text-secondary); font-size: 0.85rem; margin: 0; }
+
+    /* ===== CARDS (for showing designs/mockups) ===== */
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; }
+    .card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .card:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    .card.selected { border-color: var(--selected-border); border-width: 2px; }
+    .card-image { background: var(--bg-tertiary); aspect-ratio: 16/10; display: flex; align-items: center; justify-content: center; }
+    .card-body { padding: 1rem; }
+    .card-body h3 { margin-bottom: 0.25rem; }
+    .card-body p { color: var(--text-secondary); font-size: 0.85rem; }
+
+    /* ===== MOCKUP CONTAINER ===== */
+    .mockup {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      margin-bottom: 1.5rem;
+    }
+    .mockup-header {
+      background: var(--bg-tertiary);
+      padding: 0.5rem 1rem;
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      border-bottom: 1px solid var(--border);
+    }
+    .mockup-body { padding: 1.5rem; }
+
+    /* ===== SPLIT VIEW (side-by-side comparison) ===== */
+    .split { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+    @media (max-width: 700px) { .split { grid-template-columns: 1fr; } }
+
+    /* ===== PROS/CONS ===== */
+    .pros-cons { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 1rem 0; }
+    .pros, .cons { background: var(--bg-secondary); border-radius: 8px; padding: 1rem; }
+    .pros h4 { color: var(--success); font-size: 0.85rem; margin-bottom: 0.5rem; }
+    .cons h4 { color: var(--error); font-size: 0.85rem; margin-bottom: 0.5rem; }
+    .pros ul, .cons ul { margin-left: 1.25rem; font-size: 0.85rem; color: var(--text-secondary); }
+    .pros li, .cons li { margin-bottom: 0.25rem; }
+
+    /* ===== PLACEHOLDER (for mockup areas) ===== */
+    .placeholder {
+      background: var(--bg-tertiary);
+      border: 2px dashed var(--border);
+      border-radius: 8px;
+      padding: 2rem;
+      text-align: center;
+      color: var(--text-tertiary);
+    }
+
+    /* ===== INLINE MOCKUP ELEMENTS ===== */
+    .mock-nav { background: var(--accent); color: white; padding: 0.75rem 1rem; display: flex; gap: 1.5rem; font-size: 0.9rem; }
+    .mock-sidebar { background: var(--bg-tertiary); padding: 1rem; min-width: 180px; }
+    .mock-content { padding: 1.5rem; flex: 1; }
+    .mock-button { background: var(--accent); color: white; border: none; padding: 0.5rem 1rem; border-radius: 6px; font-size: 0.85rem; }
+    .mock-input { background: var(--bg-primary); border: 1px solid var(--border); border-radius: 6px; padding: 0.5rem; width: 100%; }
+  
+html, body { height: auto; overflow: auto; }
+</style>
+<script>function toggleSelect(el){const multi=el.parentElement.hasAttribute("data-multiselect");if(!multi)for(const s of el.parentElement.children)if(s!==el)s.classList.remove("selected");el.classList.toggle("selected");}</script>
+</head>
+<body>
+<div class="main"><div id="frame-content">
+<style>
+  .lb{background:#0d0f11;color:#e9ecef;font-family:-apple-system,'PingFang SC',sans-serif;font-size:12px;border-radius:12px;overflow:hidden;position:relative;height:520px;display:flex;flex-direction:column}
+  .lb .top{display:flex;align-items:center;gap:10px;padding:12px 18px;background:linear-gradient(#0d0f11,transparent);position:relative;z-index:2}
+  .sp{flex:1}
+  .ib{display:inline-flex;align-items:center;justify-content:center;gap:5px;height:30px;min-width:30px;padding:0 10px;border-radius:99px;background:#1b1e22;border:1px solid #2a2f35;color:#e9ecef;white-space:nowrap}
+  .ib.on{background:#e9ecef;color:#111;border-color:#e9ecef}
+  .logo{width:20px;height:20px;border-radius:5px;background:linear-gradient(135deg,#2d7aa0,#1d5f80)}
+  .stage{flex:1;display:flex;align-items:center;justify-content:center;position:relative;min-height:0}
+  .photo{height:92%;aspect-ratio:3/2;border-radius:2px}
+  .arrow{position:absolute;top:50%;transform:translateY(-50%);width:40px;height:40px;border-radius:99px;background:#1b1e22cc;border:1px solid #2a2f35;display:flex;align-items:center;justify-content:center;font-size:18px}
+  .zoom{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);display:flex;gap:4px;align-items:center;background:#1b1e22e6;border:1px solid #2a2f35;border-radius:99px;padding:3px 6px}
+  .zoom span{padding:3px 8px;border-radius:99px}.zoom .pct{min-width:44px;text-align:center;opacity:.8}
+  .drawer{position:absolute;right:16px;top:58px;width:290px;background:#16191cf2;backdrop-filter:blur(12px);border:1px solid #2a2f35;border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:8px;z-index:3}
+  .drawer h4{margin:0;font-size:14px}.chip{display:inline-block;border:1px solid #2a2f35;border-radius:5px;padding:1px 6px;margin-right:4px;color:#a7b0ba;font-size:11px}
+  .kv{display:flex;justify-content:space-between;color:#a7b0ba}.kv b{color:#e9ecef;font-weight:500}
+  .note{background:#1f2327;border-radius:8px;padding:8px 10px;color:#d6dbe0;line-height:1.5}
+  .grp{font-size:10px;letter-spacing:.06em;color:#7d8792;margin-top:4px}
+  .film{display:flex;gap:6px;justify-content:center;padding:10px 0 14px;background:#0a0b0d}
+  .film i{width:56px;height:38px;border-radius:3px;opacity:.45}.film i.on{opacity:1;outline:2px solid #fff;outline-offset:2px}
+  .film i.v{position:relative}.film i.v::after{content:'▶';position:absolute;right:3px;bottom:1px;font-size:8px;color:#fff;font-style:normal}
+  .prog{position:absolute;z-index:3;top:0;left:0;height:2px;background:#7fc0e0;width:45%}
+  .cap{color:#7d8792;font-size:11px;margin:8px 2px 0}
+  /* phone */
+  .phone{width:220px;height:440px;border-radius:30px;border:7px solid #1c2430;overflow:hidden;position:relative;font-family:-apple-system,'PingFang SC',sans-serif;font-size:10px;display:flex;flex-direction:column}
+  .phones{display:flex;gap:28px;justify-content:center;flex-wrap:wrap;padding:10px}
+  .phwrap{text-align:center}.phwrap p{color:var(--text-secondary,#888);font-size:12px;margin:8px 0 0;max-width:240px}
+  .sheet{text-align:left;position:absolute;left:0;right:0;bottom:0;background:#16191c;border-radius:16px 16px 0 0;padding:8px 12px 14px;display:flex;flex-direction:column;gap:6px;border-top:1px solid #2a2f35}
+  .grab{width:34px;height:4px;border-radius:9px;background:#3a4047;margin:0 auto 4px}
+  /* scenes */
+  .s1{background:radial-gradient(circle at 70% 30%,#fbe7a8 0 10%,transparent 11%),linear-gradient(#9fd0ea 0 55%,#2a6f93 56%)}
+  .s2{background:radial-gradient(circle at 30% 60%,#ffd9a0 0 9%,transparent 10%),linear-gradient(#f4b37a,#b44f3c 70%,#3a2a4a)}
+  .s3{background:linear-gradient(160deg,transparent 55%,#2f6a45 56%),linear-gradient(20deg,transparent 50%,#4d8a5c 51%),linear-gradient(#dfeee0,#a8cfae)}
+  .s4{background:linear-gradient(140deg,transparent 50%,#5b4a8a 51%),linear-gradient(#e2d4f0,#9a86c4)}
+  .s5{background:radial-gradient(circle at 50% 40%,#fff3c4 0 12%,transparent 13%),linear-gradient(#f6dc8c,#c58b2a)}
+  .s6{background:linear-gradient(transparent 70%,#1e2c4a 71%),radial-gradient(circle at 60% 30%,#fff 0 3%,transparent 4%),linear-gradient(#5d7fb5,#1e2c4a)}
+</style>
+
+<h2>设计稿 ② 看大图（桌面 + 手机）</h2>
+<p class="subtitle">始终深色（不跟随主题）。快捷键：← → 翻页 · + − 0 缩放 · 空格 播放/暂停视频 · I 详情 · Esc 返回。</p>
+
+<div class="mockup"><div class="mockup-header">桌面 · 详情浮层打开</div><div class="mockup-body" style="padding:0">
+<div class="lb">
+  <div class="top"><span class="ib">‹ 海边夏天 2026</span><span style="opacity:.6">3 / 9</span><span class="sp"></span>
+    <span class="ib on">ⓘ</span><span class="ib">☆</span><span class="ib">⤓</span><span class="ib">🗑</span></div>
+  <div class="stage"><span class="arrow" style="left:18px">‹</span><div class="photo s2"></div><span class="arrow" style="right:18px">›</span>
+    <div class="zoom"><span>−</span><span class="pct">适应</span><span>+</span><span style="opacity:.6">1:1</span></div>
+    <div class="drawer"><h4>IMG_0712.jpg</h4><div><span class="chip">JPEG</span><span class="chip">4032×3024</span><span class="chip">3.2 MB</span></div>
+      <div class="grp">备注</div><div class="note">傍晚六点四十，海风很大，大家在堤坝上等日落。<span style="color:#7fc0e0"> 编辑</span></div>
+      <div class="grp">拍摄</div><div class="kv"><span>时间</span><b>2026-07-12 18:40</b></div><div class="kv"><span>相机</span><b>iPhone 17 Pro</b></div>
+      <div class="kv"><span>镜头</span><b>24 mm f/1.8</b></div><div class="kv"><span>曝光</span><b>1/250 s · ISO 64</b></div>
+      <div class="grp">文件</div><div class="kv"><span>导入于</span><b>2026-07-20</b></div></div>
+  </div>
+  <div class="film"><i class="s1"></i><i class="s3"></i><i class="s2 on"></i><i class="s4"></i><i class="s5 v"></i><i class="s6"></i><i class="s1"></i><i class="s3"></i><i class="s4"></i></div>
+</div></div></div>
+<p class="cap">顶栏图标依次：详情、设为封面、下载原图、删除（→ 最近删除 + 撤销条）。中文界面不再出现「Folio」字样。胶片条在 2 秒无操作后淡出，鼠标移动即出现。</p>
+
+<div class="mockup" style="margin-top:18px"><div class="mockup-header">桌面 · 放大 200%</div><div class="mockup-body" style="padding:0">
+  <div class="lb" style="height:300px">
+    <div class="stage" style="overflow:hidden"><div class="photo s2" style="height:190%;transform:translate(10%,8%)"></div>
+      <div style="position:absolute;right:12px;bottom:12px;width:70px;height:48px;border:1px solid #3a4047;border-radius:4px" class="s2"><div style="position:absolute;left:30%;top:28%;width:45%;height:45%;border:1.5px solid #fff"></div></div>
+      <div class="zoom"><span>−</span><span class="pct">200%</span><span>+</span><span>适应</span></div></div></div>
+</div></div>
+<p class="cap">右下角小地图显示可视区，可拖动平移；双击在「适应 ↔ 200%」间切换。（幻灯片已取消，自动播放只在 3D 翻阅里。）</p>
+
+<div class="mockup" style="margin-top:18px"><div class="mockup-header">手机</div><div class="mockup-body">
+<div class="phones">
+  <div class="phwrap"><div class="phone" style="background:#0d0f11;color:#e9ecef">
+    <div class="top" style="display:flex;gap:6px;padding:10px;align-items:center"><span>‹</span><span style="opacity:.6">3 / 9</span><span class="sp"></span><span>ⓘ</span><span>⤓</span><span>⋯</span></div>
+    <div style="flex:1;display:flex;align-items:center"><div class="s2" style="width:100%;aspect-ratio:3/2"></div></div>
+    <div style="display:flex;gap:4px;justify-content:center;padding:8px 0 4px"><i class="s1" style="width:24px;height:18px;opacity:.5"></i><i class="s3" style="width:24px;height:18px;opacity:.5"></i><i class="s2" style="width:24px;height:18px;outline:1.5px solid #fff"></i><i class="s4" style="width:24px;height:18px;opacity:.5"></i><i class="s5" style="width:24px;height:18px;opacity:.5"></i></div>
+    <div style="text-align:center;padding:6px 0 12px;opacity:.7">⌃ 上滑看详情</div>
+  </div><p>双指缩放、左右滑翻页、下滑关闭。</p></div>
+  <div class="phwrap"><div class="phone" style="background:#0d0f11;color:#e9ecef">
+    <div class="top" style="display:flex;gap:6px;padding:10px;align-items:center"><span>‹</span><span style="opacity:.6">3 / 9</span><span class="sp"></span><span>ⓘ</span><span>⤓</span><span>⋯</span></div>
+    <div style="height:150px;display:flex;align-items:center"><div class="s2" style="width:100%;aspect-ratio:3/2"></div></div>
+    <div class="sheet" style="top:190px"><div class="grab"></div><b style="font-size:12px">IMG_0712.jpg</b><div class="note" style="font-size:10px">傍晚六点四十，海风很大……</div>
+      <div class="kv"><span>时间</span><b>07-12 18:40</b></div><div class="kv"><span>相机</span><b>iPhone 17 Pro</b></div><div class="kv"><span>曝光</span><b>1/250 · ISO 64</b></div>
+      <div style="display:flex;gap:6px;margin-top:6px"><span class="ib" style="flex:1;height:26px">☆ 设为封面</span><span class="ib" style="flex:1;height:26px;color:#ff9b8f">🗑 删除</span></div></div>
+  </div><p>上滑出底部详情面板（含备注、封面、删除）。</p></div>
+</div></div></div>
+</div></div>
+</body>
+</html>

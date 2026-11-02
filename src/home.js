@@ -50,7 +50,9 @@ export function renderHome(app) {
         p: list.reduce((n, a) => n + (a.photoCount ?? a.count - (a.videoCount ?? 0)), 0),
         v: list.reduce((n, a) => n + (a.videoCount ?? 0), 0) });
       app.querySelector('.stats').hidden = false;
-      app.querySelector('.recent .folders').replaceChildren(...list.slice(0, 4).map((a) => folder(a)));
+      const filled = list.filter((a) => a.count > 0);
+      if (!filled.length) return;
+      app.querySelector('.recent .folders').replaceChildren(...filled.slice(0, 4).map((a) => folder(a)));
       app.querySelector('.recent').hidden = false;
     },
     (err) => alive && toast(t('load-failed', { reason: err.message })),

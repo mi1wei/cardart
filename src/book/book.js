@@ -15,7 +15,7 @@ export function createBook(container, { title, pages, photoUrl, itemInfo = () =>
   const G = Math.max(1, Math.ceil(pages.length / 2)); // leaves in the whole album
   const S = Math.min(DRAWN, G); // leaves drawn
   const binder = createBinder({ sheets: S, title });
-  const stage = createStage(container, binder.xb + binder.B, insets);
+  const stage = createStage(container, binder.xb + binder.B, insets, () => requestRender());
   const { scene, camera, renderer } = stage;
   const canvas = renderer.domElement;
   scene.add(binder.group);

@@ -9,6 +9,18 @@ import { formatDuration, mediaCounts } from '../shared/media.js';
 
 const fine = matchMedia('(pointer: fine)');
 const SKIP = { duplicate: 'dup', unsupported: 'bad', 'too-large': 'big' };
+const DENSITY = ['s', 'm', 'l'];
+// Rough aspect ratios, so the placeholder rows look like photos.
+const SKELETON = [1.5, 0.75, 1.33, 1, 1.5, 0.75, 1.33, 1.5].map((a) => `<i class="skel" style="--a:${a}" aria-hidden="true"></i>`).join('');
+
+function savedDensity() {
+  try {
+    const value = localStorage.getItem('density');
+    return DENSITY.includes(value) ? value : 'm';
+  } catch {
+    return 'm';
+  }
+}
 
 export function renderAlbum(app, id) {
   let album = null;
@@ -28,20 +40,22 @@ export function renderAlbum(app, id) {
 
   app.innerHTML = `
     <main class="page album-page">
-      <p class="crumb"><a href="#/albums">${t('albums')}</a><span>/</span></p>
+      <p class="crumb"><a href="#/albums">${t('albums')}</a><span>/</span><b class="crumb-here"></b></p>
       <h1 class="t1"><button class="title" type="button" data-write data-act="rename" title="${t('rename-hint')}"></button><span class="pen">${icon('pen')}</span></h1>
       <p class="sub count"></p>
       <div class="acts normal">
         <button class="btn pri" type="button" data-act="3d">${icon('book')}<span>${t('flip-3d')}</span></button>
         <button class="btn" type="button" data-write data-act="upload">${icon('upload')}<span>${t('upload')}</span></button>
-        <button class="btn" type="button" data-act="select">${t('select')}</button>
+        <button class="btn" type="button" data-act="select">${icon('select')}<span>${t('select')}</span></button>
+        <span class="menu-host"><button class="btn only-icon" type="button" data-act="menu" aria-label="${t('more')}" aria-haspopup="menu">${icon('more')}</button></span>
+        <label class="density" title="${t('density')}"><input type="range" min="0" max="2" step="1" aria-label="${t('density')}"></label>
       </div>
       <div class="acts picking" hidden>
         <button class="btn ghost" type="button" data-act="cancel">${t('cancel')}</button>
         <span class="picked"></span>
         <button class="btn danger" type="button" data-write data-act="delete">${icon('trash')}<span>${t('delete')}</span></button>
       </div>
-      <div class="grid" hidden></div>
+      <div class="grid">${SKELETON}</div>
       <div class="drop" hidden>
         ${icon('upload')}
         <b>${t('drop-here')}</b>
@@ -60,6 +74,13 @@ export function renderAlbum(app, id) {
   const grid = $('.grid');
   const input = $('input[type=file]');
   const box = $('.upload');
+  const density = $('.density input');
+  main.dataset.density = savedDensity();
+  density.value = String(DENSITY.indexOf(main.dataset.density));
+  density.addEventListener('input', () => {
+    main.dataset.density = DENSITY[Number(density.value)];
+    try { localStorage.setItem('density', main.dataset.density); } catch {}
+  });
 
   async function load() {
     try {
@@ -72,7 +93,10 @@ export function renderAlbum(app, id) {
     } catch (err) {
       if (!alive) return;
       if (err.status === 404) main.innerHTML = `<p class="empty">${t('album-missing')}<a href="#/albums">${t('back-to-albums')}</a></p>`;
-      else toast(t('load-failed', { reason: err.message }));
+      else {
+        grid.querySelectorAll('.skel').forEach((node) => node.remove());
+        toast(t('load-failed', { reason: err.message }));
+      }
     }
   }
 
@@ -155,10 +179,12 @@ export function renderAlbum(app, id) {
   function render() {
     const n = album.photos.length;
     $('.title').textContent = album.title;
+    $('.crumb-here').textContent = album.title;
     $('.count').textContent = mediaCountText(mediaCounts(album.photos));
     document.title = `${album.title} · ${t('app')}`;
     $('.drop').hidden = n > 0;
     grid.hidden = n === 0;
+    $('.density').hidden = n === 0;
     for (const b of app.querySelectorAll('[data-act=select], [data-act="3d"]')) b.disabled = n === 0;
     const cover = album.cover ?? album.photos[0]?.id;
     for (const pid of selected) if (!album.photos.some((p) => p.id === pid)) selected.delete(pid);
@@ -302,7 +328,32 @@ export function renderAlbum(app, id) {
     try {
       album = await api.updateAlbum(id, { title });
       $('.title').textContent = album.title;
+      $('.crumb-here').textContent = album.title;
       document.title = `${album.title} · ${t('app')}`;
+    } catch (err) {
+      toast(t('failed', { reason: err.message }));
+    }
+  }
+
+  function toggleMenu(button) {
+    const shown = button.parentElement.querySelector('.menu');
+    if (shown) return shown.remove();
+    button.insertAdjacentHTML(
+      'afterend',
+      `<div class="menu" role="menu"><button type="button" role="menuitem" data-write data-act="rename">${t('rename')}</button><button type="button" role="menuitem" data-write class="red" data-act="delete-album">${t('delete-album')}</button></div>`,
+    );
+  }
+
+  async function removeAlbum() {
+    if (!allowWrite()) return;
+    if (uploading) { toast(t('upload-wait')); return; }
+    const text = t('delete-album-text', { name: album.title });
+    if (!(await dialog({ title: t('delete-album'), text, ok: t('delete'), danger: true })) || !alive) return;
+    // An import may have started while the confirmation was open.
+    if (uploading) { toast(t('upload-wait')); return; }
+    try {
+      await api.deleteAlbum(id);
+      if (alive) open('#/albums');
     } catch (err) {
       toast(t('failed', { reason: err.message }));
     }
@@ -320,7 +371,8 @@ export function renderAlbum(app, id) {
 
   function onClick(e) {
     const act = e.target.closest('[data-act]')?.dataset.act;
-    if (['upload', 'rename', 'delete'].includes(act) && !allowWrite()) return;
+    if (act !== 'menu') app.querySelector('.acts .menu')?.remove();
+    if (['upload', 'rename', 'delete', 'delete-album'].includes(act) && !allowWrite()) return;
     const t = e.target.closest('.tile');
     if (t && !act) return onTile(t);
     if (!album) return;
@@ -331,6 +383,8 @@ export function renderAlbum(app, id) {
       render();
     } else if (act === 'delete') removeSelected();
     else if (act === 'rename') rename();
+    else if (act === 'menu') toggleMenu(e.target.closest('[data-act=menu]'));
+    else if (act === 'delete-album') removeAlbum();
     else if (act === '3d') open(`#/a/${id}/3d`);
   }
 

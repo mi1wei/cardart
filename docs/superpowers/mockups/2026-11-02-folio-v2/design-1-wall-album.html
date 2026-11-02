@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>册页 Folio v2 · 相册墙与相册页</title>
+<style>
+    /*
+     * BRAINSTORM COMPANION FRAME TEMPLATE
+     *
+     * This template provides a consistent frame with:
+     * - OS-aware light/dark theming
+     * - Header branding and connection status
+     * - Scrollable main content area
+     * - CSS helpers for common UI patterns
+     *
+     * Content is injected via placeholder comment in #frame-content.
+     */
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; }
+
+    /* ===== THEME VARIABLES ===== */
+    :root {
+      --bg-primary: #f5f5f7;
+      --bg-secondary: #ffffff;
+      --bg-tertiary: #e5e5e7;
+      --border: #d1d1d6;
+      --text-primary: #1d1d1f;
+      --text-secondary: #86868b;
+      --text-tertiary: #aeaeb2;
+      --accent: #0071e3;
+      --accent-hover: #0077ed;
+      --success: #34c759;
+      --warning: #ff9f0a;
+      --error: #ff3b30;
+      --selected-bg: #e8f4fd;
+      --selected-border: #0071e3;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg-primary: #1d1d1f;
+        --bg-secondary: #2d2d2f;
+        --bg-tertiary: #3d3d3f;
+        --border: #424245;
+        --text-primary: #f5f5f7;
+        --text-secondary: #86868b;
+        --text-tertiary: #636366;
+        --accent: #0a84ff;
+        --accent-hover: #409cff;
+        --selected-bg: rgba(10, 132, 255, 0.15);
+        --selected-border: #0a84ff;
+      }
+    }
+
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      display: flex;
+      flex-direction: column;
+      line-height: 1.5;
+    }
+
+    /* ===== FRAME STRUCTURE ===== */
+    .brand { display: flex; align-items: center; min-width: 0; overflow: hidden; color: var(--text-secondary); line-height: 1; }
+    .brand a { color: inherit; text-decoration: none; display: flex; align-items: center; gap: 0.5rem; min-width: 0; max-width: 100%; line-height: 1; }
+    .brand-copy { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1; transform: translateY(-1px); }
+    .brand-logo { display: block; height: 1em; width: auto; max-width: 180px; flex-shrink: 0; filter: invert(1); }
+    @media (prefers-color-scheme: dark) {
+      .brand-logo { filter: none; }
+    }
+    .status { font-size: 0.7rem; color: var(--status-color, var(--success)); display: flex; align-items: center; gap: 0.4rem; justify-self: end; white-space: nowrap; line-height: 1; }
+    .status::before { content: ''; width: 6px; height: 6px; background: var(--status-color, var(--success)); border-radius: 50%; }
+
+    .main { flex: 1; overflow-y: auto; }
+    #frame-content { padding: 2rem; min-height: 100%; }
+
+    .header {
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border);
+      padding: 0.5rem 1.5rem;
+      flex-shrink: 0;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 1rem;
+      min-height: 42px;
+    }
+    .header .brand { justify-self: start; width: 100%; font-size: 0.75rem; line-height: 1; }
+    .header .status { grid-column: 2; line-height: 1; }
+    .header span {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+    }
+    .header .selected-text {
+      color: var(--accent);
+      font-weight: 500;
+    }
+
+    /* ===== TYPOGRAPHY ===== */
+    h2 { font-size: 1.5rem; font-weight: 600; margin-bottom: 0.5rem; }
+    h3 { font-size: 1.1rem; font-weight: 600; margin-bottom: 0.25rem; }
+    .subtitle { color: var(--text-secondary); margin-bottom: 1.5rem; }
+    .section { margin-bottom: 2rem; }
+    .label { font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; }
+
+    /* ===== OPTIONS (for A/B/C choices) ===== */
+    .options { display: flex; flex-direction: column; gap: 0.75rem; }
+    .option {
+      background: var(--bg-secondary);
+      border: 2px solid var(--border);
+      border-radius: 12px;
+      padding: 1rem 1.25rem;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: flex;
+      align-items: flex-start;
+      gap: 1rem;
+    }
+    .option:hover { border-color: var(--accent); }
+    .option.selected { background: var(--selected-bg); border-color: var(--selected-border); }
+    .option .letter {
+      background: var(--bg-tertiary);
+      color: var(--text-secondary);
+      width: 1.75rem; height: 1.75rem;
+      border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 600; font-size: 0.85rem; flex-shrink: 0;
+    }
+    .option.selected .letter { background: var(--accent); color: white; }
+    .option .content { flex: 1; }
+    .option .content h3 { font-size: 0.95rem; margin-bottom: 0.15rem; }
+    .option .content p { color: var(--text-secondary); font-size: 0.85rem; margin: 0; }
+
+    /* ===== CARDS (for showing designs/mockups) ===== */
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; }
+    .card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .card:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    .card.selected { border-color: var(--selected-border); border-width: 2px; }
+    .card-image { background: var(--bg-tertiary); aspect-ratio: 16/10; display: flex; align-items: center; justify-content: center; }
+    .card-body { padding: 1rem; }
+    .card-body h3 { margin-bottom: 0.25rem; }
+    .card-body p { color: var(--text-secondary); font-size: 0.85rem; }
+
+    /* ===== MOCKUP CONTAINER ===== */
+    .mockup {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      margin-bottom: 1.5rem;
+    }
+    .mockup-header {
+      background: var(--bg-tertiary);
+      padding: 0.5rem 1rem;
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      border-bottom: 1px solid var(--border);
+    }
+    .mockup-body { padding: 1.5rem; }
+
+    /* ===== SPLIT VIEW (side-by-side comparison) ===== */
+    .split { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+    @media (max-width: 700px) { .split { grid-template-columns: 1fr; } }
+
+    /* ===== PROS/CONS ===== */
+    .pros-cons { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 1rem 0; }
+    .pros, .cons { background: var(--bg-secondary); border-radius: 8px; padding: 1rem; }
+    .pros h4 { color: var(--success); font-size: 0.85rem; margin-bottom: 0.5rem; }
+    .cons h4 { color: var(--error); font-size: 0.85rem; margin-bottom: 0.5rem; }
+    .pros ul, .cons ul { margin-left: 1.25rem; font-size: 0.85rem; color: var(--text-secondary); }
+    .pros li, .cons li { margin-bottom: 0.25rem; }
+
+    /* ===== PLACEHOLDER (for mockup areas) ===== */
+    .placeholder {
+      background: var(--bg-tertiary);
+      border: 2px dashed var(--border);
+      border-radius: 8px;
+      padding: 2rem;
+      text-align: center;
+      color: var(--text-tertiary);
+    }
+
+    /* ===== INLINE MOCKUP ELEMENTS ===== */
+    .mock-nav { background: var(--accent); color: white; padding: 0.75rem 1rem; display: flex; gap: 1.5rem; font-size: 0.9rem; }
+    .mock-sidebar { background: var(--bg-tertiary); padding: 1rem; min-width: 180px; }
+    .mock-content { padding: 1.5rem; flex: 1; }
+    .mock-button { background: var(--accent); color: white; border: none; padding: 0.5rem 1rem; border-radius: 6px; font-size: 0.85rem; }
+    .mock-input { background: var(--bg-primary); border: 1px solid var(--border); border-radius: 6px; padding: 0.5rem; width: 100%; }
+  
+html, body { height: auto; overflow: auto; }
+</style>
+<script>function toggleSelect(el){const multi=el.parentElement.hasAttribute("data-multiselect");if(!multi)for(const s of el.parentElement.children)if(s!==el)s.classList.remove("selected");el.classList.toggle("selected");}</script>
+</head>
+<body>
+<div class="main"><div id="frame-content">
+<style>
+  .fx{--bg:#f7f9fb;--r:#fff;--ink:#1c2430;--ink2:#5a6573;--ink3:#8a94a0;--l:#e6eaee;--h:#eef2f5;--a:#1d5f80;--ao:#fff;--as:#e8f1f6;--sh:0 0 0 1px rgba(28,36,48,.05),0 2px 6px rgba(28,36,48,.05);--frame:#fff;
+    background:var(--bg);color:var(--ink);font-family:-apple-system,'PingFang SC',sans-serif;font-size:12px;border-radius:12px;overflow:hidden;position:relative;border:1px solid var(--l)}
+  .fx.dark{--bg:#121417;--r:#1a1d21;--ink:#e9ecef;--ink2:#a7b0ba;--ink3:#7d8792;--l:#2a2f35;--h:#22262b;--a:#7fc0e0;--ao:#0f1a20;--as:#1c2a33;--sh:0 0 0 1px rgba(255,255,255,.04);--frame:#2a2e33}
+  .nav{display:flex;align-items:center;gap:6px;padding:10px 18px;border-bottom:1px solid var(--l);background:color-mix(in srgb,var(--bg) 85%,transparent)}
+  .logo{width:22px;height:22px;border-radius:6px;background:linear-gradient(135deg,#2d7aa0,#1d5f80);margin-right:4px}
+  .nl{padding:4px 10px;border-radius:99px;color:var(--ink2)}.nl.on{background:var(--h);color:var(--ink);font-weight:600}
+  .sp{flex:1}
+  .pill{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--l);border-radius:99px;padding:5px 11px;background:var(--r);color:var(--ink);white-space:nowrap}
+  .pill.p{background:var(--a);border-color:var(--a);color:var(--ao)}
+  .seg{display:inline-flex;background:var(--h);border-radius:99px;padding:2px}.seg span{padding:3px 8px;border-radius:99px;color:var(--ink3)}.seg span.on{background:var(--r);color:var(--ink);box-shadow:var(--sh)}
+  .srch{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--l);background:var(--r);border-radius:99px;padding:5px 12px;color:var(--ink3);width:180px}
+  .page{padding:22px 40px 70px}
+  h1{font-size:26px;margin:0;font-weight:700;letter-spacing:-.01em}
+  .sub{color:var(--ink2);margin-top:3px}
+  .crumb{color:var(--ink3);margin-bottom:6px}.crumb b{color:var(--ink2);font-weight:500}
+  .row{display:flex;align-items:center;gap:8px}
+  .walls{display:grid;grid-template-columns:repeat(4,1fr);gap:22px;margin-top:20px}
+  .pk{position:relative;height:118px}
+  .pk i{position:absolute;left:10%;right:10%;height:84px;border-radius:3px;box-shadow:0 0 0 3px var(--frame),0 2px 6px rgba(0,0,0,.15)}
+  .pk i:nth-child(1){top:4px;transform:rotate(-4deg)}.pk i:nth-child(2){top:10px;transform:rotate(3deg)}.pk i:nth-child(3){top:16px}
+  .pk .front{position:absolute;left:0;right:0;bottom:0;height:58px;border-radius:12px;background:color-mix(in srgb,var(--r) 70%,transparent);backdrop-filter:blur(8px);box-shadow:var(--sh),inset 0 1px 0 rgba(255,255,255,.6)}
+  .meta{display:flex;align-items:baseline;gap:6px;margin-top:8px}.meta b{font-size:13px}.meta small{color:var(--ink3)}
+  .meta .more{margin-left:auto;color:var(--ink3)}
+  .empty-pk i{background:var(--h)!important;box-shadow:0 0 0 3px var(--frame)!important}
+  .trash .pk{display:flex;align-items:center;justify-content:center;border:1.5px dashed var(--l);border-radius:12px;color:var(--ink3);font-size:26px;height:116px}
+  .grid{display:flex;flex-wrap:wrap;gap:12px;margin-top:16px}
+  .t{height:120px;border-radius:2px;box-shadow:0 0 0 4px var(--frame),0 3px 10px rgba(0,0,0,.12);position:relative}
+  .t .cov{position:absolute;left:6px;top:6px;background:rgba(255,255,255,.92);color:#1c2430;font-size:10px;padding:1px 6px;border-radius:99px;font-weight:600}
+  .t .vid{position:absolute;right:6px;bottom:6px;background:rgba(0,0,0,.55);color:#fff;font-size:10px;padding:1px 6px;border-radius:99px}
+  .t.sel{box-shadow:0 0 0 4px var(--a)}.t.sel::after{content:'✓';position:absolute;right:6px;top:6px;width:18px;height:18px;border-radius:99px;background:var(--a);color:var(--ao);display:flex;align-items:center;justify-content:center;font-size:11px}
+  .float{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);background:#1c2430;color:#fff;border-radius:16px;padding:9px 14px;display:flex;gap:16px;align-items:center;white-space:nowrap;box-shadow:0 12px 32px rgba(0,0,0,.3)}
+  .float .d{color:#ff9b8f}
+  .note{font-size:11px;color:var(--ink3);margin:8px 2px 0}
+  /* scenes */
+  .s1{background:radial-gradient(circle at 70% 30%,#fbe7a8 0 10%,transparent 11%),linear-gradient(#9fd0ea 0 55%,#2a6f93 56%)}
+  .s2{background:radial-gradient(circle at 30% 60%,#ffd9a0 0 9%,transparent 10%),linear-gradient(#f4b37a,#b44f3c 70%,#3a2a4a)}
+  .s3{background:linear-gradient(160deg,transparent 55%,#2f6a45 56%),linear-gradient(20deg,transparent 50%,#4d8a5c 51%),linear-gradient(#dfeee0,#a8cfae)}
+  .s4{background:linear-gradient(140deg,transparent 50%,#5b4a8a 51%),linear-gradient(#e2d4f0,#9a86c4)}
+  .s5{background:radial-gradient(circle at 50% 40%,#fff3c4 0 12%,transparent 13%),linear-gradient(#f6dc8c,#c58b2a)}
+  .s6{background:linear-gradient(transparent 70%,#1e2c4a 71%),radial-gradient(circle at 60% 30%,#fff 0 3%,transparent 4%),linear-gradient(#5d7fb5,#1e2c4a)}
+</style>
+
+<h2>设计稿 ① 相册墙 + 相册页（浅色 / 深色）</h2>
+<p class="subtitle">桌面 1440 宽缩放展示。顶栏新增：搜索、主题切换（☀/☾/自动）。照片统一 4px 白边（深色下为深灰边）。</p>
+
+<div class="mockup"><div class="mockup-header">相册墙 · 浅色</div><div class="mockup-body" style="padding:0">
+<div class="fx">
+  <div class="nav"><span class="logo"></span><b style="margin-right:10px">册页</b><span class="nl">首页</span><span class="nl on">相册</span><span class="nl">许可证</span><span class="sp"></span>
+    <span class="pill">📱 手机访问</span><span class="seg"><span class="on">☀</span><span>☾</span><span>自动</span></span><span class="seg"><span class="on">中</span><span>EN</span></span></div>
+  <div class="page">
+    <div class="row"><div><h1>相册</h1><div class="sub">3 本相册 · 14 张照片 · 2 段视频</div></div><span class="sp"></span>
+      <span class="srch">⌕ 搜索相册</span><span class="pill">最近更新 ▾</span><span class="pill p">＋ 新建相册</span></div>
+    <div class="walls">
+      <div><div class="pk"><i class="s3"></i><i class="s2"></i><i class="s1"></i><span class="front"></span></div><div class="meta"><b>海边夏天 2026</b><small>9 张 · 2026.07</small><span class="more">⋯</span></div></div>
+      <div><div class="pk"><i class="s6"></i><i class="s4"></i><i class="s5"></i><span class="front"></span></div><div class="meta"><b>京都旅行</b><small>5 张 · 2 段视频 · 2026.04</small><span class="more">⋯</span></div></div>
+      <div><div class="pk empty-pk"><i></i><i></i><i></i><span class="front"></span></div><div class="meta"><b>空相册</b><small>还没有照片</small><span class="more">⋯</span></div></div>
+      <div class="trash"><div class="pk">🗑</div><div class="meta"><b>最近删除</b><small>2 项 · 30 天后清除</small></div></div>
+    </div>
+    <p class="note">「最近删除」固定排在最后，为空时隐藏。卡片下显示数量单位 + 拍摄月份范围；空相册显示「还没有照片」。</p>
+  </div>
+</div></div></div>
+
+<div class="mockup" style="margin-top:20px"><div class="mockup-header">相册页 · 浅色（正常 / 选择中）</div><div class="mockup-body" style="padding:0">
+<div class="split" style="gap:0">
+<div class="fx" style="border-radius:0">
+  <div class="page" style="padding:20px 24px 70px">
+    <div class="crumb">相册 / <b>海边夏天 2026</b></div>
+    <h1>海边夏天 2026 <span style="font-size:13px;color:var(--ink3)">✎</span></h1>
+    <div class="sub">9 张照片 · 2026.07.02 – 07.15</div>
+    <div class="row" style="margin-top:14px"><span class="pill p">📖 3D 翻阅</span><span class="pill">⤒ 上传</span><span class="pill">☑ 选择</span><span class="pill">⋯</span><span class="sp"></span>
+      <span class="pill">⌕</span><span class="pill">拍摄时间 ▾</span><span style="color:var(--ink3)">▫━●━▪</span></div>
+    <div class="grid"><i class="t s1" style="width:28%"><span class="cov">封面</span></i><i class="t s2" style="width:38%"></i><i class="t s3" style="width:24%"></i>
+      <i class="t s4" style="width:20%"></i><i class="t s5" style="width:40%"><span class="vid">▶ 0:42</span></i><i class="t s6" style="width:30%"></i></div>
+    <p class="note">「⋯」：导出 PDF / 重命名 / 删除相册。⌕ 展开为搜索框（文件名、备注）。滑块调缩略图大小。</p>
+  </div>
+</div>
+<div class="fx" style="border-radius:0;border-left:none">
+  <div class="page" style="padding:20px 24px 70px">
+    <div class="crumb">相册 / <b>海边夏天 2026</b></div>
+    <div class="row"><h1>海边夏天 2026</h1><span class="sp"></span><span class="pill">全选</span><span class="pill">完成</span></div>
+    <div class="sub">9 张照片 · 2026.07.02 – 07.15</div>
+    <div class="grid" style="margin-top:44px"><i class="t s1 sel" style="width:28%"><span class="cov">封面</span></i><i class="t s2" style="width:38%"></i><i class="t s3 sel" style="width:24%"></i>
+      <i class="t s4" style="width:20%"></i><i class="t s5 sel" style="width:40%"><span class="vid">▶ 0:42</span></i><i class="t s6" style="width:30%"></i></div>
+  </div>
+  <div class="float"><b>已选 3</b><span>↗ 移动到</span><span>⧉ 复制到</span><span>⤓ 下载</span><span class="d">🗑 删除</span><span style="opacity:.5">✕</span></div>
+</div>
+</div></div></div>
+
+<div class="mockup" style="margin-top:20px"><div class="mockup-header">深色模式（同结构，跟随系统或手动）</div><div class="mockup-body" style="padding:0">
+<div class="split" style="gap:0">
+<div class="fx dark" style="border-radius:0">
+  <div class="nav"><span class="logo"></span><b style="margin-right:10px">册页</b><span class="nl">首页</span><span class="nl on">相册</span><span class="sp"></span><span class="seg"><span>☀</span><span class="on">☾</span><span>自动</span></span></div>
+  <div class="page" style="padding:18px 24px 30px"><div class="row"><h1>相册</h1><span class="sp"></span><span class="pill p">＋ 新建相册</span></div>
+    <div class="walls" style="grid-template-columns:repeat(3,1fr)">
+      <div><div class="pk"><i class="s3"></i><i class="s2"></i><i class="s1"></i><span class="front"></span></div><div class="meta"><b>海边夏天 2026</b><small>9 张</small></div></div>
+      <div><div class="pk"><i class="s6"></i><i class="s4"></i><i class="s5"></i><span class="front"></span></div><div class="meta"><b>京都旅行</b><small>5 张</small></div></div>
+      <div class="trash"><div class="pk">🗑</div><div class="meta"><b>最近删除</b><small>2 项</small></div></div>
+    </div></div>
+</div>
+<div class="fx dark" style="border-radius:0;border-left:none">
+  <div class="page" style="padding:18px 24px 30px"><div class="crumb">相册 / <b>海边夏天 2026</b></div><h1>海边夏天 2026</h1><div class="sub">9 张照片 · 2026.07.02 – 07.15</div>
+    <div class="row" style="margin-top:12px"><span class="pill p">📖 3D 翻阅</span><span class="pill">⤒ 上传</span><span class="pill">☑ 选择</span></div>
+    <div class="grid"><i class="t s1" style="width:30%"></i><i class="t s2" style="width:38%"></i><i class="t s3" style="width:22%"></i></div></div>
+</div>
+</div></div></div>
+</div></div>
+</body>
+</html>

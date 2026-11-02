@@ -16,7 +16,7 @@ export function renderWall(app) {
         <span class="sp"></span>
         <button class="btn pri" type="button" data-write data-act="new" aria-label="${t('new-album')}">${icon('plus')}<span>${t('new-album')}</span></button>
       </header>
-      <div class="folders"></div>
+      <div class="folders">${'<div class="folder-skel" aria-hidden="true"><i></i><b></b></div>'.repeat(4)}</div>
       <div class="empty" hidden>
         <div class="pocket">${pocket('', [])}</div>
         <p>${t('no-albums')}</p>
@@ -38,7 +38,9 @@ export function renderWall(app) {
       sub.hidden = albums.length === 0;
       app.querySelector('.empty').hidden = albums.length > 0;
     } catch (err) {
-      if (alive) toast(t('load-failed', { reason: err.message }));
+      if (!alive) return;
+      wall.querySelectorAll('.folder-skel').forEach((node) => node.remove());
+      toast(t('load-failed', { reason: err.message }));
     }
   }
 
