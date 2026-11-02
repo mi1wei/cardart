@@ -21,7 +21,10 @@ async function seed(fixture, note = '') {
 
 async function launch(fixture, album, { lang = 'en', grid = false } = {}) {
   const launched = await fixture.launch();
-  await launched.page.evaluate((value) => localStorage.setItem('lang', value), lang);
+  await launched.page.evaluate((value) => {
+    localStorage.setItem('lang', value);
+    localStorage.setItem('lightbox-details', 'true');
+  }, lang);
   await launched.page.reload();
   const origin = new URL(launched.page.url()).origin;
   await launched.page.goto(`${origin}/#/a/${album.id}${grid ? '' : '/p/p001'}`);
@@ -72,7 +75,7 @@ test('mobile notes preserve compact default details, native editing keys, cancel
       const image = await page.locator('.lb-stage').boundingBox();
       expect(image.height).toBeGreaterThan(100);
       const panel = await page.locator('.lb-details').boundingBox();
-      expect(panel.y).toBeGreaterThanOrEqual(image.y + image.height);
+      expect(panel.y + panel.height).toBeCloseTo(height, 0);
       for (const selector of ['.lb-parameters', '.lb-gps', '.lb-file-properties']) {
         await expect(page.locator(selector)).not.toHaveAttribute('open', '');
       }
@@ -254,7 +257,7 @@ test('incompatible metadata reaches validated Details fallback and a failed read
         { ...photo, metadata: { ...photo.metadata, schemaVersion: 999, takenAt: { raw: 'incompatible' } } } : photo) });
     } finally { await lib.close(); }
     const { page } = await fixture.launch();
-    await page.evaluate(() => localStorage.setItem('lang', 'en'));
+    await page.evaluate(() => { localStorage.setItem('lang', 'en'); localStorage.setItem('lightbox-details', 'true'); });
     await page.reload();
     const errors = [];
     page.on('pageerror', (error) => errors.push(error.message));

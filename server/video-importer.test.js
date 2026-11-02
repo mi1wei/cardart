@@ -53,6 +53,7 @@ test('video import preserves raw hash and separates browser dimensions from actu
     if (saved) { assert.deepEqual(result, { skipped: 'duplicate' }); continue; }
     saved = result.photo;
     assert.equal(saved.file, 'p001.mov');
+    assert.ok(Number.isFinite(Date.parse(saved.addedAt)));
     assert.equal(saved.kind, 'video');
     assert.deepEqual([saved.w, saved.h, saved.posterW, saved.posterH], [3840, 2160, 640, 360]);
     assert.equal(saved.metadata.bytes, video.length);

@@ -97,7 +97,7 @@ export async function importPhoto(lib, albumId, req, rawName, { lastModified } =
     }
     const file = `${id}${ext}`;
     await rename(tmp, join(dir, 'originals', file));
-    const photo = { id, file, name, w: size.w, h: size.h, sha256, metadata };
+    const photo = { id, file, name, w: size.w, h: size.h, sha256, metadata, addedAt: new Date().toISOString() };
     await lib.save({ ...album, nextSeq: sequence + 1, photos: [...album.photos, photo] });
     return { photo };
   });

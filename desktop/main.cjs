@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, dialog, shell, utilityProcess, session } = require('electron');
+const { app, BrowserWindow, Menu, dialog, shell, utilityProcess, session, ipcMain } = require('electron');
 const { mkdirSync, realpathSync } = require('node:fs');
 const { readFile, writeFile, rename, rm } = require('node:fs/promises');
 const { join, isAbsolute } = require('node:path');
@@ -9,6 +9,7 @@ const { createLog } = require('./log.cjs');
 const { createLifecycle } = require('./lifecycle.cjs');
 const { createTray } = require('./tray.cjs');
 const { createUpdateController } = require('./updater.cjs');
+const { createPdfExporter } = require('./pdf-export.cjs');
 
 const RELEASES = 'https://github.com/mi1wei/cardart/releases';
 
@@ -31,6 +32,7 @@ async function startDesktop({ appRoot = join(__dirname, '..'), licensePublicKeyF
   let updates;
   let choosingLibrary = false;
   let librarySwitchJob;
+  let pdfExporter;
   let licenseStatus = { state: 'missing', canWrite: false };
   const stateFile = join(profile, 'runtime.json');
   const settingsFile = join(profile, 'desktop.json');
@@ -51,6 +53,7 @@ async function startDesktop({ appRoot = join(__dirname, '..'), licensePublicKeyF
     hide: () => window.hide(),
     show: revealWindow,
     async stop() {
+      await pdfExporter?.dispose();
       await librarySwitchJob?.catch(() => {});
       while (window && !window.isDestroyed() && !window.webContents.isDestroyed() &&
         window.webContents.getURL() && !window.webContents.isLoadingMainFrame()) {
@@ -216,7 +219,12 @@ async function startDesktop({ appRoot = join(__dirname, '..'), licensePublicKeyF
   window = new BrowserWindow({
     width: 1180, height: 800, minWidth: 720, minHeight: 480,
     title: 'Folio', backgroundColor: '#f7f9fb', show: false,
-    webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true, webSecurity: true, webviewTag: false },
+    webPreferences: { preload: join(__dirname, 'preload.cjs'), nodeIntegration: false, contextIsolation: true, sandbox: true, webSecurity: true, webviewTag: false },
+  });
+  pdfExporter = createPdfExporter({
+    ipcMain, BrowserWindow, owner: window, getOrigin: () => origin,
+    downloads: () => app.getPath('downloads'), shell,
+    canExport: () => !isStopping() && !choosingLibrary && licenseStatus.canWrite,
   });
   window.webContents.on('will-navigate', (event, target) => { if (!isAppURL(target, origin)) event.preventDefault(); });
   window.webContents.setWindowOpenHandler(({ url }) => isOriginalURL(url, origin) ? {
@@ -309,6 +317,7 @@ async function startDesktop({ appRoot = join(__dirname, '..'), licensePublicKeyF
       if (await isImporting()) { await waitForImport(); return; }
       const previous = settings;
       librarySwitchJob = (async () => {
+        pdfExporter.cancelAll();
         await backend.stop();
         if (isStopping()) return;
         settings = { ...settings, libraryDir: dir };

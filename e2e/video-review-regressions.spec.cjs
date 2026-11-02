@@ -71,6 +71,7 @@ for (const action of ['note', 'delete', 'rename']) {
         return;
       }
       await page.locator(`.tile[data-id="${album.photos[0].id}"]`).click();
+      await page.locator('.lb-bar [data-act=details]').click();
       await page.locator('[data-note-edit]').click();
       await page.getByLabel('Note text', { exact: true }).fill('Snapshot already contains the upload');
       await page.locator('[data-note-save]').click();

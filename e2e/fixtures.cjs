@@ -27,6 +27,7 @@ async function desktopFixture({ license = 'active', plan = 'trial', features = [
   await writeFile(licenseFile, JSON.stringify(envelope));
   if (license !== 'missing') await writeFile(join(profile, 'license.json'), JSON.stringify(envelope));
   let desktop;
+  let firstLaunch = true;
   async function stop() {
     if (desktop?.context().pages().length) {
       // Playwright closes its Node inspector immediately after app.quit(), before an async drain finishes.
@@ -47,6 +48,17 @@ async function desktopFixture({ license = 'active', plan = 'trial', features = [
       if (!waitForReady) return { desktop };
       await expect.poll(() => desktop.evaluate(() => !!global.folioTestDesktop), { timeout: 30000 }).toBe(true);
       const page = await desktop.firstWindow();
+      await page.waitForLoadState('domcontentloaded');
+      // Real Electron follows the host OS language; keep a new test profile deterministic without
+      // overwriting the user's persisted choice in the restart and recovery scenarios.
+      if (firstLaunch) {
+        await page.evaluate(() => {
+          localStorage.setItem('lang', 'en');
+          document.cookie = 'folio_lang=en; Path=/; SameSite=Lax';
+        });
+        firstLaunch = false;
+        await page.reload();
+      }
       const session = await desktop.context().newCDPSession(page);
       // Playwright's focus emulation masks real window hide/show events.
       await session.send('Emulation.setFocusEmulationEnabled', { enabled: false });

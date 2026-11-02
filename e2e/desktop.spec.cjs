@@ -1,5 +1,5 @@
 const { test, expect } = require('@playwright/test');
-const { readFile } = require('node:fs/promises');
+const { readFile, mkdir } = require('node:fs/promises');
 const { join } = require('node:path');
 const sharp = require('sharp');
 const { desktopFixture } = require('./fixtures.cjs');
@@ -57,12 +57,18 @@ test('isolated desktop uses the real utility backend and a sandboxed renderer', 
     expect(pixels[corner + 1]).toBeLessThan(60);
     await page.goto(`${origin}/#/a/${album.id}/p/${result.photo.id}`);
     await expect(page.locator('.lb')).toBeVisible();
-    const opened = desktop.waitForEvent('window', { timeout: 3000 });
+    const downloaded = test.info().outputPath('owned.png');
+    await mkdir(test.info().outputDir, { recursive: true });
+    await desktop.evaluate((_, path) => {
+      global.folioTestDesktop.window.webContents.session.once('will-download', (event, item) => {
+        item.setSavePath(path);
+        item.once('done', (_, state) => { global.ownedDownloadState = state; });
+      });
+    }, downloaded);
     await page.locator('.lb [data-act=original]').click();
-    const original = await opened;
-    await expect(original.locator('img')).toBeVisible();
-    expect(await original.evaluate(() => typeof window.require)).toBe('undefined');
-    await original.close();
+    await expect.poll(() => desktop.evaluate(() => global.ownedDownloadState)).toBe('completed');
+    expect(await readFile(downloaded)).toEqual(png);
+    await expect(page.locator('.lb')).toBeVisible();
     await fixture.close();
     await expect(async () => { await fetch(origin); }).rejects.toThrow();
   } finally {

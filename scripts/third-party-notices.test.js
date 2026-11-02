@@ -97,6 +97,22 @@ test('notices follow the installed production graph, preserve nested versions an
   for (const [name, bytes] of files) assert.deepEqual(await readFile(join(result.directory, name)), bytes, name);
 });
 
+test('runtime album ZIP downloads include yazl and its CRC dependency in notices and the legal archive', async (t) => {
+  const { root, file, pkg } = await fixture(t);
+  const metadata = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
+  await file('package.json', { ...metadata, dependencies: { ...metadata.dependencies, yazl: '3.3.1' } });
+  await pkg('node_modules/yazl', { name: 'yazl', version: '3.3.1', license: 'MIT', dependencies: { 'buffer-crc32': '1.0.0' } }, 'yazl fixture notice');
+  await pkg('node_modules/buffer-crc32', { name: 'buffer-crc32', version: '1.0.0', license: 'MIT' }, 'CRC fixture notice');
+  const result = await generateNotices({ root, runtime });
+  const files = await unzip(result.archive);
+  const notices = files.get('THIRD_PARTY_NOTICES.txt').toString();
+  assert.match(notices, /Album ZIP downloads: yazl/);
+  assert.match(notices, /yazl fixture notice/);
+  assert.match(notices, /CRC fixture notice/);
+  assert.ok(result.inventory.packages.some((entry) => entry.name === 'yazl'));
+  assert.ok(result.inventory.packages.some((entry) => entry.name === 'buffer-crc32'));
+});
+
 test('tagged notices and their archive use the release version without rewriting the source package', async (t) => {
   const { root } = await fixture(t);
   const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();

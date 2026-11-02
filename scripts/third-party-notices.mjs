@@ -190,6 +190,7 @@ export async function generateNotices({ root = project, runtime, buildEnv = proc
     '',
     'Copyright and license grants below remain with their respective owners.',
     'Electron/Chromium/FFmpeg notices: electron/LICENSE and electron/LICENSES.chromium.html.',
+    ...(packages.some((pkg) => pkg.name === 'yazl') ? ['Album ZIP downloads: yazl (MIT), including its buffer-crc32 dependency; full notices follow.'] : []),
     'Native/WASM build provenance and remaining source-delivery obligations: materials/ and inventory.json.',
     'Source references/build recipes do not by themselves establish complete corresponding-source delivery or patent clearance.',
     '',

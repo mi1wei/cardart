@@ -27,7 +27,7 @@ export async function validateSourceInputs({ root = project, platform = process.
   if (!targets.has(`${platform}-${arch}`)) throw new Error(`Unsupported installer target: ${platform}-${arch}`);
   if (platform !== process.platform || arch !== process.arch) throw new Error('Native installer builds must use the matching host platform and architecture');
   await publicKey(root);
-  for (const file of ['dist/index.html', 'public/favicon.ico', 'public/icons/folio.icns', 'public/icons/trayTemplate.png', 'public/icons/trayTemplate@2x.png']) {
+  for (const file of ['dist/index.html', 'dist/print.html', 'public/favicon.ico', 'public/icons/folio.icns', 'public/icons/trayTemplate.png', 'public/icons/trayTemplate@2x.png']) {
     if (!(await readFile(join(root, file))).length) throw new Error(`Missing build resource: ${file}`);
   }
 }
@@ -79,7 +79,7 @@ function ownerOf(path) {
 }
 
 function permittedWeb(file) {
-  return /^(index\.html|theme-boot\.js|favicon\.(svg|ico)|apple-touch-icon\.png|geist-OFL\.txt)$/.test(file) ||
+  return /^(index\.html|print\.html|theme-boot\.js|favicon\.(svg|ico)|apple-touch-icon\.png|geist-OFL\.txt)$/.test(file) ||
     /^icons\/(folio-1024\.png|folio-logo\.png|folio\.icns|trayTemplate(?:@2x)?\.png)$/.test(file) ||
     /^assets\/[A-Za-z0-9_.-]+\.(js|css)$/.test(file) ||
     /^assets\/geist-[A-Za-z0-9_.-]+\.woff2$/.test(file) ||
@@ -162,7 +162,7 @@ export async function verifyPackage({ appDir, root = project, platform = process
   const metadata = JSON.parse(content('package.json'));
   if (metadata.version !== expected.version || metadata.main !== 'desktop/main.cjs' || metadata.type !== 'module') throw new Error('Packaged entry point/version is invalid');
   if (expected.tag && (metadata.folioBuild?.tag !== expected.tag || metadata.folioBuild.sourceCommit !== expected.sourceCommit)) throw new Error('Packaged build tag/source identity is invalid');
-  for (const name of ['desktop/main.cjs', 'desktop/service.cjs', 'server/app.js', 'server/heic-worker.cjs', 'server/license.js', 'server/license-store.js', 'server/video-container.js', 'server/video-importer.js', 'server/video-metadata.js', 'shared/media.js']) content(name);
+  for (const name of ['desktop/main.cjs', 'desktop/service.cjs', 'desktop/pdf-export.cjs', 'desktop/preload.cjs', 'desktop/print-preload.cjs', 'server/app.js', 'server/download.js', 'server/library-transactions.js', 'server/heic-worker.cjs', 'server/license.js', 'server/license-store.js', 'server/video-container.js', 'server/video-importer.js', 'server/video-metadata.js', 'shared/media.js']) content(name);
   const packedKey = content('desktop/license-public.pem');
   parseLicensePublicKey(packedKey);
   if (hash(packedKey) !== hash(key)) throw new Error('Packaged license public key differs from the maintainer source key');
@@ -190,6 +190,7 @@ export async function verifyPackage({ appDir, root = project, platform = process
   for (const name of ['node_modules/libheif-js/wasm-bundle.js', 'node_modules/libheif-js/libheif-wasm/libheif-bundle.js']) content(name);
   const web = await sameTree(join(root, 'dist'), join(resources, 'web'), 'web');
   if (!web.includes('index.html')) throw new Error('Missing web/index.html');
+  if (!web.includes('print.html')) throw new Error('Missing web/print.html');
   for (const name of web) if (!permittedWeb(name)) throw new Error(`Unexpected web resource: ${name}`);
   await sameTree(join(root, 'release/legal'), join(resources, 'legal'), 'legal');
   for (const name of ['favicon.ico', 'icons/trayTemplate.png', 'icons/trayTemplate@2x.png']) {

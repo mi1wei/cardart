@@ -29,14 +29,11 @@ export function createPhotoDetails(root, onAlbum) {
   panel.setAttribute('aria-labelledby', 'photo-details-title');
   panel.innerHTML = `
     <header class="lb-details-header"><span>${t('details')}</span><button class="ibtn" type="button" data-act="details-close" aria-label="${t('details-close')}">${icon('close')}</button></header>
-    <div class="lb-title-row"><h2 class="lb-name" id="photo-details-title" data-field="file-name"></h2>
-      <button class="lb-mobile-details" type="button" data-act="details" aria-label="${t('details')}" aria-expanded="true" aria-controls="photo-details-body">${t('details')}${icon('next')}</button>
-      <button class="ibtn lb-delete" type="button" data-write data-act="delete" aria-label="${t('delete-photo')}">${icon('trash')}</button>
-    </div>
+    <div class="lb-title-row"><h2 class="lb-name" id="photo-details-title" data-field="file-name"></h2></div>
     <div class="lb-facts"><span data-field="format"></span><span data-field="dimensions"></span><span data-field="bytes"></span></div>
     <div class="lb-note-host"></div>
     <div class="lb-details-body" id="photo-details-body"><p class="lb-details-status" role="status"></p><div class="lb-details-content"></div></div>
-    <div class="lb-photo-actions"><button class="btn pri" type="button" data-act="original">${icon('expand')}<span>${t('original')}</span></button><button class="btn" type="button" data-write data-act="cover">${icon('star')}<span>${t('set-cover')}</span></button></div>`;
+    <div class="lb-photo-actions"><button class="btn" type="button" data-write data-act="sheet-cover">${icon('star')}<span>${t('set-cover')}</span></button><button class="btn danger" type="button" data-write data-act="sheet-delete">${icon('trash')}<span>${t('delete-photo')}</span></button></div>`;
   root.querySelector('.lb-workspace').append(panel);
   const $ = (selector) => panel.querySelector(selector);
   const note = createPhotoNote($('.lb-note-host'), onAlbum);
@@ -45,7 +42,8 @@ export function createPhotoDetails(root, onAlbum) {
   const body = $('.lb-details-body');
   const mobile = matchMedia('(max-width: 860px)');
   let current;
-  let opened = true;
+  let opened = false;
+  try { opened = localStorage.getItem('lightbox-details') === 'true'; } catch {}
   let revision = 0;
   let controller;
 
@@ -104,8 +102,7 @@ export function createPhotoDetails(root, onAlbum) {
     const size = bytes(metadata?.bytes);
     $('[data-field=bytes]').textContent = size || '';
     $('[data-field=bytes]').hidden = !size;
-    $('[data-act=original] span').textContent = t(video ? 'original-video' : 'original');
-    $('[data-act=delete]').setAttribute('aria-label', t(video ? 'delete-video' : 'delete-photo'));
+    $('[data-act=sheet-delete] span').textContent = t(video ? 'delete-video' : 'delete-photo');
     body.setAttribute('aria-busy', String(loading));
     status.textContent = loading ? t(video ? 'video-details-loading' : 'details-loading') : failed ? t(video ? 'video-details-unavailable' : 'details-unavailable') :
       !video && metadata?.exifStatus === 'none' ? t('details-no-exif') : !video && metadata?.exifStatus === 'unreadable' ? t('details-unreadable') : '';
@@ -157,19 +154,27 @@ export function createPhotoDetails(root, onAlbum) {
     }
   }
   function sync() {
-    panel.hidden = !opened && !mobile.matches;
+    panel.hidden = !opened;
     body.hidden = !opened;
     root.classList.toggle('has-details', opened);
     for (const trigger of root.querySelectorAll('[data-act=details]')) trigger.setAttribute('aria-expanded', String(opened));
+    try { localStorage.setItem('lightbox-details', String(opened)); } catch {}
   }
   function close() {
     if (!opened) return false;
+    if (!note.canLeave()) return true;
     opened = false;
     revision++;
     controller?.abort();
     sync();
-    root.querySelector(mobile.matches ? '.lb-mobile-details' : '.lb-desktop-details').focus({ preventScroll: true });
+    root.querySelector('.lb-desktop-details')?.focus({ preventScroll: true });
     return true;
+  }
+  function open() {
+    if (opened) return;
+    opened = true;
+    sync();
+    void load();
   }
   function onLayoutChange() {
     sync();
@@ -179,6 +184,7 @@ export function createPhotoDetails(root, onAlbum) {
   sync();
   return {
     get saving() { return note.saving; },
+    get opened() { return opened; },
     setPending: (value) => note.setPending(value),
     setPhoto(albumId, photo) {
       const key = `${albumId}/${photo.id}/${photo.sha256}`;
@@ -191,14 +197,10 @@ export function createPhotoDetails(root, onAlbum) {
         else render(null);
       }
     },
-    toggle() {
-      if (close()) return;
-      opened = true;
-      sync();
-      void load();
-    },
+    toggle() { if (!close()) open(); },
+    open,
     close,
-    escape: () => note.escape() || close(),
+    escape: close,
     canLeave: () => note.canLeave(),
     contains: (element) => panel.contains(element),
     dispose() { revision++; controller?.abort(); mobile.removeEventListener('change', onLayoutChange); note.dispose(); panel.remove(); },

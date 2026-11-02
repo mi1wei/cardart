@@ -59,7 +59,7 @@ async function fixture(t, { platform = 'darwin', arch = 'arm64', extra = {}, add
   await file(join(source, 'package.json'), metadata);
   await file(join(root, 'desktop/license-public.pem'), pem);
   await file(join(source, 'desktop/license-public.pem'), pem);
-  for (const path of ['desktop/main.cjs', 'desktop/service.cjs', 'server/app.js', 'server/heic-worker.cjs', 'server/license.js', 'server/license-store.js', 'server/video-container.js', 'server/video-importer.js', 'server/video-metadata.js', 'shared/media.js', 'node_modules/sharp/dist/index.cjs', 'node_modules/sharp/dist/index.mjs', 'node_modules/libheif-js/wasm-bundle.js', 'node_modules/libheif-js/libheif-wasm/libheif-bundle.js']) {
+  for (const path of ['desktop/main.cjs', 'desktop/service.cjs', 'desktop/pdf-export.cjs', 'desktop/preload.cjs', 'desktop/print-preload.cjs', 'server/app.js', 'server/download.js', 'server/library-transactions.js', 'server/heic-worker.cjs', 'server/license.js', 'server/license-store.js', 'server/video-container.js', 'server/video-importer.js', 'server/video-metadata.js', 'shared/media.js', 'node_modules/sharp/dist/index.cjs', 'node_modules/sharp/dist/index.mjs', 'node_modules/libheif-js/wasm-bundle.js', 'node_modules/libheif-js/libheif-wasm/libheif-bundle.js']) {
     await file(join(source, path), '/* structural fixture */');
   }
   for (const pkg of packages) {
@@ -81,6 +81,7 @@ async function fixture(t, { platform = 'darwin', arch = 'arm64', extra = {}, add
   for (const [path, data] of Object.entries(extra)) await file(join(source, path), data);
   const web = {
     'index.html': '<!doctype html><title>Folio</title>',
+    'print.html': '<!doctype html><title>Folio print</title>',
     'favicon.ico': 'owned icon fixture',
     'icons/folio-logo.png': 'owned page logo fixture',
     'icons/trayTemplate.png': 'owned template fixture',
@@ -107,7 +108,7 @@ async function fixture(t, { platform = 'darwin', arch = 'arm64', extra = {}, add
   }
   await mkdir(resources, { recursive: true });
   await asar.createPackageWithOptions(source, join(resources, 'app.asar'), {
-    dot: true, unpack: '{**/node_modules/sharp/**,**/node_modules/@img/**,**/node_modules/libheif-js/**}',
+    dot: true, unpackDir: '{node_modules/sharp,node_modules/@img,node_modules/libheif-js}',
   });
   const executable = platform === 'darwin' ? join(appDir, 'Contents/MacOS/Folio') : join(appDir, 'Folio.exe');
   const fuseFile = platform === 'darwin' ? join(appDir, 'Contents/Frameworks/Electron Framework.framework/Electron Framework') : executable;
@@ -129,26 +130,44 @@ test('package verification accepts the supported thin target layouts without tre
   }
 });
 
+test('package requires the standalone print entry even when missing from both build and package', async (t) => {
+  const f = await fixture(t);
+  await rm(join(f.root, 'dist/print.html'));
+  await rm(join(f.resources, 'web/print.html'));
+  await assert.rejects(verifyPackage(f), /missing web\/print\.html/i);
+});
+
+for (const module of ['desktop/pdf-export.cjs', 'desktop/preload.cjs', 'desktop/print-preload.cjs']) {
+  test(`package requires the native PDF module ${module}`, async (t) => {
+    const f = await fixture(t);
+    await rm(join(f.source, module));
+    await asar.createPackageWithOptions(f.source, join(f.resources, 'app.asar'), {
+      dot: true, unpackDir: '{node_modules/sharp,node_modules/@img,node_modules/libheif-js}',
+    });
+    await assert.rejects(verifyPackage(f), /missing app payload.*desktop\/(pdf-export|preload|print-preload)\.cjs/i);
+  });
+}
+
 test('package requires its shared media contract but rejects unrelated shared code', async (t) => {
   const injected = await fixture(t, { extra: { 'shared/injected.js': 'owned injection fixture' } });
   await assert.rejects(verifyPackage(injected), /unexpected\/unlisted app payload: shared\/injected\.js/i);
   const missing = await fixture(t);
   await rm(join(missing.source, 'shared/media.js'));
   await asar.createPackageWithOptions(missing.source, join(missing.resources, 'app.asar'), {
-    dot: true, unpack: '{**/node_modules/sharp/**,**/node_modules/@img/**,**/node_modules/libheif-js/**}',
+    dot: true, unpackDir: '{node_modules/sharp,node_modules/@img,node_modules/libheif-js}',
   });
 
   await assert.rejects(verifyPackage(missing), /missing app payload: shared\/media\.js/i);
 });
 
-for (const module of ['server/video-importer.js', 'server/video-metadata.js']) {
+for (const module of ['server/video-importer.js', 'server/video-metadata.js', 'server/download.js', 'server/library-transactions.js']) {
   test(`package rejects the missing backend module ${module}`, async (t) => {
     const f = await fixture(t);
     await rm(join(f.source, module));
     await asar.createPackageWithOptions(f.source, join(f.resources, 'app.asar'), {
-      dot: true, unpack: '{**/node_modules/sharp/**,**/node_modules/@img/**,**/node_modules/libheif-js/**}',
+      dot: true, unpackDir: '{node_modules/sharp,node_modules/@img,node_modules/libheif-js}',
     });
-    await assert.rejects(verifyPackage(f), /missing app payload.*video-(importer|metadata)\.js/i);
+    await assert.rejects(verifyPackage(f), new RegExp(`missing app payload: ${module.replaceAll('.', '\\.')}`, 'i'));
   });
 }
 
@@ -172,7 +191,7 @@ test('tagged packages must embed the tag version and build tag, not the source b
   const pack = async () => {
     await f.file(join(f.source, 'package.json'), metadata);
     await asar.createPackageWithOptions(f.source, join(f.resources, 'app.asar'), {
-      dot: true, unpack: '{**/node_modules/sharp/**,**/node_modules/@img/**,**/node_modules/libheif-js/**}',
+      dot: true, unpackDir: '{node_modules/sharp,node_modules/@img,node_modules/libheif-js}',
     });
   };
   await pack();
@@ -207,7 +226,7 @@ test('Windows native verification requires both libvips DLLs from the Sharp pack
     await rm(join(f.source, 'node_modules/@img/sharp-win32-x64/lib', name));
     await rm(join(f.resources, 'app.asar.unpacked'), { recursive: true, force: true });
     await asar.createPackageWithOptions(f.source, join(f.resources, 'app.asar'), {
-      dot: true, unpack: '{**/node_modules/sharp/**,**/node_modules/@img/**,**/node_modules/libheif-js/**}',
+      dot: true, unpackDir: '{node_modules/sharp,node_modules/@img,node_modules/libheif-js}',
     });
     await assert.rejects(verifyPackage(f), /missing app payload.*libvips/i);
   }

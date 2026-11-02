@@ -1,6 +1,7 @@
 import { CanvasTexture, SRGBColorSpace } from 'three';
 import { DIM, POCKET, pocketX } from './layout.js';
 import { formatDuration } from '../../shared/media.js';
+import { fitText, SERIF } from './text.js';
 
 // PVC palette from the original album.
 const FILM = '#eef1f3';
@@ -9,9 +10,22 @@ const EDGE = 'rgba(255,255,255,0.9)';
 const SHADE = 'rgba(24,31,40,0.16)';
 const EMPTY = '#d5dbe1'; // a photo that has not arrived (or failed)
 const PX = 4; // canvas pixels per mm
+const CAPTION = 6; // mm under a photo with a note (v2 spec §8)
+const INK = '#4a5662';
+
+const noteOf = (info) => (typeof info?.note === 'string' ? info.note.replace(/\s+/g, ' ').trim() : '');
+
+// Where the photo sits in its slot: a note takes a line under it and the photo keeps its shape.
+function photoBox(r, note) {
+  // Very short panoramas occupy a page alone, with ample space below their centred slot.
+  if (!note || r.h < CAPTION * 2) return r;
+  const h = r.h - CAPTION;
+  const w = (h * r.w) / r.h;
+  return { x: r.x + (r.w - w) / 2, y: r.y, w, h };
+}
 
 // Film, the full-page pocket with grey slots for the photos, and the ring holes.
-function drawPage(ctx, face, page) {
+function drawPage(ctx, face, page, itemInfo) {
   const x0 = pocketX(face);
   const y0 = DIM.top;
   ctx.fillStyle = FILM;
@@ -28,15 +42,26 @@ function drawPage(ctx, face, page) {
   ctx.fillRect(x0, y0, POCKET.w, POCKET.h);
 
   for (const r of page?.rects ?? []) {
+    const note = noteOf(itemInfo(r.i));
+    const box = photoBox(r, note);
     ctx.save();
     ctx.beginPath();
-    ctx.roundRect(x0 + POCKET.pad + r.x, y0 + POCKET.pad + r.y, r.w, r.h, 0.6);
+    ctx.roundRect(x0 + POCKET.pad + box.x, y0 + POCKET.pad + box.y, box.w, box.h, 0.6);
     ctx.shadowColor = 'rgba(0,0,0,0.28)';
     ctx.shadowBlur = 1.2 * PX; // shadow sizes are in canvas pixels
     ctx.shadowOffsetY = 0.25 * PX;
     ctx.fillStyle = EMPTY;
     ctx.fill();
     ctx.restore();
+    if (note) {
+      ctx.save();
+      ctx.font = `italic 3.4px ${SERIF}`;
+      ctx.textAlign = 'center';
+      ctx.fillStyle = INK;
+      const below = r.h < CAPTION * 2 ? CAPTION : 0;
+      ctx.fillText(fitText(ctx, note, r.w - 2), x0 + POCKET.pad + r.x + r.w / 2, y0 + POCKET.pad + r.y + r.h + below - 1.6);
+      ctx.restore();
+    }
   }
 
   // Pocket mouth: a bright lip with a soft shade under it.
@@ -77,7 +102,7 @@ export function createPageTexture(face, page, photoUrl, onRedraw, itemInfo = () 
   canvas.height = Math.round(DIM.H * PX);
   const ctx = canvas.getContext('2d');
   ctx.setTransform(canvas.width / DIM.W, 0, 0, canvas.height / DIM.H, 0, 0);
-  drawPage(ctx, face, page);
+  drawPage(ctx, face, page, itemInfo);
   const texture = new CanvasTexture(canvas);
   texture.colorSpace = SRGBColorSpace;
   if (face % 2 === 1) {
@@ -89,19 +114,22 @@ export function createPageTexture(face, page, photoUrl, onRedraw, itemInfo = () 
   const x0 = pocketX(face) + POCKET.pad;
   const y0 = DIM.top + POCKET.pad;
   for (const r of page?.rects ?? []) {
+    const info = itemInfo(r.i);
+    const box = photoBox(r, noteOf(info));
     const image = new Image();
     image.onload = () => {
       if (!live) return;
+      const x = x0 + box.x;
+      const y = y0 + box.y;
       ctx.save();
       ctx.beginPath();
-      ctx.roundRect(x0 + r.x, y0 + r.y, r.w, r.h, 0.6);
+      ctx.roundRect(x, y, box.w, box.h, 0.6);
       ctx.clip();
-      ctx.drawImage(image, x0 + r.x, y0 + r.y, r.w, r.h);
-      const info = itemInfo(r.i);
+      ctx.drawImage(image, x, y, box.w, box.h);
       if (info?.kind === 'video') {
-        const cx = x0 + r.x + r.w / 2;
-        const cy = y0 + r.y + r.h / 2;
-        const radius = Math.min(r.w, r.h) * 0.12;
+        const cx = x + box.w / 2;
+        const cy = y + box.h / 2;
+        const radius = Math.min(box.w, box.h) * 0.12;
         ctx.fillStyle = 'rgba(0,0,0,0.5)';
         ctx.beginPath();
         ctx.arc(cx, cy, radius, 0, Math.PI * 2);
@@ -119,10 +147,10 @@ export function createPageTexture(face, page, photoUrl, onRedraw, itemInfo = () 
           const width = ctx.measureText(duration).width + 4;
           ctx.fillStyle = 'rgba(0,0,0,0.65)';
           ctx.beginPath();
-          ctx.roundRect(x0 + r.x + r.w - width - 1, y0 + r.y + r.h - 6, width, 5, 0.7);
+          ctx.roundRect(x + box.w - width - 1, y + box.h - 6, width, 5, 0.7);
           ctx.fill();
           ctx.fillStyle = '#fff';
-          ctx.fillText(duration, x0 + r.x + r.w - 3, y0 + r.y + r.h - 2);
+          ctx.fillText(duration, x + box.w - 3, y + box.h - 2);
         }
       }
       ctx.restore();
@@ -132,5 +160,6 @@ export function createPageTexture(face, page, photoUrl, onRedraw, itemInfo = () 
     // 4 px/mm: a photo longer than 150 mm on the page needs more than the 600 image.
     image.src = photoUrl(r.i, Math.max(r.w, r.h) > 150 ? 1600 : 600);
   }
+
   return texture;
 }

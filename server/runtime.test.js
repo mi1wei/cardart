@@ -139,10 +139,10 @@ async function seedPhoto(dir, { legacy = false } = {}) {
   } finally { await lib.close(); }
 }
 
-test('legacy details read original EXIF in read-only mode without modifying any album data', async (t) => {
+test('legacy metadata backfill is drained in read-only mode without modifying settings or media', async (t) => {
   const f = await fixture(t);
   const seeded = await seedPhoto(f.dir, { legacy: true });
-  const files = [join(f.dir, 'library.json'), join(seeded.folder, 'album.json'), join(seeded.folder, 'originals', seeded.photo.file),
+  const files = [join(f.dir, 'library.json'), join(seeded.folder, 'originals', seeded.photo.file),
     ...[600, 1600].map((size) => join(seeded.folder, 'cache', `${seeded.photo.id}_${size}.webp`))];
   const before = await Promise.all(files.map((file) => readFile(file)));
   for (const state of ['missing', 'expired']) {
@@ -154,9 +154,12 @@ test('legacy details read original EXIF in read-only mode without modifying any 
     assert.equal(details.metadata.cameraModel, 'Synthetic Camera');
     assert.equal(details.metadata.takenAt.raw, '2026:08:15 09:30:00');
     assert.equal(details.metadata.fileTimeSource, 'library-copy');
+    await runtime.close();
     assert.deepEqual(await Promise.all(files.map((file) => readFile(file))), before);
     assert.deepEqual((await readdir(seeded.folder)).sort(), ['album.json', 'cache', 'originals']);
-    await runtime.close();
+    const stored = JSON.parse(await readFile(join(seeded.folder, 'album.json'), 'utf8'));
+    assert.equal(stored.photos[0].metadata.takenAt.local, '2026-08-15T09:30:00');
+    assert.equal(stored.photos[0].addedAt, seeded.photo.addedAt);
   }
 });
 

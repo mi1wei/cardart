@@ -1,17 +1,18 @@
 import { timingSafeEqual } from 'node:crypto';
-import { open } from 'node:fs/promises';
+import { mkdir, open, stat } from 'node:fs/promises';
 import http from 'node:http';
 import { networkInterfaces } from 'node:os';
 import { isIP } from 'node:net';
 import { extname, join, resolve, sep } from 'node:path';
 import { pipeline } from 'node:stream/promises';
-import { ensureCache, importPhoto } from './importer.js';
+import { ensureCache, importPhoto, makeCache } from './importer.js';
 import { fail, isAlbumId, isPhotoId, openLibrary } from './library.js';
 import { say } from './text.js';
 import { MAX_LICENSE_BYTES } from './license.js';
 import { isPhotoMetadata, readPhotoMetadata } from './photo-metadata.js';
 import { importVideo, parseVideoParameters } from './video-importer.js';
 import { readVideoMetadata } from './video-metadata.js';
+import { createDownloadTickets, disposition, downloadZip } from './download.js';
 
 const LOOPBACK = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
 const MIME = {
@@ -201,9 +202,21 @@ function gate(lib, req, res, url) {
   return { local };
 }
 
-async function api(lib, req, res, url, local, license) {
+async function api(lib, req, res, url, local, license, downloads) {
   const [, , name, id, sub, action, detail, ...rest] = url.pathname.split('/');
   const m = req.method;
+  const requireWrite = () => {
+    const state = license?.status();
+    if (state && (state.state !== 'active' || !state.canWrite)) throw fail(403, 'license-required');
+  };
+  if (name === 'trash') {
+    if (id === undefined && m === 'GET') return send(res, 200, lib.listTrash());
+    if (m === 'POST' && sub === undefined && ['restore', 'purge'].includes(id)) {
+      requireWrite();
+      const body = await readJson(req);
+      return send(res, 200, id === 'restore' ? await lib.restoreTrash(body.ids) : await lib.purgeTrash(body));
+    }
+  }
   if (name === 'license' && id === undefined) {
     if (m === 'GET') return send(res, 200, license?.status() ?? { state: 'development', canWrite: true });
     if (m !== 'POST') throw fail(405, 'not-supported');
@@ -219,18 +232,16 @@ async function api(lib, req, res, url, local, license) {
     return send(res, 200, { ...lib.phone(), ip: addresses[0]?.address ?? null, addresses, port: req.socket.localPort });
   }
   if (name === 'albums') {
-    if (license && !['GET', 'HEAD'].includes(m)) {
-      const state = license.status();
-      if (state.state !== 'active' || !state.canWrite) throw fail(403, 'license-required');
-    }
+    const download = sub === 'photos' && action === 'download' && detail === undefined && ['GET', 'POST'].includes(m);
+    if (!['GET', 'HEAD'].includes(m) && !download) requireWrite();
     if (id === undefined && m === 'GET') return send(res, 200, lib.list());
     if (id === undefined && m === 'POST') return send(res, 200, await lib.create((await readJson(req)).title));
     if (id !== undefined && sub === undefined) {
-      if (m === 'GET') return send(res, 200, lib.get(id));
-      if (m === 'PATCH') return send(res, 200, await lib.update(id, await readJson(req)));
+      if (m === 'GET') return send(res, 200, lib.snapshot(id));
+      if (m === 'PATCH') { await lib.update(id, await readJson(req)); return send(res, 200, lib.snapshot(id)); }
       if (m === 'DELETE') {
-        await lib.remove(id);
-        return send(res, 200, { ok: true });
+        const trashId = await lib.remove(id);
+        return send(res, 200, { ok: true, trashId });
       }
     }
     if (sub === 'photos' && detail === 'details' && !rest.length && m === 'GET') {
@@ -246,7 +257,8 @@ async function api(lib, req, res, url, local, license) {
       return send(res, 200, { photoId: photo.id, metadata });
     }
     if (sub === 'photos' && detail === 'note' && !rest.length && m === 'PATCH') {
-      return send(res, 200, await lib.updatePhotoNote(id, action, await readJson(req, 32768)));
+      await lib.updatePhotoNote(id, action, await readJson(req, 32768));
+      return send(res, 200, lib.snapshot(id));
     }
     if (sub === 'photos' && action === undefined && m === 'POST') {
       if (req.headers['x-album-upload'] !== '1') throw fail(403, 'upload-header');
@@ -260,15 +272,33 @@ async function api(lib, req, res, url, local, license) {
       const lastModified = /^(0|[1-9]\d{0,14})$/.test(modified ?? '') ? Number(modified) : undefined;
       return send(res, 200, await importPhoto(lib, id, req, url.searchParams.get('name'), { lastModified }));
     }
-    if (sub === 'photos' && action === 'delete' && m === 'POST') {
-      return send(res, 200, await lib.deletePhotos(id, (await readJson(req)).ids));
+    if (sub === 'photos' && detail === undefined && action === 'delete' && m === 'POST') {
+      const result = await lib.deletePhotos(id, (await readJson(req)).ids);
+      return send(res, 200, { ...lib.snapshot(id), ...(result.trashId && { trashId: result.trashId }) });
+    }
+    if (sub === 'photos' && detail === undefined && action === 'transfer' && m === 'POST') {
+      return send(res, 200, await lib.transfer(id, await readJson(req)));
+    }
+    if (download) {
+      if (m === 'POST' && url.searchParams.get('prepare') === '1') {
+        return send(res, 200, { ticket: downloads.issue(id, (await readJson(req)).ids) });
+      }
+      if (m === 'GET' && url.searchParams.has('ticket')) {
+        if (url.searchParams.getAll('ticket').length !== 1 || url.searchParams.has('ids')) throw fail(400, 'bad-request');
+        const ids = downloads.take(id, url.searchParams.get('ticket'));
+        return lib.queue(id, () => downloadZip(lib, id, ids, req, res));
+      }
+      if (m === 'GET' && url.searchParams.getAll('ids').length !== 1) throw fail(400, 'none-selected');
+      const { ids } = m === 'GET' ? { ids: (url.searchParams.get('ids') ?? '').split(',') } : await readJson(req);
+      return lib.queue(id, () => downloadZip(lib, id, ids, req, res));
     }
   }
   throw fail(404, 'no-api');
 }
 
-async function media(lib, req, res, pathname) {
-  const [, , albumId, photoId, size] = pathname.split('/');
+async function media(lib, req, res, url) {
+  const [, , albumId, photoId, size, ...extra] = url.pathname.split('/');
+  if (!['GET', 'HEAD'].includes(req.method) || extra.length) throw fail(404, 'no-photo');
   if (!isAlbumId(albumId) || !isPhotoId(photoId) || !['600', '1600', 'original'].includes(size)) {
     throw fail(404, 'no-photo');
   }
@@ -278,16 +308,44 @@ async function media(lib, req, res, pathname) {
     return sendFile(req, res, join(lib.albumDir(albumId), 'originals', photo.file), {
       ...MEDIA,
       'Cache-Control': 'private, max-age=31536000, immutable',
-      'Content-Disposition': `inline; filename*=UTF-8''${encodeURIComponent(photo.name)}`,
+      'Content-Disposition': disposition(url.searchParams.get('download') === '1' ? 'attachment' : 'inline', photo.name),
     });
   }
-  const file = await ensureCache(lib, albumId, photo, size).catch(() => {
+  const file = await lib.queue(albumId, () => {
+    if (!lib.get(albumId).photos.some((item) => item.id === photoId)) throw fail(404, 'no-photo');
+    return ensureCache(lib, albumId, photo, size);
+  }).catch(() => {
     throw fail(404, 'image-missing');
   });
   return sendFile(req, res, file, { ...MEDIA, 'Cache-Control': 'public, max-age=31536000, immutable' });
 }
 
+async function trashMedia(lib, req, res, url) {
+  const [, , entryId, photoId, size, ...extra] = url.pathname.split('/');
+  if (!['GET', 'HEAD'].includes(req.method) || extra.length || !isAlbumId(entryId) || !isPhotoId(photoId) ||
+      !['600', '1600', 'original'].includes(size)) throw fail(404, 'no-photo');
+  const entry = lib.getTrash(entryId);
+  const photo = entry.photos.find((item) => item.id === photoId);
+  if (!photo) throw fail(404, 'no-photo');
+  const base = entry.kind === 'album' ? join(lib.trashDir(entryId), 'album') : lib.trashDir(entryId);
+  if (size === 'original') return sendFile(req, res, join(base, 'originals', photo.file), {
+    ...MEDIA, 'Cache-Control': 'no-store', 'Content-Disposition': disposition('inline', photo.name),
+  });
+  const file = join(base, 'cache', `${photoId}_${size}.webp`);
+  await lib.queue('__trash_media__', async () => {
+    lib.getTrash(entryId);
+    try { await stat(file); }
+    catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+      await mkdir(join(base, 'cache'), { recursive: true });
+      await makeCache(join(base, 'originals', photo.kind === 'video' ? photo.poster : photo.file), join(base, 'cache'), photoId);
+    }
+  });
+  return sendFile(req, res, file, { ...MEDIA, 'Cache-Control': 'no-store' });
+}
+
 export function createHandler(lib, { license = null } = {}) {
+  const downloads = createDownloadTickets(lib);
   return async (req, res, next) => {
     try {
       const url = new URL(req.url, 'http://local');
@@ -297,8 +355,9 @@ export function createHandler(lib, { license = null } = {}) {
       }
       const who = gate(lib, req, res, url);
       if (!who) return;
-      if (url.pathname.startsWith('/api/')) return await api(lib, req, res, url, who.local, license);
-      if (url.pathname.startsWith('/media/')) return await media(lib, req, res, url.pathname);
+      if (url.pathname.startsWith('/api/')) return await api(lib, req, res, url, who.local, license, downloads);
+      if (url.pathname.startsWith('/media/')) return await media(lib, req, res, url);
+      if (url.pathname.startsWith('/trash-media/')) return await trashMedia(lib, req, res, url);
       return await next();
     } catch (err) {
       if (!err.status) console.error(err);
@@ -335,7 +394,11 @@ export async function startServer({ dir, port = 5180, host = '0.0.0.0', dist, fa
   let closing;
   const server = http.createServer((req, res) => {
     if (stopping) return send(res, 503, { error: say(langOf(req), 'server-stopping') }, { Connection: 'close' });
-    const reading = ['GET', 'HEAD'].includes(req.method);
+    let url;
+    try { url = new URL(req.url, 'http://local'); }
+    catch { return send(res, 400, { error: say(langOf(req), 'wrong-address') }, { Connection: 'close' }); }
+    const reading = ['GET', 'HEAD'].includes(req.method) ||
+      req.method === 'POST' && /^\/api\/albums\/[^/]+\/photos\/download$/.test(url.pathname);
     if (reading) {
       readers.add(res);
       res.once('close', () => readers.delete(res));
@@ -380,6 +443,7 @@ export async function startServer({ dir, port = 5180, host = '0.0.0.0', dist, fa
         stopping = true;
         const stopped = new Promise((ok, bad) => server.close((error) => error ? bad(error) : ok()));
         server.closeIdleConnections();
+        for (const response of readers) response.destroy();
         await Promise.allSettled([...writes]);
         for (const response of readers) response.destroy();
         await Promise.allSettled([...pending]);
