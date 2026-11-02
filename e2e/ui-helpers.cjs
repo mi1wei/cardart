@@ -20,4 +20,18 @@ const setRange = (locator, value) => locator.evaluate((el, v) => {
   el.dispatchEvent(new Event('input', { bubbles: true }));
 }, value);
 
-module.exports = { seed, style, setRange };
+// An album for the 3D book: `count` photos at `perPage` a page, with optional notes by photo index.
+async function seedBook(page, origin, title, count, perPage, notes = {}) {
+  const album = await seed(page, origin, title, count);
+  const res = await page.request.patch(`${origin}/api/albums/${album.id}`, { data: { perPage } });
+  expect(res.ok()).toBe(true);
+  let full = await res.json();
+  for (const [i, note] of Object.entries(notes)) {
+    const saved = await page.request.patch(`${origin}/api/albums/${album.id}/photos/${full.photos[i].id}/note`, { data: { note, previousNote: '' } });
+    expect(saved.ok()).toBe(true);
+    full = await saved.json();
+  }
+  return full;
+}
+
+module.exports = { seed, seedBook, style, setRange };
