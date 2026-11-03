@@ -1844,7 +1844,7 @@ button {
 
 .set-v {
   flex: 1 1 0;
-  min-width: 0;
+  min-width: min-content;
 }
 
 .set-v b {

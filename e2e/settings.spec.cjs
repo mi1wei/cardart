@@ -1,4 +1,5 @@
 const { test, expect } = require('@playwright/test');
+const { join } = require('node:path');
 const { desktopFixture } = require('./fixtures.cjs');
 const { openSettings, seed } = require('./ui-helpers.cjs');
 
@@ -78,4 +79,45 @@ test('the top bar keeps the logo, phone access and Settings, and every page lead
       await expect(page).toHaveURL(/#\/albums$/);
     }
   } finally { await fixture.close(); }
+});
+
+test('a narrow browser keeps its license status clear of Manage', async () => {
+  const fixture = await desktopFixture();
+  let server;
+  try {
+    const { desktop } = await fixture.launch();
+    const { startServer } = await import('../server/app.js');
+    server = await startServer({
+      dir: join(fixture.root, 'browser-library'), port: 0, host: '127.0.0.1',
+      dist: join(__dirname, '../dist'),
+    });
+    const opened = desktop.waitForEvent('window');
+    await desktop.evaluate(({ BrowserWindow }, url) => {
+      const browser = new BrowserWindow({
+        show: true, webPreferences: { sandbox: true, nodeIntegration: false, contextIsolation: true },
+      });
+      void browser.loadURL(url);
+    }, server.url);
+    const page = await opened;
+    await page.waitForLoadState('domcontentloaded');
+    await page.evaluate(() => localStorage.setItem('lang', 'en'));
+    await page.reload();
+    const settings = await openSettings(page);
+    await expect(settings.locator('.set-license')).toHaveText('Development mode');
+    for (const width of [320, 720]) {
+      await page.setViewportSize({ width, height: 700 });
+      expect(await settings.evaluate((d) => {
+        const text = document.createRange();
+        text.selectNodeContents(d.querySelector('.set-license'));
+        const button = d.querySelector('[data-act=license]').getBoundingClientRect();
+        return [...text.getClientRects()].every((r) =>
+          r.right <= button.left || r.left >= button.right || r.bottom <= button.top || r.top >= button.bottom);
+      }), 'License text must not overlap Manage').toBe(true);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    }
+    await page.close();
+  } finally {
+    await server?.close();
+    await fixture.close();
+  }
 });
