@@ -68,11 +68,14 @@ test('theme can change during an import while the language cannot', async () => 
     await page.goto(`${origin}/#/albums`);
     await page.locator('.nav [data-lang=zh]').click();
     await page.evaluate(() => document.documentElement.setAttribute('data-busy', ''));
-    await page.locator('.theme [data-theme-mode=dark]').click();
-    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-    await page.locator('.nav [data-lang=en]').click({ force: true });
-    await expect(page.locator('html')).toHaveAttribute('lang', 'zh-CN');
-    await page.evaluate(() => document.documentElement.removeAttribute('data-busy'));
+    try {
+      await page.locator('.theme [data-theme-mode=dark]').click();
+      await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+      await page.locator('.nav [data-lang=en]').dispatchEvent('click');
+      await expect(page.locator('html')).toHaveAttribute('lang', 'zh-CN');
+    } finally {
+      await page.evaluate(() => document.documentElement.removeAttribute('data-busy'));
+    }
   } finally { await fixture.close(); }
 });
 
