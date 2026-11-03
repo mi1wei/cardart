@@ -66,7 +66,8 @@ async function desktopFixture({ license = 'active', plan = 'trial', features = [
     },
     async close() {
       await stop();
-      await rm(root, { recursive: true, force: true });
+      // Windows can release the app's file handles a moment after it exits (EBUSY).
+      await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
     },
   };
 }

@@ -14,6 +14,7 @@ import {
 } from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { DIM } from './layout.js';
+import { softwareWebGL } from './gpu.js';
 import { arc, restEdgeX } from './sheet.js';
 import { createTitleTexture } from './title-page.js';
 
@@ -108,17 +109,16 @@ function contactShadowTexture() {
 export function createBinder({ sheets, title, titlePage = null }) {
   const { R, D, xb, B, closedCenter } = binderSize(sheets);
   const group = new Group();
+  // On a CPU renderer the boards are plain frosted plastic: see-through renders the scene twice.
+  const lite = softwareWebGL();
   const frost = new MeshPhysicalMaterial({
     color: '#e9eef2',
-    transmission: 1,
     roughness: 0.6,
-    thickness: 1.6,
     ior: 1.5,
-    clearcoat: 0.6,
-    clearcoatRoughness: 0.4,
     specularIntensity: 0.45,
+    ...(lite ? {} : { transmission: 1, thickness: 1.6, clearcoat: 0.6, clearcoatRoughness: 0.4 }),
   });
-  const steel = new MeshPhysicalMaterial({ color: '#b8bec5', metalness: 1, roughness: 0.3, clearcoat: 0.3 });
+  const steel = new MeshPhysicalMaterial({ color: '#b8bec5', metalness: 1, roughness: 0.3, clearcoat: lite ? 0 : 0.3 });
   const add = (geometry, material, parent = group) => {
     const mesh = new Mesh(geometry, material);
     mesh.receiveShadow = true;

@@ -62,6 +62,14 @@ jobs:
       - run: npm test
       - run: npm run build
       - run: npm run test:desktop
+      - name: Retain desktop test failure traces
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: desktop-failure-${{ matrix.platform }}-${{ matrix.arch }}
+          path: test-results/
+          retention-days: 7
+          if-no-files-found: ignore
       - name: Build without publishing
         run: |
           if [[ "$EXPECTED_PLATFORM" == "darwin" ]]; then
@@ -222,6 +230,14 @@ jobs:
       - run: npm test
       - run: npm run build
       - run: npm run test:desktop
+      - name: Retain desktop test failure traces
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: self-test-failure-${{ matrix.platform }}-${{ matrix.arch }}
+          path: source/test-results/
+          retention-days: 7
+          if-no-files-found: ignore
       - name: Build the pinned main source without publishing
         run: npm run package:desktop -- $TARGET_BUILD
       - name: Verify the actual unsigned or ad-hoc candidate

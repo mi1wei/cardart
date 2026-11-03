@@ -1,5 +1,14 @@
 const path = require('node:path');
 const { app, BrowserWindow, dialog } = require('electron');
+if (process.env.CI) {
+  // Allow software WebGL fallback on hosted runners without a usable GPU.
+  app.commandLine.appendSwitch('enable-unsafe-swiftshader');
+  if (process.platform === 'win32') {
+    // Keep browser compositing separate from software-rendered WebGL.
+    app.commandLine.appendSwitch('use-gl', 'angle');
+    app.commandLine.appendSwitch('use-angle', 'swiftshader-webgl');
+  }
+}
 if (app.commandLine.hasSwitch('fixture-stop-failure')) {
   const backend = require('../desktop/backend.cjs');
   const createBackend = backend.createBackend;
