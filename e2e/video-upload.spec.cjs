@@ -82,7 +82,7 @@ test('response-held imports keep navigation guarded and duplicate videos add no 
     await page.locator('.album-page input[type=file]').setInputFiles(clip);
     await expect.poll(() => responseHeld).toBe(true);
     // Interception stalls native upload events; the un-intercepted test checks load -> Saving.
-    await expect(page.locator('.upload')).toContainText('Uploading');
+    await expect(page.locator('.upload')).toContainText('Adding');
     await expect(page.locator('.tile')).toHaveCount(0);
     await expect(page.locator('html')).toHaveAttribute('data-busy', '');
     const settings = await openSettings(page);

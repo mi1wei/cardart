@@ -296,7 +296,7 @@ export function renderAlbum(app, id) {
             if (!alive || !allowWrite()) { queue.length = 0; break; }
             res = await api.uploadVideo(id, file, prepared, ({ stage, loaded, total }) => {
               if (!alive) return;
-              box.querySelector('b').textContent = `${t(stage === 'saving' ? 'upload-saving' : 'upload-sending')} · ${i}/${tally.total}`;
+              box.querySelector('b').textContent = `${t(stage === 'saving' ? 'upload-saving' : onComputer ? 'upload-sending' : 'upload-sending-phone')} · ${i}/${tally.total}`;
               const fraction = total > 0 ? Math.min(1, Math.max(0, loaded / total)) : 0;
               box.querySelector('.prog i').style.width = `${((i - 1 + fraction) / tally.total) * 100}%`;
             }, { signal });
