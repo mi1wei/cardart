@@ -54,6 +54,7 @@ test('software WebGL keeps scene buffers bounded while retaining shadows and ref
         const shadow = stage.scene.children.find((object) => object.isDirectionalLight).shadow;
         const environment = stage.scene.environment.image;
         return {
+          antialias: gl.getContextAttributes().antialias,
           pixels: gl.drawingBufferWidth * gl.drawingBufferHeight,
           shadowPixels: shadow.mapSize.x * shadow.mapSize.y,
           environmentPixels: environment.width * environment.height,
@@ -68,12 +69,68 @@ test('software WebGL keeps scene buffers bounded while retaining shadows and ref
         else delete window.devicePixelRatio;
       }
     });
+    expect(result.antialias).toBe(false);
     expect(result.pixels).toBeLessThanOrEqual(640 * 480);
     expect(result.shadowPixels).toBeLessThanOrEqual(640 * 480);
     expect(result.environmentPixels).toBeLessThanOrEqual(640 * 480);
     expect(result.shadows).toBe(true);
     for (const [i, channel] of [247, 249, 251].entries()) expect(Math.abs(result.background[i] - channel)).toBeLessThanOrEqual(3);
     expect(result.background[3]).toBe(255);
+  } finally { await fixture.close(); }
+});
+
+// See-through boards render the scene twice and clear-coat doubles the shading: too slow on a CPU.
+test('a software-rendered book compiles no see-through or clear-coat shaders, while a GPU keeps both', async () => {
+  const fixture = await desktopFixture();
+  try {
+    const { page } = await fixture.launch();
+    for (const kind of ['software', 'hardware']) await serveModule(page, 'src/book/book.js', `/__folio-book-${kind}.js`);
+    const image = `data:image/jpeg;base64,${(await posterBytes()).toString('base64')}`;
+    const result = await page.evaluate(async (image) => {
+      const renderers = {
+        software: 'ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero)), SwiftShader driver)',
+        hardware: 'ANGLE (Apple, ANGLE Metal Renderer: Apple M5, Unspecified Version)',
+      };
+      const nativeParameter = WebGL2RenderingContext.prototype.getParameter;
+      const nativeSource = WebGL2RenderingContext.prototype.shaderSource;
+      const out = {};
+      for (const [kind, name] of Object.entries(renderers)) {
+        const sources = [];
+        WebGL2RenderingContext.prototype.getParameter = function (parameter) {
+          return parameter === 0x9246 ? name : nativeParameter.call(this, parameter);
+        };
+        WebGL2RenderingContext.prototype.shaderSource = function (shader, source) {
+          sources.push(source);
+          return nativeSource.call(this, shader, source);
+        };
+        const container = document.createElement('div');
+        container.style.cssText = 'width:640px;height:480px';
+        document.body.append(container);
+        let book;
+        try {
+          const { createBook } = await import(`/__folio-book-${kind}.js`);
+          book = createBook(container, {
+            title: 'Finish', pages: [{ rects: [{ i: 0, x: 0, y: 0, w: 60, h: 40 }] }], photoUrl: () => image,
+            insets: { top: 0, bottom: 0 }, onChange() {}, onPhotoClick() {},
+          });
+          await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+          out[kind] = {
+            shaders: sources.length,
+            transmission: sources.some((source) => source.includes('#define USE_TRANSMISSION')),
+            clearcoat: sources.some((source) => source.includes('#define USE_CLEARCOAT')),
+          };
+        } finally {
+          book?.dispose();
+          container.remove();
+          WebGL2RenderingContext.prototype.getParameter = nativeParameter;
+          WebGL2RenderingContext.prototype.shaderSource = nativeSource;
+        }
+      }
+      return out;
+    }, image);
+    expect(result.hardware).toMatchObject({ transmission: true, clearcoat: true });
+    expect(result.software.shaders).toBeGreaterThan(0);
+    expect(result.software).toMatchObject({ transmission: false, clearcoat: false });
   } finally { await fixture.close(); }
 });
 

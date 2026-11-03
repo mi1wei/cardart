@@ -19,6 +19,7 @@ import {
   WebGLRenderer,
 } from 'three';
 import { DIM } from './layout.js';
+import { softwareWebGL } from './gpu.js';
 import { onThemeChange } from '../theme.js';
 
 const TAN = Math.tan((12 * Math.PI) / 180); // half of the 24° fov
@@ -70,15 +71,13 @@ function groundMaterial(halfWidth) {
 }
 
 export function createStage(container, halfWidth, insets, onRepaint = () => {}) {
+  const software = softwareWebGL();
   let renderer;
   try {
-    renderer = new WebGLRenderer({ antialias: true });
+    renderer = new WebGLRenderer({ antialias: !software });
   } catch {
     throw new Error('webgl');
   }
-  const gl = renderer.getContext();
-  const debug = gl.getExtension('WEBGL_debug_renderer_info');
-  const software = !!debug && /swiftshader|llvmpipe|softpipe|software|basic render|warp/i.test(gl.getParameter(debug.UNMASKED_RENDERER_WEBGL));
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, software ? 1 : 2));
   renderer.toneMapping = NeutralToneMapping;
   renderer.toneMappingExposure = 1.22;

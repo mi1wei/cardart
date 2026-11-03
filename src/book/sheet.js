@@ -1,4 +1,5 @@
 import { BackSide, DoubleSide, Group, Mesh, MeshPhysicalMaterial, PlaneGeometry } from 'three';
+import { softwareWebGL } from './gpu.js';
 import { DIM } from './layout.js';
 
 // Cross-section of a sheet from its inner edge: [length, vertex steps] per segment.
@@ -77,7 +78,7 @@ export function createSheet(frontMap, backMap) {
   });
   const pvc = {
     roughness: 0.48,
-    clearcoat: 1,
+    clearcoat: softwareWebGL() ? 0 : 1, // clear-coat shading is too slow on a CPU renderer
     clearcoatRoughness: 0.14,
     ior: 1.54,
     specularIntensity: 0.6,
