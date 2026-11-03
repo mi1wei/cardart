@@ -11,7 +11,7 @@ const words = {
     newAlbum: '+ New album', transferred: ({ n, skipped }) => `${n} items transferred · ${skipped} duplicates skipped`,
     busy: 'Please wait for the current operation to finish.', trash: 'Recently Deleted',
     trashInfo: 'Deleted albums and media stay here for 30 days. Restore them or permanently delete them.',
-    expires: ({ n }) => `${n} days remaining`, trashCount: ({ n }) => `${n} items · Cleared after 30 days`,
+    expires: ({ n }) => `${n} days remaining`, trashCount: ({ n }) => `${n === 1 ? '1 item' : `${n} items`} · Cleared after 30 days`,
     restore: 'Restore', purge: 'Permanently delete', purgeAll: 'Permanently delete all',
     purgeConfirm: 'Permanently delete these items? This cannot be undone.',
     purgeAllConfirm: 'Permanently delete everything in Recently Deleted? This cannot be undone.',

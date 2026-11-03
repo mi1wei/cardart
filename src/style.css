@@ -245,8 +245,67 @@ button {
   text-align: center;
 }
 
-.empty .pocket {
-  width: 240px;
+/* Welcome: an empty library (polish spec §3.2) */
+.welcome {
+  max-width: 620px;
+  margin: 48px auto 0;
+  text-align: center;
+}
+
+.welcome h2 {
+  margin: 0 0 6px;
+  font-size: 24px;
+  line-height: 32px;
+  font-weight: 600;
+}
+
+.welcome-lead {
+  margin: 0 0 22px;
+  color: var(--ink-2);
+}
+
+.welcome-panel {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  padding: 32px 24px 24px;
+  border: 2px dashed var(--dash);
+  border-radius: 20px;
+  background: var(--soft);
+}
+
+.welcome-icon {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  background: var(--raised);
+  box-shadow: var(--card);
+  color: var(--accent);
+}
+
+.welcome-icon svg {
+  width: 26px;
+  height: 26px;
+}
+
+.welcome-formats {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.welcome-trash {
+  display: inline-block;
+  margin-top: 18px;
+  color: var(--ink-2);
+  font-size: 13px;
+}
+
+.welcome-trash:hover {
+  color: var(--ink);
 }
 
 .empty p {

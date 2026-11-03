@@ -11,7 +11,7 @@ npm install
 npm start
 ```
 
-然后打开 http://localhost:5180 ，直接进入相册墙。
+然后打开 http://localhost:5180 ，直接进入相册墙；相册库为空时显示欢迎页，可以从这里新建第一本相册。
 
 - 相册库默认在 `~/Pictures/相册库`，用 `ALBUM_LIBRARY=/你的/路径 npm start` 换位置。
 - 端口默认 5180，用 `PORT=5181 npm start` 换端口。

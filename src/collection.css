@@ -24,6 +24,7 @@
   font-size: 13px;
 }
 
+.wall-tools { display: contents; }
 .wall-search { width: min(220px, 22vw); }
 .album-search { width: min(240px, 30vw); }
 .acts.normal { flex-wrap: wrap; }
