@@ -5,6 +5,7 @@ const http = require('node:http');
 const { execFile } = require('node:child_process');
 const { promisify } = require('node:util');
 const { desktopFixture } = require('./fixtures.cjs');
+const { setLang } = require('./ui-helpers.cjs');
 const run = promisify(execFile);
 
 test('port fallback after restart preserves English, albums and activation without using the foreign listener', async () => {
@@ -13,8 +14,8 @@ test('port fallback after restart preserves English, albums and activation witho
   try {
     const first = await fixture.launch();
     const origin = new URL(first.page.url()).origin;
-    await first.page.locator('.nav [data-lang=zh]').click();
-    await first.page.locator('.nav [data-lang=en]').click();
+    await setLang(first.page, 'zh');
+    await setLang(first.page, 'en');
     await expect(first.page.locator('html')).toHaveAttribute('lang', 'en');
     const album = await (await first.page.request.post(`${origin}/api/albums`, { data: { title: 'Kept after restart' } })).json();
     await fixture.stop();
@@ -27,7 +28,7 @@ test('port fallback after restart preserves English, albums and activation witho
     expect(changed).not.toBe(origin);
     expect(await (await fetch(origin)).text()).toBe('foreign service');
     await expect(page.locator('html')).toHaveAttribute('lang', 'en');
-    await expect(page.locator('.nav [data-page=albums]')).toHaveText('Albums');
+    await expect(page.locator('.page > .ph .t1')).toHaveText('Albums');
     expect(await desktop.evaluate(({ Menu }) => Menu.getApplicationMenu().getMenuItemById('license').label)).toBe('License');
     expect(await desktop.evaluate(() => global.folioTestNotices.length)).toBeGreaterThan(0);
     const albums = await (await page.request.get(`${changed}/api/albums`)).json();

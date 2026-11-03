@@ -1,7 +1,7 @@
 import { api } from './api.js';
 import { lang, t } from './i18n.js';
 import { onComputer } from './phone.js';
-import { icon, toast } from './ui.js';
+import { backLink, icon, toast } from './ui.js';
 
 let state = { state: 'loading', canWrite: false };
 let revision = 0;
@@ -17,6 +17,20 @@ export function allowWrite() {
   if (canWrite()) return true;
   toast(t('license-readonly'));
   return false;
+}
+
+// The license-state-* key for the current state; the License page and Settings share it.
+export function licenseKind() {
+  let kind = state.state;
+  if (kind === 'active' && state.expiresAt && Date.parse(state.expiresAt) <= Date.now()) kind = 'expired';
+  if (kind === 'expired' && state.plan === 'trial') kind = 'trial-expired';
+  if (kind === 'active') kind = !canWrite() ? 'readonly' : state.plan === 'trial' ? 'trial-active' : 'active';
+  return kind;
+}
+
+export function licenseExpiry() {
+  const date = typeof state.expiresAt === 'string' ? new Date(state.expiresAt) : null;
+  return date && Number.isFinite(date.getTime()) ? date : null;
 }
 
 function applyControls() {
@@ -76,6 +90,7 @@ export function renderLicense(app) {
   document.title = `${t('license-title')} · ${t('app')}`;
   app.innerHTML = `
     <main class="page license-page">
+      ${backLink()}
       <header class="ph license-heading">
         <div><h1 class="t1">${t('license-title')}</h1><p class="sub">${t('license-help')}</p></div>
         <span class="license-offline">${icon('shield')}<span>${t('license-offline')}</span></span>
@@ -171,10 +186,7 @@ export function renderLicense(app) {
     if (source === 'file') source = null;
   }
   function update() {
-    let kind = state.state;
-    if (kind === 'active' && state.expiresAt && Date.parse(state.expiresAt) <= Date.now()) kind = 'expired';
-    if (kind === 'expired' && state.plan === 'trial') kind = 'trial-expired';
-    if (kind === 'active') kind = !canWrite() ? 'readonly' : state.plan === 'trial' ? 'trial-active' : 'active';
+    const kind = licenseKind();
     const active = kind === 'active' || kind === 'trial-active';
     const expired = kind === 'expired' || kind === 'trial-expired';
     app.querySelector('.license-workspace').dataset.tone = active ? 'active' : expired ? 'expired' : kind === 'invalid' ? 'invalid' : 'neutral';
@@ -184,8 +196,8 @@ export function renderLicense(app) {
     app.querySelector('.license-status-badge').textContent = t(kind === 'loading' ? 'license-checking' : canWrite() ? 'license-editing' : 'license-viewonly');
     app.querySelector('.license-status').setAttribute('aria-busy', String(kind === 'loading' || refreshing));
     const plan = ['trial', 'pro'].includes(state.plan);
-    const expiry = typeof state.expiresAt === 'string' ? new Date(state.expiresAt) : null;
-    const validExpiry = expiry && Number.isFinite(expiry.getTime());
+    const expiry = licenseExpiry();
+    const validExpiry = !!expiry;
     app.querySelector('.license-facts').hidden = !plan && !validExpiry;
     app.querySelector('.license-plan-row').hidden = !plan;
     app.querySelector('.license-plan').textContent = plan ? t(`license-plan-${state.plan}`) : '';

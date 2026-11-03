@@ -36,6 +36,7 @@ const PATHS = {
   sun: '<circle cx="12" cy="12" r="3.5"/><path d="M12 3.5v2M12 18.5v2M3.5 12h2M18.5 12h2M6 6l1.4 1.4M16.6 16.6 18 18M6 18l1.4-1.4M16.6 7.4 18 6"/>',
   moon: '<path d="M19 14.5A7.5 7.5 0 0 1 9.5 5a7.5 7.5 0 1 0 9.5 9.5z"/>',
   select: '<rect x="4.5" y="4.5" width="15" height="15" rx="3"/><path d="m8.5 12 2.5 2.5 4.5-5"/>',
+  gear: '<path d="M18.2 10.3L20.3 10.7L20.3 13.3L18.2 13.7L17.5 15.2L18.8 16.9L16.9 18.8L15.2 17.5L13.7 18.2L13.3 20.3L10.7 20.3L10.3 18.2L8.8 17.5L7.1 18.8L5.2 16.9L6.5 15.2L5.8 13.7L3.7 13.3L3.7 10.7L5.8 10.3L6.5 8.8L5.2 7.1L7.1 5.2L8.8 6.5L10.3 5.8L10.7 3.7L13.3 3.7L13.7 5.8L15.2 6.5L16.9 5.2L18.8 7.1L17.5 8.8Z"/><circle cx="12" cy="12" r="2.6"/>',
 };
 
 // Full-colour app illustration for brand spots; the single-colour mark stays for icon buttons.
@@ -45,6 +46,9 @@ export const icon = (name) =>
   name === 'book'
     ? brandMark
     : `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${PATHS[name]}</svg>`;
+
+// The way back to the album wall from the album, Recently Deleted and License pages (polish spec §3.5).
+export const backLink = () => `<a class="back-link" href="#/albums">${icon('prev')}<span>${t('all-albums')}</span></a>`;
 
 // iPhone browsers cannot go full screen; a Home Screen web app opens without browser bars (spec §9).
 export const fullscreenTip = () => t(/MicroMessenger/i.test(navigator.userAgent) ? 'tip-wechat' : 'tip-iphone');

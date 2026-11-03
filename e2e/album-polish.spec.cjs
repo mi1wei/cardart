@@ -1,7 +1,7 @@
 const { test, expect } = require('@playwright/test');
 const { desktopFixture } = require('./fixtures.cjs');
 const sharp = require('sharp');
-const { openWall, seed, setRange } = require('./ui-helpers.cjs');
+const { openWall, seed, setLang, setRange } = require('./ui-helpers.cjs');
 
 test('photos get a frame and the thumbnail size is remembered', async () => {
   const fixture = await desktopFixture();
@@ -54,7 +54,7 @@ test('loading shows placeholders instead of the empty drop zone', async () => {
   } finally { await fixture.close(); }
 });
 
-test('cards, breadcrumb, select icon and lightbox brand show the polished details', async () => {
+test('cards, back link, select icon and lightbox brand show the polished details', async () => {
   const fixture = await desktopFixture();
   try {
     const { page } = await fixture.launch();
@@ -62,18 +62,19 @@ test('cards, breadcrumb, select icon and lightbox brand show the polished detail
     const full = await seed(page, origin, 'Full', 2);
     const empty = await seed(page, origin, 'Empty', 0);
     await page.goto(`${origin}/#/albums`);
-    await page.locator('.nav [data-lang=zh]').click();
+    await setLang(page, 'zh');
     await expect(page.locator(`.folder[data-id="${full.id}"] .n`)).toHaveText('2 张照片');
     await expect(page.locator(`.folder[data-id="${empty.id}"] .n`)).toHaveText('还没有照片');
 
     await page.goto(`${origin}/#/a/${full.id}`);
-    await expect(page.locator('.crumb .crumb-here')).toHaveText('Full');
+    await expect(page.locator('.album-page .back-link')).toHaveAttribute('href', '#/albums');
+    await expect(page.locator('.album-page .title')).toHaveText('Full');
     await expect(page.locator('.acts.normal [data-act=select] svg')).toHaveCount(1);
     await page.locator('.acts.normal [data-act=menu]').click();
     await page.locator('.acts .menu [data-act=rename]').click();
     await page.locator('dialog.dlg input').fill('Full renamed');
     await page.locator('dialog.dlg [value=ok]').click();
-    await expect(page.locator('.crumb .crumb-here')).toHaveText('Full renamed');
+    await expect(page.locator('.album-page .title')).toHaveText('Full renamed');
     await expect(page.locator('.acts .menu')).toHaveCount(0);
 
     await page.locator('.tile').first().click();
@@ -175,7 +176,7 @@ test('in Chinese the app keeps the name Folio in the nav, titles, viewer and pho
     const origin = new URL(page.url()).origin;
     const album = await seed(page, origin, '旅行', 1);
     await page.goto(`${origin}/#/albums`);
-    await page.locator('.nav [data-lang=zh]').click();
+    await setLang(page, 'zh');
     await expect(page.locator('html')).toHaveAttribute('lang', 'zh-CN');
     await expect(page.locator('.nav')).toHaveAccessibleName('Folio');
     await expect(page.locator('.nav .logo')).toHaveAccessibleName('Folio');

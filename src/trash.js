@@ -3,7 +3,7 @@ import { c } from './collection-text.js';
 import { mediaCountText, t } from './i18n.js';
 import { allowWrite } from './license.js';
 import { openLightbox } from './lightbox.js';
-import { dialog, icon, toast } from './ui.js';
+import { backLink, dialog, icon, toast } from './ui.js';
 import { mediaCounts } from '../shared/media.js';
 
 export function renderTrash(app) {
@@ -14,7 +14,7 @@ export function renderTrash(app) {
   let request = 0;
   const selected = new Set();
   app.innerHTML = `<main class="page trash-page">
-    <p class="crumb"><a href="#/albums">${t('albums')}</a><span>/</span><b>${c('trash')}</b></p>
+    ${backLink()}
     <header class="ph"><h1 class="t1">${c('trash')}</h1><span class="sp"></span><button class="btn danger" data-write data-act="purge-all" type="button">${c('purgeAll')}</button></header>
     <p class="trash-info">${c('trashInfo')}</p>
     <div class="trash-groups"></div><p class="empty trash-empty" hidden>${c('trashEmpty')}</p>

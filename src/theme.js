@@ -22,8 +22,6 @@ export function setTheme(mode) {
   document.dispatchEvent(new Event('folio-theme'));
 }
 
-export const nextTheme = (mode) => MODES[(MODES.indexOf(mode) + 1) % MODES.length];
-
 // Calls fn whenever the colours may have changed: a choice here, or the system switching in auto mode.
 export function onThemeChange(fn) {
   document.addEventListener('folio-theme', fn);

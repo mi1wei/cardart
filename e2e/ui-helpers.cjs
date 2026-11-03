@@ -41,4 +41,20 @@ async function openWall(page, origin) {
   await page.reload();
 }
 
-module.exports = { seed, seedBook, style, setRange, openWall };
+// Appearance and language live in Settings (polish spec §3.3). Returns the open dialog.
+async function openSettings(page) {
+  await page.locator('.nav [data-act=settings]').click();
+  const settings = page.locator('dialog.settings');
+  await expect(settings).toBeVisible();
+  return settings;
+}
+
+async function setLang(page, code) {
+  const settings = await openSettings(page);
+  await settings.locator(`[data-lang=${code}]`).click();
+  await expect(page.locator('html')).toHaveAttribute('lang', code === 'zh' ? 'zh-CN' : 'en');
+  await settings.locator('[data-act=done]').click();
+  await expect(settings).toHaveCount(0);
+}
+
+module.exports = { seed, seedBook, style, setRange, openWall, openSettings, setLang };

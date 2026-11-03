@@ -1,7 +1,7 @@
 import { api, mediaUrl } from './api.js';
 import { openLightbox } from './lightbox.js';
 import { close, open, swap } from './router.js';
-import { dialog, icon, toast } from './ui.js';
+import { backLink, dialog, icon, toast } from './ui.js';
 import { mediaCountText, t } from './i18n.js';
 import { allowWrite, canWrite } from './license.js';
 import { probeVideo } from './video-probe.js';
@@ -48,7 +48,7 @@ export function renderAlbum(app, id) {
 
   app.innerHTML = `
     <main class="page album-page">
-      <p class="crumb"><a href="#/albums">${t('albums')}</a><span>/</span><b class="crumb-here"></b></p>
+      ${backLink()}
       <h1 class="t1"><button class="title" type="button" data-write data-act="rename" title="${t('rename-hint')}"></button><span class="pen">${icon('pen')}</span></h1>
       <p class="sub count"></p>
       <div class="acts normal">
@@ -216,7 +216,6 @@ export function renderAlbum(app, id) {
   function render() {
     const n = album.photos.length;
     $('.title').textContent = album.title;
-    $('.crumb-here').textContent = album.title;
     $('.count').textContent = [mediaCountText(mediaCounts(album.photos)), dateRange(album.dateRange)].filter(Boolean).join(' · ');
     $('.photo-sort').value = album.sort ?? 'manual';
     document.title = `${album.title} · ${t('app')}`;
@@ -382,7 +381,6 @@ export function renderAlbum(app, id) {
     try {
       album = await api.updateAlbum(id, { title });
       $('.title').textContent = album.title;
-      $('.crumb-here').textContent = album.title;
       document.title = `${album.title} · ${t('app')}`;
     } catch (err) {
       toast(t('failed', { reason: err.message }));

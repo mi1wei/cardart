@@ -48,7 +48,6 @@ function show(next, again = false, previousHash) {
     if (!again) scrollTo(0, 0);
   }
   view.update?.(next);
-  nav.update(next.album || next.page === 'trash' ? 'albums' : next.page);
 }
 
 start((next, previousHash) => show(next, false, previousHash));
