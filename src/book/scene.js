@@ -76,7 +76,10 @@ export function createStage(container, halfWidth, insets, onRepaint = () => {}) 
   } catch {
     throw new Error('webgl');
   }
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  const gl = renderer.getContext();
+  const debug = gl.getExtension('WEBGL_debug_renderer_info');
+  const software = !!debug && /swiftshader|llvmpipe|softpipe|software|basic render|warp/i.test(gl.getParameter(debug.UNMASKED_RENDERER_WEBGL));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, software ? 1 : 2));
   renderer.toneMapping = NeutralToneMapping;
   renderer.toneMappingExposure = 1.22;
   renderer.shadowMap.enabled = true;
@@ -94,7 +97,7 @@ export function createStage(container, halfWidth, insets, onRepaint = () => {}) 
   });
   const pmrem = new PMREMGenerator(renderer);
   const env = studio();
-  const envMap = pmrem.fromScene(env, 0.02);
+  const envMap = pmrem.fromScene(env, 0.02, 0.1, 100, { size: software ? 64 : 256 });
   env.traverse((o) => {
     if (o.isMesh) {
       o.geometry.dispose();
@@ -110,9 +113,10 @@ export function createStage(container, halfWidth, insets, onRepaint = () => {}) 
   sun.position.set(-290, 420, -75);
   sun.castShadow = true;
   const { shadow } = sun;
-  shadow.mapSize.setScalar(small ? 1024 : 2048);
-  shadow.radius = small ? 8 : 14;
-  shadow.blurSamples = small ? 10 : 16;
+  // CPU renderers cannot afford high-resolution, multi-pass shadows.
+  shadow.mapSize.setScalar(software ? 512 : small ? 1024 : 2048);
+  shadow.radius = software ? 6 : small ? 8 : 14;
+  shadow.blurSamples = software ? 4 : small ? 10 : 16;
   shadow.intensity = 0.7;
   shadow.bias = -8e-4;
   shadow.normalBias = 1.5;

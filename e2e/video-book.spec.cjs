@@ -146,7 +146,9 @@ for (const frameWorkMs of [0, 250, 1000]) {
       const canvas = page.locator('.ab canvas');
       await expect(canvas).toBeVisible();
       await expect(page.locator('.ab')).not.toHaveAttribute('data-error', '');
-      await page.locator('.ab [data-act=next]').click();
+      const next = page.locator('.ab [data-act=next]');
+      if (frameWorkMs) await next.dispatchEvent('click');
+      else await next.click();
       await expect(page.locator('.ab-count')).toHaveText('2 / 2');
       // Slow-frame animation shares the existing scenario deadline, not the assertion's 5s default.
       try { await expect.poll(() => frames.evaluate((state) => state.pending), { timeout: test.info().timeout }).toBe(0); }

@@ -24,6 +24,59 @@ async function darkPixels(page, box) {
   return n;
 }
 
+test('software WebGL keeps scene buffers bounded while retaining shadows and reflections', async () => {
+  const fixture = await desktopFixture();
+  try {
+    const { page } = await fixture.launch();
+    await page.emulateMedia({ colorScheme: 'light' });
+    await serveModule(page, 'src/book/scene.js', '/__folio-software-scene.js');
+    const result = await page.evaluate(async () => {
+      const { createStage } = await import('/__folio-software-scene.js');
+      const nativeParameter = WebGL2RenderingContext.prototype.getParameter;
+      const ratio = Object.getOwnPropertyDescriptor(window, 'devicePixelRatio');
+      const container = document.createElement('div');
+      container.style.cssText = 'width:640px;height:480px';
+      document.body.append(container);
+      let stage;
+      try {
+        Object.defineProperty(window, 'devicePixelRatio', { configurable: true, value: 3 });
+        WebGL2RenderingContext.prototype.getParameter = function (parameter) {
+          if (parameter === 0x9246) return 'ANGLE (Google, Vulkan SwiftShader Device (Subzero))';
+          return nativeParameter.call(this, parameter);
+        };
+        stage = createStage(container, 220, { top: 0, bottom: 0 });
+        stage.resize();
+        stage.frame(0, 1);
+        stage.render();
+        const gl = stage.renderer.getContext();
+        const pixel = new Uint8Array(4);
+        gl.readPixels(2, 2, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
+        const shadow = stage.scene.children.find((object) => object.isDirectionalLight).shadow;
+        const environment = stage.scene.environment.image;
+        return {
+          pixels: gl.drawingBufferWidth * gl.drawingBufferHeight,
+          shadowPixels: shadow.mapSize.x * shadow.mapSize.y,
+          environmentPixels: environment.width * environment.height,
+          shadows: stage.renderer.shadowMap.enabled,
+          background: [...pixel],
+        };
+      } finally {
+        stage?.dispose();
+        container.remove();
+        WebGL2RenderingContext.prototype.getParameter = nativeParameter;
+        if (ratio) Object.defineProperty(window, 'devicePixelRatio', ratio);
+        else delete window.devicePixelRatio;
+      }
+    });
+    expect(result.pixels).toBeLessThanOrEqual(640 * 480);
+    expect(result.shadowPixels).toBeLessThanOrEqual(640 * 480);
+    expect(result.environmentPixels).toBeLessThanOrEqual(640 * 480);
+    expect(result.shadows).toBe(true);
+    for (const [i, channel] of [247, 249, 251].entries()) expect(Math.abs(result.background[i] - channel)).toBeLessThanOrEqual(3);
+    expect(result.background[3]).toBe(255);
+  } finally { await fixture.close(); }
+});
+
 test('the title page names the album with its date range and count, inside the cover', async () => {
   test.setTimeout(60_000);
   const fixture = await desktopFixture();
