@@ -1,0 +1,491 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Folio 设计改进 · 对比稿</title>
+<style>
+  :root {
+    --bg: #f3f5f7; --card: #fff; --ink: #18222c; --ink2: #4e5a66; --ink3: #7a8591; --line: #e2e7ec;
+    --accent: #1d5f80; --red: #e5484d; --green: #12a150; --red-soft: #fdeeee; --green-soft: #e8f6ee; --amber-soft: #fbf3e2;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; scroll-padding-top: 20px; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.7 -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 1380px; margin: 0 auto; padding: 44px 32px 160px; }
+  a { color: var(--accent); }
+
+  .top h1 { margin: 0 0 6px; font-size: 32px; line-height: 1.25; letter-spacing: -0.01em; }
+  .top .lead { margin: 0 0 22px; color: var(--ink2); font-size: 16px; max-width: 900px; }
+  .how { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-bottom: 26px; }
+  .how div { background: var(--card); border-radius: 14px; padding: 14px 16px; box-shadow: 0 1px 2px rgb(0 0 0 / .04); font-size: 14px; color: var(--ink2); }
+  .how b { display: block; color: var(--ink); font-size: 14.5px; margin-bottom: 2px; }
+  .sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -1px; margin-right: 6px; }
+  .sw.r { background: var(--red); } .sw.g { background: var(--green); }
+
+  .toc { background: var(--card); border-radius: 16px; padding: 18px 20px; box-shadow: 0 1px 2px rgb(0 0 0 / .04); }
+  .toc h2 { margin: 0 0 10px; font-size: 16px; }
+  .toc-groups { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 16px; }
+  .toc-groups h3 { margin: 0 0 6px; font-size: 13px; color: var(--ink3); font-weight: 600; }
+  .toc-groups a { display: block; padding: 3px 0; color: var(--ink); text-decoration: none; font-size: 14px; }
+  .toc-groups a:hover { color: var(--accent); }
+  .toc-groups a .n { display: inline-grid; place-items: center; width: 20px; height: 20px; margin-right: 6px; border-radius: 50%; background: #eef2f5; font-size: 12px; font-weight: 600; }
+  .toc-groups a.picked-yes .n { background: var(--green); color: #fff; }
+  .toc-groups a.picked-no .n { background: #c3cad1; color: #fff; }
+  .toc-groups a.picked-maybe .n { background: #e2b04a; color: #fff; }
+  .toc .tip { margin: 12px 0 0; padding-top: 12px; border-top: 1px solid var(--line); color: var(--ink2); font-size: 14px; }
+
+  .group-title { margin: 46px 0 0; font-size: 13px; letter-spacing: .08em; color: var(--ink3); font-weight: 600; }
+  section.item { background: var(--card); border-radius: 20px; padding: 28px 30px 22px; margin: 14px 0 22px; box-shadow: 0 1px 2px rgb(0 0 0 / .04), 0 10px 30px -16px rgb(0 0 0 / .18); }
+  .item h2 { display: flex; align-items: center; gap: 12px; margin: 0; font-size: 22px; line-height: 1.35; }
+  .item h2 .no { flex: none; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--ink); color: #fff; font-size: 15px; }
+  .tag { flex: none; font-size: 12px; line-height: 1; padding: 6px 9px; border-radius: 999px; background: #eef2f5; color: var(--ink2); font-weight: 500; }
+  .tag.s { background: var(--green-soft); color: #13784a; }
+  .tag.m { background: var(--amber-soft); color: #8a6414; }
+  .item .one { margin: 8px 0 0 44px; color: var(--ink2); font-size: 15.5px; }
+
+  .cmp { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 26px; margin-top: 20px; }
+  .col h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; font-size: 15px; }
+  .col h3::before { content: ""; width: 12px; height: 12px; border-radius: 3px; }
+  .col.now h3::before { background: var(--red); }
+  .col.new h3::before { background: var(--green); }
+  .col .say { margin: 12px 0 0; padding: 12px 14px; border-radius: 12px; font-size: 14.5px; line-height: 1.75; }
+  .col.now .say { background: var(--red-soft); }
+  .col.new .say { background: var(--green-soft); }
+  .say ol, .say ul { margin: 0; padding-left: 1.3em; }
+  .say ol { list-style: none; padding-left: 0; }
+  .say li + li { margin-top: 3px; }
+  .say p { margin: 0; }
+  .say p + p, .say p + ul, .say ul + p { margin-top: 6px; }
+  .say .m { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; margin-right: 2px; border-radius: 9px; color: #fff; font-size: 11.5px; font-weight: 700; vertical-align: 1px; }
+  .now .say .m { background: var(--red); } .new .say .m { background: var(--green); }
+
+  .shot { display: block; width: 100%; height: auto; border-radius: 10px; border: 1px solid var(--line); background: #fff; cursor: zoom-in; }
+  .shot.phone { max-width: 390px; margin: 0 auto; }
+  .shot.half { max-width: 360px; }
+  .cap { margin: 18px 0 8px; color: var(--ink3); font-size: 13px; }
+  .col h3 + .cap { margin-top: 0; }
+  .note { margin: 14px 0 0; padding: 10px 14px; border-radius: 12px; background: var(--amber-soft); color: #6d5313; font-size: 14px; }
+
+  .mac { position: relative; border-radius: 12px; overflow: hidden; border: 1px solid #cfd6dd; box-shadow: 0 12px 30px -14px rgb(0 0 0 / .35); background: #fff; }
+  .mac .bar { position: relative; aspect-ratio: 1180 / 28; background: linear-gradient(#ecedef, #e2e4e7); border-bottom: 1px solid #cfd2d6; }
+  .mac .bar i { position: absolute; top: 50%; width: 1.02%; aspect-ratio: 1; border-radius: 50%; transform: translateY(-50%); }
+  .mac .bar i:nth-child(1) { left: 1.7%; background: #ff5f57; } .mac .bar i:nth-child(2) { left: 3.4%; background: #febc2e; } .mac .bar i:nth-child(3) { left: 5.1%; background: #28c840; }
+  .mac .bar span { position: absolute; inset: 0; display: grid; place-items: center; font-size: 12px; font-weight: 600; color: #5d6670; }
+  .mac img { display: block; width: 100%; height: auto; cursor: zoom-in; }
+  .mac .ann { position: absolute; left: .5%; right: .5%; top: .5%; border-radius: 8px; pointer-events: none; }
+  .mac .ann.r { height: 10%; border: 2.5px solid var(--red); box-shadow: 0 0 0 3px rgb(229 72 77 / .15); }
+  .mac .ann.g { height: 6.6%; border: 2.5px solid var(--green); box-shadow: 0 0 0 3px rgb(18 161 80 / .15); }
+  .mac .ann b { position: absolute; left: 50%; bottom: -13px; transform: translateX(-50%); padding: 0 9px; height: 22px; border-radius: 11px; color: #fff; font: 600 12.5px/22px -apple-system, "PingFang SC", system-ui, sans-serif; white-space: nowrap; }
+  .mac .ann.r b { background: var(--red); } .mac .ann.g b { background: var(--green); }
+
+  .spec { background: #f8fafb; border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  .spec .row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 14px; }
+  .spec .t { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 34px; }
+  .spec .t span:first-child { line-height: 1.1; color: var(--ink); font-weight: 500; }
+  .spec .t small { color: var(--ink3); font-size: 11.5px; line-height: 1.2; text-align: center; white-space: nowrap; }
+  .spec .t small em { display: block; font-style: normal; color: var(--ink2); }
+  .spec .r { width: 50px; height: 38px; background: #fff; border: 2px solid #8fa3b5; }
+  .spec h4 { margin: 0 0 10px; font-size: 13.5px; color: var(--ink2); font-weight: 600; }
+  .spec + .spec { margin-top: 12px; }
+
+  .decide { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line); }
+  .decide > span { margin-right: 4px; color: var(--ink2); font-size: 14px; }
+  .decide button { height: 34px; padding: 0 16px; border: 1px solid #d3dae0; border-radius: 999px; background: #fff; color: var(--ink); font: 500 14px/1 inherit; font-family: inherit; cursor: pointer; }
+  .decide button:hover { background: #f2f5f7; }
+  .decide button[aria-pressed=true][data-v=yes] { background: var(--green); border-color: var(--green); color: #fff; }
+  .decide button[aria-pressed=true][data-v=no] { background: #5f6b77; border-color: #5f6b77; color: #fff; }
+  .decide button[aria-pressed=true][data-v=maybe] { background: #e2b04a; border-color: #e2b04a; color: #fff; }
+
+  .tray { position: fixed; left: 50%; bottom: 18px; z-index: 10; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; width: min(1000px, calc(100vw - 32px)); padding: 10px 10px 10px 20px; border-radius: 16px; background: #18222c; color: #e8edf1; box-shadow: 0 14px 40px -10px rgb(0 0 0 / .45); font-size: 14px; }
+  .tray .sum { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tray .sum b { color: #fff; }
+  .tray button { flex: none; height: 36px; padding: 0 16px; border: 0; border-radius: 10px; background: #7fc0e0; color: #0f1a20; font: 600 14px/1 inherit; font-family: inherit; cursor: pointer; }
+  .tray button.ghost { background: transparent; color: #aeb8c2; }
+
+  .zoom { position: fixed; inset: 0; z-index: 20; overflow: auto; background: rgb(12 16 20 / .92); cursor: zoom-out; }
+  .zoom img { display: block; max-width: none; width: auto; margin: 30px auto; border-radius: 8px; }
+  .zoom[hidden] { display: none; }
+
+  @media (max-width: 980px) { .cmp, .how { grid-template-columns: 1fr; } .toc-groups { grid-template-columns: 1fr 1fr; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <h1>Folio 设计改进 · 对比稿</h1>
+    <p class="lead">一共 12 项。每项左边是 App <b>现在</b>的样子，右边是<b>建议</b>改成的样子，下面用一两句话说明为什么。截图都来自真实运行的 App；右边的「建议」是在同一个页面上直接改出来的效果，用来确认方向，不是最终视觉稿。</p>
+    <p class="note" style="margin:-8px 0 22px">2026-11-03 结论：12 项全部采用。细节以设计文档 <code>docs/superpowers/specs/2026-11-03-folio-polish-design.md</code> 为准，例如第 7、9 项菜单中的「在 Finder 中显示」已去掉，改为只用于整个相册库。</p>
+    <div class="how">
+      <div><b><span class="sw r"></span>红框 + 编号</b>现在有问题的地方，编号对应下方的说明。</div>
+      <div><b><span class="sw g"></span>绿框 + 编号</b>建议改动的地方。点任意截图可以放大看。</div>
+      <div><b>怎么回复我</b>每项底部点「要 / 不要 / 再想想」，最下面会生成一句话，点「复制」后粘贴到终端发给我就行。</div>
+    </div>
+  </header>
+
+  <nav class="toc" aria-label="目录">
+    <h2>目录</h2>
+    <div class="toc-groups">
+      <div><h3>一 · 打开 App 之后</h3><a href="#i1"><span class="n">1</span>打开就看到自己的相册</a><a href="#i2"><span class="n">2</span>顶栏精简，设置集中</a><a href="#i3"><span class="n">3</span>「上传」改叫「添加照片」</a></div>
+      <div><h3>二 · 3D 相册</h3><a href="#i4"><span class="n">4</span>封面标题看得清</a><a href="#i5"><span class="n">5</span>小字放大，中文不斜</a><a href="#i6"><span class="n">6</span>日期写法统一</a></div>
+      <div><h3>三 · 看照片和相册页</h3><a href="#i7"><span class="n">7</span>看大图的顶栏</a><a href="#i8"><span class="n">8</span>按钮和选项写清楚</a></div>
+      <div><h3>四 · 像真正的桌面 App</h3><a href="#i9"><span class="n">9</span>标题栏合一 + 右键菜单</a><a href="#i10"><span class="n">10</span>第一次打开的引导</a></div>
+      <div><h3>五 · 细节规范</h3><a href="#i11"><span class="n">11</span>字号和圆角统一</a><a href="#i12"><span class="n">12</span>手机上更好点</a></div>
+    </div>
+    <p class="tip">如果只想先做最划算的：<b>1、3、4、5、6、8</b> 改动都很小，效果却很明显；<b>2、9、10、11</b> 工作量大一些。</p>
+  </nav>
+
+  <!-- ============================== 一 ============================== -->
+  <p class="group-title">一 · 打开 APP 之后</p>
+
+  <section class="item" id="i1" data-no="1">
+    <h2><span class="no">1</span>打开 App 就看到自己的相册<span class="tag s">改动小</span></h2>
+    <p class="one">相册管理工具每天打开都是为了看照片，第一屏应该是你的相册，而不是产品介绍。</p>
+    <div class="cmp">
+      <div class="col now">
+        <h3>现在</h3>
+        <img class="shot" src="img/c1-before.png" alt="现在：首页整页截图">
+        <div class="say"><p><span class="m">1</span>每次打开都先进「首页」：口号、演示动画、功能介绍占满第一屏（虚线框就是窗口能看到的范围）。</p><p><span class="m">2</span>你自己的相册在最下面，要往下滚约 1.6 屏才能看到。这一页更像官网，适合第一次了解产品，不适合每天用。</p></div>
+      </div>
+      <div class="col new">
+        <h3>建议</h3>
+        <img class="shot" src="img/c1-after.png" alt="建议：打开即为相册墙">
+        <div class="say"><p><span class="m">1</span>打开直接进「相册」。</p><p>首页上的介绍不浪费：改成<b>还没有任何相册时</b>的欢迎页（见第 10 项）。手机扫码打开时也直接进相册。</p></div>
+      </div>
+    </div>
+    <div class="decide" data-no="1"></div>
+  </section>
+
+  <section class="item" id="i2" data-no="2">
+    <h2><span class="no">2</span>顶栏精简，设置集中到一个地方<span class="tag m">改动中</span></h2>
+    <p class="one">顶栏应该只放常用的东西；设一次就不再动的选项，收进「设置」。</p>
+    <div class="cmp">
+      <div class="col now">
+        <h3>现在</h3>
+        <img class="shot" src="img/c2-before-nav.png" alt="现在的顶栏">
+        <p class="cap">英文界面、窗口缩到最小宽度（720px）时：</p>
+        <img class="shot" src="img/c2-before-en720.png" alt="英文窄窗口顶栏">
+        <div class="say"><ol><li><span class="m">1</span>「首页」：见第 1 项，不需要单独一个标签。</li><li><span class="m">2</span>「许可证」：一般只在激活、续期时用一次。</li><li><span class="m">3</span><span class="m">4</span> 主题和语言开关：设一次就不动了，却一直占着顶栏。</li><li><span class="m">5</span>英文界面在最小窗口宽度下放不下，右边的「EN」被挤出窗口。</li></ol></div>
+      </div>
+      <div class="col new">
+        <h3>建议</h3>
+        <img class="shot" src="img/c2-after-nav.png" alt="建议的顶栏">
+        <p class="cap">同样是英文、720px，放得下：</p>
+        <img class="shot" src="img/c2-after-en720.png" alt="建议：英文窄窗口顶栏">
+        <p class="cap">点齿轮（Mac 上也可以按 ⌘,）打开「设置」：</p>
+        <img class="shot" src="img/c2-after-settings.png" alt="建议：设置面板">
+        <div class="say"><p><span class="m">1</span>顶栏只留 Logo、「手机访问」和一个齿轮。外观、语言、相册库位置、许可证、版本更新都放进「设置」。现在藏在 Mac 菜单栏里的「选择相册库」等也一起放进来。</p></div>
+      </div>
+    </div>
+    <div class="decide" data-no="2"></div>
+  </section>
+
+  <section class="item" id="i3" data-no="3">
+    <h2><span class="no">3</span>「上传」改叫「添加照片」<span class="tag s">改动小 · 只改文字</span></h2>
+    <p class="one">同一个 App 里，一边说「不上传」，一边让你点「上传」，会让人担心照片被传到网上。</p>
+    <div class="cmp">
+      <div class="col now">
+        <h3>现在</h3>
+        <img class="shot" src="img/c3-before-home.png" alt="首页：照片不上传云端">
+        <img class="shot" src="img/c3-before-album.png" alt="相册页：上传按钮" style="margin-top:10px">
+        <div class="say"><p><span class="m">1</span>首页写着「照片不上传云端」。</p><p><span class="m">2</span>相册页的按钮却叫「上传」。</p></div>
+      </div>
+      <div class="col new">
+        <h3>建议</h3>
+        <img class="shot" src="img/c3-after-album.png" alt="相册页：添加照片按钮">
+        <div class="say"><p><span class="m">2</span>电脑上一律叫「添加照片」（英文 Add photos）。</p><p>只有在手机上把照片传到电脑时，才叫「上传到电脑」。</p></div>
+      </div>
+    </div>
+    <div class="decide" data-no="3"></div>
+  </section>
+
+  <!-- ============================== 二 ============================== -->
+  <p class="group-title">二 · 3D 相册</p>
+
+  <section class="item" id="i4" data-no="4">
+    <h2><span class="no">4</span>3D 相册封面的标题要看得清<span class="tag s">改动小</span></h2>
+    <p class="one">3D 翻阅是 Folio 最有特色的地方，合上时的封面就是它的「门面」。</p>
+    <div class="cmp">
+      <div class="col now">
+        <h3>现在</h3>
+        <img class="shot" src="img/c4-before.png" alt="现在：合上的相册">
+        <div class="say"><p><span class="m">1</span>标题是白色半透明字，压在浅色磨砂封面上，几乎看不见。</p><p>文字和背景的对比度只有约 1.3（数字越大越清楚，一般至少要 4.5）。</p></div>
+      </div>
+      <div class="col new">
+        <h3>建议</h3>
+        <img class="shot" src="img/c4-after.png" alt="建议：深色标题">
+        <div class="say"><p><span class="m">1</span>标题改成深色字，对比度约 9，一眼能读。</p><p>以后还可以考虑把相册的「封面照片」贴到封皮上（这次先不做）。</p></div>
+      </div>
+    </div>
+    <div class="decide" data-no="4"></div>
+  </section>
+
+  <section class="item" id="i5" data-no="5">
+    <h2><span class="no">5</span>3D 页面上的小字放大，中文不用斜体<span class="tag s">改动小</span></h2>
+    <p class="one">扉页上的日期和照片下的备注，在默认窗口大小下只有 8–10 像素高，读起来吃力。</p>
+    <div class="cmp">
+      <div class="col now">
+        <h3>现在</h3>
+        <img class="shot" src="img/c5-before.png" alt="现在：翻开的 3D 相册">
+        <p class="cap">放大看：</p>
+        <img class="shot half" src="img/c5-before-title.png" alt="扉页放大">
+        <img class="shot" src="img/c5-before-caption.png" alt="图注放大" style="margin-top:8px">
+        <div class="say"><p><span class="m">1</span>扉页的日期和数量：约 10 像素。</p><p><span class="m">2</span>照片下的备注：约 8 像素，而且是斜体。中文字体没有真正的斜体，只能被硬拉斜，看起来是歪的。</p></div>
+      </div>
+      <div class="col new">
+        <h3>建议</h3>
+        <img class="shot" src="img/c5-after.png" alt="建议：字更大的 3D 相册">
+        <p class="cap">放大看：</p>
+        <img class="shot half" src="img/c5-after-title.png" alt="扉页放大（建议）">
+        <img class="shot" src="img/c5-after-caption.png" alt="图注放大（建议）" style="margin-top:8px">
+        <div class="say"><p><span class="m">1</span><span class="m">2</span>都放大到约 12 像素；备注改成正常的直体字。照片会相应缩小一点点，给备注留出位置。</p></div>
+      </div>
+    </div>
+    <div class="decide" data-no="5"></div>
+  </section>
+
+  <section class="item" id="i6" data-no="6">
+    <h2><span class="no">6</span>日期写法统一<span class="tag s">改动小</span></h2>
+    <p class="one">同一个日期范围，现在在三个地方有三种写法。</p>
+    <div class="cmp">
+      <div class="col now">
+        <h3>现在</h3>
+        <p class="cap">相册页标题下面</p>
+        <img class="shot" src="img/c6-before-header.png" alt="相册页日期">
+        <p class="cap">相册墙的相册卡</p>
+        <img class="shot half" src="img/c6-before-card.png" alt="相册卡日期">
+        <p class="cap">3D 扉页</p>
+        <img class="shot half" src="img/c6-before-title.png" alt="扉页日期">
+        <div class="say"><p>「2026.07.12 – 2026.07.15」「2026.07」「2026/7/12 – 2026/7/15」三种写法；相册卡上的日期还单独占一行，字也最小。</p></div>
+      </div>
+      <div class="col new">
+        <h3>建议</h3>
+        <p class="cap">相册页标题下面</p>
+        <img class="shot" src="img/c6-after-header.png" alt="相册页日期（建议）">
+        <p class="cap">相册墙的相册卡</p>
+        <img class="shot half" src="img/c6-after-card.png" alt="相册卡日期（建议）">
+        <p class="cap">3D 扉页</p>
+        <img class="shot half" src="img/c6-after-title.png" alt="扉页日期（建议）">
+        <div class="say"><p>中文统一成「2026年7月12日–15日」，同年同月时省掉重复部分；相册卡写成「8 张照片 · 2026年7月」，放在同一行。英文界面自动写成「Jul 12–15, 2026」。</p></div>
+      </div>
+    </div>
+    <div class="decide" data-no="6"></div>
+  </section>
+
+  <!-- ============================== 三 ============================== -->
+  <p class="group-title">三 · 看照片和相册页</p>
+
+  <section class="item" id="i7" data-no="7">
+    <h2><span class="no">7</span>看大图：顶栏更干净，「设为封面」不用星星<span class="tag s">改动小</span></h2>
+    <p class="one">看照片时，屏幕上除了照片，其他东西越少越好；图标的意思要和大家的习惯一致。</p>
+    <div class="cmp">
+      <div class="col now">
+        <h3>现在</h3>
+        <img class="shot" src="img/c7-before.png" alt="现在：看大图顶栏">
+        <div class="say"><p><span class="m">1</span>看照片时顶栏还有 App 的 Logo 和名字，和照片抢注意力。</p><p><span class="m">2</span>☆ 在大多数软件里表示「收藏 / 喜欢」，这里却是「设为封面」，容易点错。</p></div>
+      </div>
+      <div class="col new">
+        <h3>建议</h3>
+        <img class="shot" src="img/c7-after.png" alt="建议：看大图顶栏与菜单">
+        <div class="say"><p><span class="m">1</span>去掉 Logo；更多操作收进「⋯」菜单。</p><p><span class="m">2</span>「设为相册封面」用文字写明，并顺便放上「复制 / 移动到其他相册」「在 Finder 中显示」。</p></div>
+      </div>
+    </div>
+    <p class="note">注意：上一版（v2）定过「看大图时显示 Folio 字样」，这一项会改掉它，需要你拍板。</p>
+    <div class="decide" data-no="7"></div>
+  </section>
+
+  <section class="item" id="i8" data-no="8">
+    <h2><span class="no">8</span>按钮和选项写清楚<span class="tag s">改动小</span></h2>
+    <p class="one">不看说明也能知道每个控件是干什么的。</p>
+    <div class="cmp">
+      <div class="col now">
+        <h3>现在</h3>
+        <img class="shot" src="img/c8-before-album.png" alt="现在：相册页工具栏">
+        <p class="cap">3D 翻阅右上角（默认、选第一项时）：</p>
+        <img class="shot half" src="img/c8-before-3d.png" alt="3D：每页 宽松">
+        <img class="shot half" src="img/c8-before-3d-per1.png" alt="3D：每页 每页 1 张" style="margin-top:8px">
+        <p class="cap">导出 PDF 对话框里的同一个设置：</p>
+        <img class="shot half" src="img/c8-before-pdf.png" alt="PDF：每页照片 2">
+        <div class="say"><ol><li><span class="m">1</span>「相册 / 夏日海边」和下面的大标题重复。</li><li><span class="m">2</span>下拉框只写「手动」，看不出这是排序。</li><li><span class="m">3</span>滑块没有任何说明，不知道是调缩略图大小。</li><li><span class="m">4</span>「每页 宽松」读不通；选第一项时变成「每页 每页 1 张」。</li><li><span class="m">5</span>同一个设置在导出 PDF 里又叫「每页照片 2」，三个地方三种叫法。</li></ol></div>
+      </div>
+      <div class="col new">
+        <h3>建议</h3>
+        <img class="shot" src="img/c8-after-album.png" alt="建议：相册页工具栏">
+        <p class="cap">3D 翻阅右上角：</p>
+        <img class="shot" src="img/c8-after-3d.png" alt="建议：版式 单张 宽松 紧凑">
+        <div class="say"><ol><li><span class="m">1</span>换成「‹ 全部相册」返回链接。</li><li><span class="m">2</span>写成「排序：手动」。</li><li><span class="m">3</span>滑块两头加小格子 / 大格子图标。</li><li><span class="m">4</span>3D 和导出 PDF 统一叫「版式：单张 / 宽松 / 紧凑」，配小图示。</li></ol></div>
+      </div>
+    </div>
+    <div class="decide" data-no="8"></div>
+  </section>
+
+  <!-- ============================== 四 ============================== -->
+  <p class="group-title">四 · 像真正的桌面 APP</p>
+
+  <section class="item" id="i9" data-no="9">
+    <h2><span class="no">9</span>标题栏合成一层，照片支持右键菜单<span class="tag m">改动中</span></h2>
+    <p class="one">用户会拿它和「照片」等系统自带 App 比；Mac 和 Windows 上的通用习惯要跟上。</p>
+    <div class="cmp">
+      <div class="col now">
+        <h3>现在</h3>
+        <div class="mac"><div class="bar"><i></i><i></i><i></i><span>Folio</span></div><img src="img/c9-before-window.png" alt="现在：双层头部"><div class="ann r"><b>① 两层头部：系统标题栏 + App 顶栏</b></div></div>
+        <p class="cap" >在照片上点右键：</p>
+        <img class="shot" src="img/c9-before-context.png" alt="现在：右键无菜单">
+        <div class="say"><p><span class="m">1</span>系统标题栏下面又叠了一层 App 顶栏，白白占掉一条高度。</p><p>在照片或相册上点右键，什么都不会出现；Mac 菜单栏也只有「Folio / 编辑 / 窗口」三个菜单。</p></div>
+      </div>
+      <div class="col new">
+        <h3>建议</h3>
+        <div class="mac"><img src="img/c9-after-window.png" alt="建议：标题栏与顶栏合一"><div class="ann g"><b>① 合成一层：红黄绿按钮放进顶栏</b></div></div>
+        <p class="cap" >在照片上点右键：</p>
+        <img class="shot" src="img/c9-after-context.png" alt="建议：右键菜单">
+        <div class="say"><p><span class="m">1</span>标题栏和顶栏合成一层（Windows 上同理，最小化/关闭按钮放在顶栏右侧）。</p><p>照片和相册都有右键菜单；另外补上「文件 / 显示 / 帮助」菜单和快捷键，并记住窗口的大小和位置（这两点没有画图）。</p></div>
+      </div>
+    </div>
+    <div class="decide" data-no="9"></div>
+  </section>
+
+  <section class="item" id="i10" data-no="10">
+    <h2><span class="no">10</span>第一次打开：告诉用户怎么开始<span class="tag m">改动中 · 新增文件夹导入</span></h2>
+    <p class="one">新用户最需要知道的只有一件事：怎么把照片放进来。</p>
+    <div class="cmp">
+      <div class="col now">
+        <h3>现在</h3>
+        <img class="shot" src="img/c10-before.png" alt="现在：空的相册墙">
+        <div class="say"><p><span class="m">1</span>一本相册都没有，页面上却先出现了搜索框和排序。</p><p><span class="m">2</span>只有一句「还没有相册」。没告诉你可以把照片直接拖进来，也不能一次导入整个文件夹。</p></div>
+      </div>
+      <div class="col new">
+        <h3>建议</h3>
+        <img class="shot" src="img/c10-after.png" alt="建议：欢迎页和拖放区">
+        <div class="say"><p><span class="m">2</span>欢迎语加一个大的拖放区：拖进照片或文件夹，一个文件夹自动变成一本相册（文件夹名就是相册名）。</p><p><span class="m">3</span>也可以点「从文件夹导入…」。没有相册时先不显示搜索和排序。</p></div>
+      </div>
+    </div>
+    <div class="decide" data-no="10"></div>
+  </section>
+
+  <!-- ============================== 五 ============================== -->
+  <p class="group-title">五 · 细节规范</p>
+
+  <section class="item" id="i11" data-no="11">
+    <h2><span class="no">11</span>字号和圆角统一成一套规则<span class="tag m">改动中 · 面广但每处都很小</span></h2>
+    <p class="one">用户不会一个个去数，但会觉得「哪里不太齐」。下面是界面里实际用到的全部字号和圆角。</p>
+    <div class="cmp">
+      <div class="col now">
+        <h3>现在</h3>
+        <div class="spec"><h4>19 种字号（下面的数字是用了几处）</h4><div class="row" id="fs-now"></div></div>
+        <div class="spec"><h4>20 种圆角</h4><div class="row" id="rd-now"></div></div>
+        <div class="say"><p>9–11 像素的小字用了 32 处，中文在这个大小下很难读；相邻的字号只差 1 像素，肉眼分不出层次，只会显得不齐。</p></div>
+      </div>
+      <div class="col new">
+        <h3>建议</h3>
+        <div class="spec"><h4>7 档字号，最小 12 像素</h4><div class="row" id="fs-new"></div></div>
+        <div class="spec"><h4>5 档圆角</h4><div class="row" id="rd-new"></div></div>
+        <div class="say"><p>每一档都有固定用途，新页面直接套用。改完后整体看起来会更「齐」，但每个页面看上去变化不大。</p></div>
+      </div>
+    </div>
+    <div class="decide" data-no="11"></div>
+  </section>
+
+  <section class="item" id="i12" data-no="12">
+    <h2><span class="no">12</span>手机上更好点<span class="tag s">改动小</span></h2>
+    <p class="one">手指比鼠标粗：苹果建议可点的地方至少 44 × 44。</p>
+    <div class="cmp">
+      <div class="col now">
+        <h3>现在</h3>
+        <img class="shot phone" src="img/c12-before.png" alt="现在：手机相册墙">
+        <div class="say"><p><span class="m">1</span>主题、语言按钮每个只有 34 × 28。</p><p><span class="m">2</span>相册卡上的「⋯」只有 26 × 26，很难点准。</p></div>
+      </div>
+      <div class="col new">
+        <h3>建议</h3>
+        <img class="shot phone" src="img/c12-after.png" alt="建议：手机相册墙">
+        <div class="say"><p><span class="m">1</span>主题和语言收进「设置」（见第 2 项）。</p><p><span class="m">2</span>「⋯」看起来不变，但可点的范围扩大到 44 × 44。</p><p>顺带修正几处读屏软件读出来的内容和屏幕上不一致的问题（例如照片上显示「封面」，读屏却读成文件名），方便视力不好的用户。</p></div>
+      </div>
+    </div>
+    <div class="decide" data-no="12"></div>
+  </section>
+
+</div>
+
+<div class="tray" role="status" aria-live="polite">
+  <span class="sum">还没选。每项底部点「要 / 不要 / 再想想」。</span>
+  <button type="button" class="ghost" data-act="reset">清空</button>
+  <button type="button" data-act="copy">复制我的选择</button>
+</div>
+<div class="zoom" hidden><img alt=""></div>
+
+<script>
+  // Type and radius specimens for item 11 (values counted from src/style.css, collection.css, photo-view.css).
+  const FS_NOW = [[9, 3], [10, 10], [11, 19], [12, 32], [13, 22], [14, 20], [15, 3], [16, 7], [17, 3], [18, 1], [20, 1], [21, 1], [22, 1], [23, 1], [24, 1], [25, 1], [28, 1], [34, 1], [52, 1]];
+  const FS_NEW = [[12, '说明'], [13, '次要'], [14, '正文'], [16, '强调'], [20, '小标题'], [28, '页面标题'], [52, '首页大字']];
+  const RD_NOW = ['0', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '16', '18', '20', '24', '50%', '999'];
+  const RD_NEW = [['4', '标签'], ['8', '输入框'], ['12', '卡片、菜单'], ['20', '对话框'], ['999', '胶囊按钮']];
+  const px = (v) => (v.endsWith('%') ? v : `${v}px`);
+  document.getElementById('fs-now').innerHTML = FS_NOW.map(([s, n]) => `<div class="t"><span style="font-size:${s}px">相</span><small>${s}<em>×${n}</em></small></div>`).join('');
+  document.getElementById('fs-new').innerHTML = FS_NEW.map(([s, use]) => `<div class="t"><span style="font-size:${s}px">相</span><small>${s}<em>${use}</em></small></div>`).join('');
+  document.getElementById('rd-now').innerHTML = RD_NOW.map((r) => `<div class="t"><span class="r" style="border-radius:${px(r)}"></span><small>${r}</small></div>`).join('');
+  document.getElementById('rd-new').innerHTML = RD_NEW.map(([r, use]) => `<div class="t"><span class="r" style="border-radius:${px(r)}"></span><small>${r}<em>${use}</em></small></div>`).join('');
+
+  // Decisions, remembered in this browser.
+  const KEY = 'folio-design-compare-v1';
+  const LABEL = { yes: '要', no: '不要', maybe: '再想想' };
+  let picks = {};
+  try { picks = JSON.parse(localStorage.getItem(KEY)) || {}; } catch {}
+  for (const box of document.querySelectorAll('.decide')) {
+    box.innerHTML = '<span>这一项：</span>' + Object.entries(LABEL).map(([v, t]) => `<button type="button" data-v="${v}" aria-pressed="false">${t}</button>`).join('');
+  }
+  function summary() {
+    const by = { yes: [], no: [], maybe: [] };
+    for (let i = 1; i <= 12; i++) if (picks[i]) by[picks[i]].push(i);
+    const parts = Object.entries(by).filter(([, list]) => list.length).map(([v, list]) => `${LABEL[v]}：${list.join('、')}`);
+    const left = 12 - Object.keys(picks).length;
+    return { text: parts.length ? `Folio 对比稿 — ${parts.join('；')}${left ? `；未选 ${left} 项` : ''}` : '', parts, left };
+  }
+  function render() {
+    for (const box of document.querySelectorAll('.decide')) {
+      for (const b of box.querySelectorAll('button')) b.setAttribute('aria-pressed', String(picks[box.dataset.no] === b.dataset.v));
+    }
+    for (const a of document.querySelectorAll('.toc-groups a')) {
+      const no = a.getAttribute('href').slice(2);
+      a.className = picks[no] ? `picked-${picks[no]}` : '';
+    }
+    const { text, parts, left } = summary();
+    document.querySelector('.tray .sum').innerHTML = parts.length
+      ? `<b>${parts.join('；')}</b>${left ? `　还有 ${left} 项没选` : '　全部选完了'}`
+      : '还没选。每项底部点「要 / 不要 / 再想想」。';
+    try { localStorage.setItem(KEY, JSON.stringify(picks)); } catch {}
+    return text;
+  }
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('.decide button');
+    if (b) {
+      const no = b.closest('.decide').dataset.no;
+      picks[no] = picks[no] === b.dataset.v ? undefined : b.dataset.v;
+      if (!picks[no]) delete picks[no];
+      render();
+      return;
+    }
+    const act = e.target.closest('.tray button')?.dataset.act;
+    if (act === 'reset') { picks = {}; render(); }
+    if (act === 'copy') {
+      const text = summary().text || 'Folio 对比稿 — 还没有选择';
+      const done = () => { const btn = document.querySelector('[data-act=copy]'); btn.textContent = '已复制，粘贴到终端即可'; setTimeout(() => { btn.textContent = '复制我的选择'; }, 2200); };
+      (navigator.clipboard?.writeText(text) ?? Promise.reject()).then(done, () => {
+        const ta = Object.assign(document.createElement('textarea'), { value: text });
+        document.body.append(ta); ta.select(); document.execCommand('copy'); ta.remove(); done();
+      });
+    }
+    const img = e.target.closest('.shot, .mac img');
+    const zoom = document.querySelector('.zoom');
+    if (img) {
+      const big = zoom.querySelector('img');
+      big.src = img.src;
+      // 2× screenshots show at their real on-screen size; 1× ones as captured.
+      big.onload = () => { big.style.width = `${big.naturalWidth > 1600 ? big.naturalWidth / 2 : big.naturalWidth}px`; };
+      zoom.hidden = false;
+    } else if (e.target.closest('.zoom')) zoom.hidden = true;
+  });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') document.querySelector('.zoom').hidden = true; });
+  render();
+</script>
+</body>
+</html>
