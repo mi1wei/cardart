@@ -16,7 +16,7 @@
     "smoke:package": "node scripts/package-smoke.mjs",
     "verify:release": "node scripts/verify-release.mjs",
     "manifest:release": "node scripts/create-release-manifest.mjs",
-    "test": "node --test \"scripts/*.test.js\" \"server/*.test.js\" \"desktop/*.test.cjs\"",
+    "test": "node --test \"scripts/*.test.js\" \"server/*.test.js\" \"desktop/*.test.cjs\" \"src/*.test.js\"",
     "build": "vite build",
     "preview": "vite preview",
     "start": "vite build && node server/index.js"

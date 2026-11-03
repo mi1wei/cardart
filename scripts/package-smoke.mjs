@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFile, spawn } from 'node:child_process';
-import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -134,11 +134,6 @@ export async function smokePackage({ appDir, platform = process.platform, whileR
     });
     assert.equal(deniedNote.status, 403);
     await deniedNote.arrayBuffer();
-    const video = (await readdir(join(resources, 'web/assets'))).find((name) => /^home-book-.*\.mp4$/.test(name));
-    assert.ok(video, 'Missing bundled homepage video');
-    const range = await request(`/assets/${video}`, { headers: { Range: 'bytes=0-31' } });
-    assert.equal(range.status, 206);
-    assert.equal((await range.arrayBuffer()).byteLength, 32);
     await whileRunning?.({ pid: child.pid, servicePid, origin });
     await promisify(execFile)(executable, [`--user-data-dir=${profile}`, '--quit'], { cwd: root, env, timeout: 10000 });
     const stopped = await Promise.race([exited, delay(15000, undefined, { ref: false }).then(() => { throw new Error('Packaged application did not complete explicit quit'); })]);

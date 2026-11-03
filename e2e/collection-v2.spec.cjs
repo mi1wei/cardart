@@ -1,6 +1,6 @@
 const { test, expect } = require('@playwright/test');
 const { desktopFixture } = require('./fixtures.cjs');
-const { seed } = require('./ui-helpers.cjs');
+const { openWall, seed } = require('./ui-helpers.cjs');
 
 test('album and wall searches clear empty results, and sort choices persist', async () => {
   const fixture = await desktopFixture();
@@ -9,7 +9,7 @@ test('album and wall searches clear empty results, and sort choices persist', as
     const origin = new URL(page.url()).origin;
     const a = await seed(page, origin, 'Kyoto', 3);
     await seed(page, origin, 'Summer', 1);
-    await page.goto(`${origin}/#/albums`);
+    await openWall(page, origin);
     await page.locator('.wall-search').fill('KYOTO');
     await expect(page.locator('.folder')).toHaveCount(1);
     await page.locator('.wall-sort').selectOption('name');
@@ -147,7 +147,7 @@ test('capture date ranges appear on the album and card, and phone long-press ope
       const data = await photoBytes({ width: 300 + i, height: 200, exif: { IFD2: { DateTimeOriginal: date } } });
       expect((await page.request.post(`${origin}/api/albums/${a.id}/photos?name=d${i}.jpg`, { headers: { 'X-Album-Upload': '1' }, data })).ok()).toBe(true);
     }
-    await page.goto(`${origin}/#/albums`);
+    await openWall(page, origin);
     await expect(page.locator('.folder-dates')).toHaveText('2026.07');
     expect(await page.locator('.pocket img').first().evaluate((el) => getComputedStyle(el).borderTopWidth)).toBe('4px');
     await page.setViewportSize({ width: 320, height: 844 });

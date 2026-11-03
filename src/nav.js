@@ -15,8 +15,7 @@ export function createNav(onLang) {
   function render() {
     el.setAttribute('aria-label', t('app'));
     el.innerHTML = `
-      <a class="logo" href="#/">${brandLogo()}<span>${t('app')}</span></a>
-      <a class="nl" href="#/" data-page="home">${t('home')}</a>
+      <a class="logo" href="#/albums">${brandLogo()}<span>${t('app')}</span></a>
       <a class="nl" href="#/albums" data-page="albums">${t('albums')}</a>
       ${onComputer ? `<a class="nl" href="#/license" data-page="license">${t('license-manage')}</a>` : ''}
       <span class="sp"></span>

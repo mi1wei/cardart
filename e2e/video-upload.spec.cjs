@@ -59,8 +59,6 @@ test('real mixed uploads preserve MOV bytes, reject fake video locally and rende
     await page.goto(`${origin}/#/albums`);
     await expect(page.locator('.page > .ph .sub')).toContainText('1 张照片 · 1 个视频');
     await expect(page.locator('.folders .video-badge')).toHaveCount(0);
-    await page.goto(`${origin}/#/`);
-    await expect(page.locator('.stats .n')).toContainText('1 张照片 · 1 个视频');
   } finally { await fixture.close(); }
 });
 

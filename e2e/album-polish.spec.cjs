@@ -1,7 +1,7 @@
 const { test, expect } = require('@playwright/test');
 const { desktopFixture } = require('./fixtures.cjs');
 const sharp = require('sharp');
-const { seed, setRange } = require('./ui-helpers.cjs');
+const { openWall, seed, setRange } = require('./ui-helpers.cjs');
 
 test('photos get a frame and the thumbnail size is remembered', async () => {
   const fixture = await desktopFixture();
@@ -54,7 +54,7 @@ test('loading shows placeholders instead of the empty drop zone', async () => {
   } finally { await fixture.close(); }
 });
 
-test('cards, breadcrumb, select icon, lightbox brand and home show the polished details', async () => {
+test('cards, breadcrumb, select icon and lightbox brand show the polished details', async () => {
   const fixture = await desktopFixture();
   try {
     const { page } = await fixture.launch();
@@ -65,11 +65,6 @@ test('cards, breadcrumb, select icon, lightbox brand and home show the polished 
     await page.locator('.nav [data-lang=zh]').click();
     await expect(page.locator(`.folder[data-id="${full.id}"] .n`)).toHaveText('2 张照片');
     await expect(page.locator(`.folder[data-id="${empty.id}"] .n`)).toHaveText('还没有照片');
-
-    await page.goto(`${origin}/#/`);
-    await expect(page.locator('.recent')).toBeVisible();
-    await expect(page.locator('.recent .folder')).toHaveCount(1);
-    await expect(page.locator(`.recent .folder[data-id="${full.id}"]`)).toHaveCount(1);
 
     await page.goto(`${origin}/#/a/${full.id}`);
     await expect(page.locator('.crumb .crumb-here')).toHaveText('Full');
@@ -127,7 +122,7 @@ test('narrow album cards keep the title readable next to the full count', async 
     const { page } = await fixture.launch();
     const origin = new URL(page.url()).origin;
     await seed(page, origin, 'Summer trip to Kyoto with the whole family', 5);
-    await page.goto(`${origin}/#/albums`);
+    await openWall(page, origin);
     await expect(page.locator('.folder .n')).toHaveText('5 photos');
     for (const width of [320, 390, 1280]) {
       await page.setViewportSize({ width, height: 800 });
@@ -191,7 +186,8 @@ test('in Chinese the app keeps the name Folio in the nav, titles, viewer and pho
     await page.locator('.tile').first().click();
     await expect(page.locator('.lb-brand')).toHaveText('Folio');
     await page.goto(`${origin}/#/`);
-    await expect(page).toHaveTitle('Folio');
+    await expect(page).toHaveURL(/#\/albums$/);
+    await expect(page).toHaveTitle('相册 · Folio');
     await page.locator('.nav [data-act=phone]').click();
     await expect(page.locator('dialog[open] .note')).toContainText('「Folio」');
     // 「相册页」 means "album page"; only the old app name 册页 must be gone.
