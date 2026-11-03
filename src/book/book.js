@@ -222,7 +222,8 @@ export function createBook(container, { title, titlePage = null, pages, photoUrl
   function tick(now) {
     raf = 0;
     if (disposed) return;
-    const moving = step(last ? Math.min(1 / 30, (now - last) / 1000) : 1 / 60);
+    // Keep slow frames in real time; step() already integrates them in 120 Hz substeps.
+    const moving = step(last ? Math.min(1, (now - last) / 1000) : 1 / 60);
     recenter();
     place();
     stage.render();

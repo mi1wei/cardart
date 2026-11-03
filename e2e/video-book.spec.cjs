@@ -98,7 +98,7 @@ test('book textures distinguish video with a painted marker/duration and never r
   } finally { await fixture.close(); }
 });
 
-for (const frameWorkMs of [0, 250]) {
+for (const frameWorkMs of [0, 250, 1000]) {
   test(`actual 3D book loads only posters and a real hit on the back-page video opens native playback (${frameWorkMs}ms frame work)`, async () => {
     const fixture = await desktopFixture();
     try {
@@ -115,6 +115,7 @@ for (const frameWorkMs of [0, 250]) {
         let completed = 0;
         let first;
         let last;
+        let maxGap = 0;
         window.requestAnimationFrame = (callback) => {
           const id = request((time) => {
             pending.delete(id);
@@ -125,6 +126,7 @@ for (const frameWorkMs of [0, 250]) {
               while (performance.now() < end) {}
               completed++;
               first ??= time;
+              if (last !== undefined) maxGap = Math.max(maxGap, time - last);
               last = time;
             }
           });
@@ -137,7 +139,7 @@ for (const frameWorkMs of [0, 250]) {
         };
         return {
           get pending() { return pending.size; },
-          stats: () => ({ pending: pending.size, completed, frameSpan: last - first, visibility: document.visibilityState }),
+          stats: () => ({ pending: pending.size, completed, frameSpan: last - first, maxGap, visibility: document.visibilityState }),
         };
       }, frameWorkMs);
       await page.goto(`${origin}/#/a/${album.id}/3d`);
@@ -151,6 +153,8 @@ for (const frameWorkMs of [0, 250]) {
       finally {
         console.log('Owned book animation:', JSON.stringify(await frames.evaluate((state) => state.stats()).catch(() => null)));
       }
+      const animation = await frames.evaluate((state) => state.stats());
+      expect(animation.frameSpan, 'page turning must catch up with elapsed time on slow frames').toBeLessThan(2000 + 3 * animation.maxGap);
       expect(originals).toEqual([]);
       await page.screenshot({ path: test.info().outputPath('video-book-actual.png'), fullPage: true, scale: 'css' });
       const point = await restVideoPoint(page, album);
