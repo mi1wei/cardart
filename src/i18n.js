@@ -1,7 +1,7 @@
 // Chinese and English text (spec §10, §13). A value is a string, or a function of the variables.
 export const TEXT = {
   zh: {
-    app: '册页',
+    app: 'Folio',
     'license-manage': '许可证',
     'license-title': '许可证与试用',
     'license-help': '管理你的 Folio 许可证与试用。',
@@ -253,7 +253,7 @@ export const TEXT = {
     'jump-spread': '跳到第几个跨页',
     'no-webgl': '当前浏览器无法显示 3D 相册（WebGL 不可用）',
     'no-fullscreen': '当前浏览器不能全屏',
-    'tip-iphone': 'iPhone 的浏览器不能全屏：点分享 →「添加到主屏幕」，以后从主屏幕上的「册页」图标打开就是全屏。',
+    'tip-iphone': 'iPhone 的浏览器不能全屏：点分享 →「添加到主屏幕」，以后从主屏幕上的「Folio」图标打开就是全屏。',
     'tip-wechat': '微信里不能全屏：点右上角「···」→「在 Safari 中打开」，再点分享 →「添加到主屏幕」。',
     'phone-title': '用手机看相册',
     'phone-network': '选择与手机相连的网络地址',
@@ -261,7 +261,7 @@ export const TEXT = {
     copy: '复制',
     copied: '已复制',
     'copy-failed': '复制失败，请手动复制',
-    'phone-note': '想在 iPhone 上全屏看：在 Safari 里点分享 →「添加到主屏幕」，以后点主屏幕上的「册页」图标打开。',
+    'phone-note': '想在 iPhone 上全屏看：在 Safari 里点分享 →「添加到主屏幕」，以后点主屏幕上的「Folio」图标打开。',
     'phone-allow': '允许手机访问',
     'phone-allow-help': '关掉后，手机马上打不开',
     'phone-link-off': '打开下面的开关后显示链接',

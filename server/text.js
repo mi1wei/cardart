@@ -2,7 +2,7 @@
 // in the visitor's language just before it is sent.
 export const TEXT = {
   zh: {
-    app: '册页',
+    app: 'Folio',
     'wrong-address': '地址不对',
     'phone-off': '手机访问已关闭，请在电脑上打开「手机访问」',
     'link-expired': '链接已失效，请在电脑上重新扫码',
