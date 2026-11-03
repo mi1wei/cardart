@@ -32,6 +32,19 @@ async function fixture(t) {
   };
 }
 
+test('server pages are titled Folio in Chinese too', async (t) => {
+  const f = await fixture(t);
+  const runtime = await f.start();
+  for (const headers of [{ 'Accept-Language': 'zh-CN,zh;q=0.9' }, { Cookie: 'folio_lang=zh' }]) {
+    const res = await fetch(`${runtime.url}missing.js`, { headers });
+    assert.equal(res.status, 404);
+    const html = await res.text();
+    assert.match(html, /<html lang="zh-CN">/);
+    assert.match(html, /<title>Folio<\/title>/);
+    assert.doesNotMatch(html, /册页/);
+  }
+});
+
 test('desktop starts its own service on fallback and failed CLI listen releases the library', async (t) => {
   const f = await fixture(t);
   const occupied = http.createServer((req, res) => res.end('foreign'));

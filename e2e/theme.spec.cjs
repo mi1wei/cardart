@@ -147,7 +147,7 @@ test('the album top bar with the theme switch fits a 320px phone in both languag
       await page.locator(`.nav [data-lang=${lang}]`).click();
       await expect(page.locator('.nav .theme')).toBeVisible();
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-      await expect(page.locator('.nav .logo')).toHaveAccessibleName(/册页|Folio/);
+      await expect(page.locator('.nav .logo')).toHaveAccessibleName('Folio');
     }
   } finally { await fixture.close(); }
 });

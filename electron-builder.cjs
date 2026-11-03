@@ -74,7 +74,7 @@ module.exports = {
     notarize: false,
     publish: null,
     extendInfo: {
-      NSLocalNetworkUsageDescription: 'Folio uses the local network to let your phone view and upload photos. 册页需要访问局域网，让手机查看和上传照片。',
+      NSLocalNetworkUsageDescription: 'Folio uses the local network to let your phone view and upload photos. Folio 需要访问局域网，让手机查看和上传照片。',
     },
   },
   dmg: { sign: false, writeUpdateInfo: false },

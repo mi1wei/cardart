@@ -82,7 +82,7 @@ test('cards, breadcrumb, select icon, lightbox brand and home show the polished 
     await expect(page.locator('.acts .menu')).toHaveCount(0);
 
     await page.locator('.tile').first().click();
-    await expect(page.locator('.lb-brand')).toContainText('册页');
+    await expect(page.locator('.lb-brand')).toContainText('Folio');
     await expect(page.locator('.lb-fit')).toHaveCount(0);
     await page.goto(`${origin}/#/a/${full.id}`);
     await expect(page.locator('.lb')).toHaveCount(0);
@@ -170,5 +170,31 @@ test('an import started while the delete-album confirmation is open still blocks
     expect((await page.request.get(`${origin}/api/albums/${album.id}`)).ok()).toBe(true);
     release();
     await expect(page.locator('.tile')).toHaveCount(2);
+  } finally { await fixture.close(); }
+});
+
+test('in Chinese the app keeps the name Folio in the nav, titles, viewer and phone tips', async () => {
+  const fixture = await desktopFixture();
+  try {
+    const { page } = await fixture.launch();
+    const origin = new URL(page.url()).origin;
+    const album = await seed(page, origin, '旅行', 1);
+    await page.goto(`${origin}/#/albums`);
+    await page.locator('.nav [data-lang=zh]').click();
+    await expect(page.locator('html')).toHaveAttribute('lang', 'zh-CN');
+    await expect(page.locator('.nav')).toHaveAccessibleName('Folio');
+    await expect(page.locator('.nav .logo')).toHaveAccessibleName('Folio');
+    await expect(page).toHaveTitle('相册 · Folio');
+    await expect(page.locator('meta[name=apple-mobile-web-app-title]')).toHaveAttribute('content', 'Folio');
+    await page.goto(`${origin}/#/a/${album.id}`);
+    await expect(page).toHaveTitle('旅行 · Folio');
+    await page.locator('.tile').first().click();
+    await expect(page.locator('.lb-brand')).toHaveText('Folio');
+    await page.goto(`${origin}/#/`);
+    await expect(page).toHaveTitle('Folio');
+    await page.locator('.nav [data-act=phone]').click();
+    await expect(page.locator('dialog[open] .note')).toContainText('「Folio」');
+    // 「相册页」 means "album page"; only the old app name 册页 must be gone.
+    expect(await page.evaluate(() => /(?<!相)册页/.test(document.body.innerText))).toBe(false);
   } finally { await fixture.close(); }
 });
