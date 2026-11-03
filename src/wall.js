@@ -25,7 +25,7 @@ export function renderWall(app) {
         <span class="sp"></span>
         <span class="wall-tools">
           <input class="wall-search" type="search" aria-label="${c('searchAlbums')}" placeholder="${c('searchAlbums')}">
-          <select class="wall-sort" aria-label="${c('wallSort')}">${['updated', 'created', 'name'].map((value) => `<option value="${value}">${c(value)}</option>`).join('')}</select>
+          <label class="sort-label"><span>${c('sortBy')}</span><select class="wall-sort">${['updated', 'created', 'name'].map((value) => `<option value="${value}">${c(value)}</option>`).join('')}</select></label>
         </span>
         <button class="btn pri" type="button" data-write data-act="new" aria-label="${t('new-album')}">${icon('plus')}<span>${t('new-album')}</span></button>
       </header>

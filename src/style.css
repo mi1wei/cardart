@@ -1416,7 +1416,15 @@ button {
 .density {
   display: flex;
   align-items: center;
+  gap: 8px;
   margin-left: auto;
+  color: var(--ink-3);
+}
+
+.density svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
 }
 
 .density input {
@@ -2334,6 +2342,74 @@ body:has(.ab, .lb) {
   cursor: pointer;
 }
 
+/* Layout: a segmented control on wide screens; phones keep the menu above (polish spec §3.5). */
+.ab-layout {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--raised);
+  box-shadow: inset 0 0 0 1px var(--line);
+  pointer-events: auto;
+}
+
+.ab-layout-k {
+  padding: 0 6px 0 9px;
+  color: var(--ink-3);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.ab-layout button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 30px;
+  padding: 0 11px 0 9px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.ab-layout button svg {
+  width: 18px;
+  height: 18px;
+}
+
+.ab-layout button:hover {
+  background: var(--hover);
+}
+
+.ab-layout button[aria-pressed='true'] {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+@media (min-width: 601px) {
+  .ab-select {
+    display: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .ab-layout-k {
+    display: none;
+  }
+}
+
+@media (max-width: 600px) {
+  .ab-layout {
+    display: none;
+  }
+}
+
 .ab-slider {
   width: min(360px, 60vw);
   margin: 2px 0;
@@ -2417,7 +2493,7 @@ body:has(.ab, .lb) {
   height: 16px;
 }
 
-:is(.ab-icon, .ab-primary, .ab-secondary, .ab-back, .ab-play, .ab-speed button):focus-visible {
+:is(.ab-icon, .ab-primary, .ab-secondary, .ab-back, .ab-play, .ab-speed button, .ab-layout button):focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }

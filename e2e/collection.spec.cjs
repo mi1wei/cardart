@@ -72,7 +72,7 @@ test('background JPG and HEIC imports support dedup, pointer reorder, 3D, fullsc
     }
     await expect(page.locator('.ab')).not.toHaveAttribute('data-error', '');
     console.log('Owned collection phase: 3D ready');
-    await page.locator('.ab select').selectOption('1');
+    await page.locator('.ab-layout [data-per="1"]').click();
     // Rendering can outlive an idle keepalive; retry a reset once on this read only.
     await expect.poll(async () => (await (await page.request.get(`${origin}/api/albums/${album.id}`, { maxRetries: 1 })).json()).perPage).toBe(1);
     const initial = await page.locator('.ab-count').textContent();

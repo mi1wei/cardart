@@ -3,7 +3,7 @@ import { lang } from './i18n.js';
 const words = {
   en: {
     searchAlbums: 'Search albums', searchPhotos: 'Search filenames and notes', clear: 'Clear search',
-    noResults: 'No matching items', wallSort: 'Sort albums', photoSort: 'Sort photos',
+    noResults: 'No matching items', sortBy: 'Sort',
     updated: 'Recently updated', created: 'Created', name: 'Name', taken: 'Capture time',
     added: 'Date added', manual: 'Manual', manualPrompt: 'Switch to manual order?',
     manualHint: 'Drag again after switching to manual order.', all: 'Select all', done: 'Done',
@@ -21,7 +21,7 @@ const words = {
   },
   zh: {
     searchAlbums: '搜索相册名', searchPhotos: '搜索文件名和备注', clear: '清除搜索',
-    noResults: '没有匹配的内容', wallSort: '相册排序', photoSort: '照片排序',
+    noResults: '没有匹配的内容', sortBy: '排序',
     updated: '最近更新', created: '创建时间', name: '名称', taken: '拍摄时间',
     added: '添加时间', manual: '手动', manualPrompt: '切换为手动排序？',
     manualHint: '已切换为手动排序，请再次拖动。', all: '全选', done: '完成',

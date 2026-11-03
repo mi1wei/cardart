@@ -37,6 +37,11 @@ const PATHS = {
   moon: '<path d="M19 14.5A7.5 7.5 0 0 1 9.5 5a7.5 7.5 0 1 0 9.5 9.5z"/>',
   select: '<rect x="4.5" y="4.5" width="15" height="15" rx="3"/><path d="m8.5 12 2.5 2.5 4.5-5"/>',
   gear: '<path d="M18.2 10.3L20.3 10.7L20.3 13.3L18.2 13.7L17.5 15.2L18.8 16.9L16.9 18.8L15.2 17.5L13.7 18.2L13.3 20.3L10.7 20.3L10.3 18.2L8.8 17.5L7.1 18.8L5.2 16.9L6.5 15.2L5.8 13.7L3.7 13.3L3.7 10.7L5.8 10.3L6.5 8.8L5.2 7.1L7.1 5.2L8.8 6.5L10.3 5.8L10.7 3.7L13.3 3.7L13.7 5.8L15.2 6.5L16.9 5.2L18.8 7.1L17.5 8.8Z"/><circle cx="12" cy="12" r="2.6"/>',
+  gridSmall: '<path d="M5 5h3v3H5zM10.5 5h3v3h-3zM16 5h3v3h-3zM5 10.5h3v3H5zM10.5 10.5h3v3h-3zM16 10.5h3v3h-3zM5 16h3v3H5zM10.5 16h3v3h-3zM16 16h3v3h-3z"/>',
+  gridLarge: '<rect x="4.5" y="4.5" width="6" height="6" rx="1.2"/><rect x="13.5" y="4.5" width="6" height="6" rx="1.2"/><rect x="4.5" y="13.5" width="6" height="6" rx="1.2"/><rect x="13.5" y="13.5" width="6" height="6" rx="1.2"/>',
+  layout1: '<rect x="3.5" y="5" width="17" height="14" rx="2"/><rect x="8" y="8.5" width="8" height="7" rx="1" fill="currentColor" stroke="none"/>',
+  layout2: '<rect x="3.5" y="5" width="17" height="14" rx="2"/><rect x="6.8" y="8.5" width="4.6" height="7" rx="1" fill="currentColor" stroke="none"/><rect x="12.6" y="8.5" width="4.6" height="7" rx="1" fill="currentColor" stroke="none"/>',
+  layout3: '<rect x="3.5" y="5" width="17" height="14" rx="2"/><rect x="6.8" y="8.5" width="5" height="7" rx="1" fill="currentColor" stroke="none"/><rect x="13" y="8.5" width="4.2" height="3" rx=".8" fill="currentColor" stroke="none"/><rect x="13" y="12.5" width="4.2" height="3" rx=".8" fill="currentColor" stroke="none"/>',
 };
 
 // Full-colour app illustration for brand spots; the single-colour mark stays for icon buttons.

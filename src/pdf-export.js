@@ -1,4 +1,4 @@
-import { lang } from './i18n.js';
+import { lang, t } from './i18n.js';
 import { allowWrite } from './license.js';
 import { onComputer } from './phone.js';
 import { toast } from './ui.js';
@@ -23,7 +23,7 @@ export function openPdfExport(album) {
       <h2>${text('title')}</h2>
       <fieldset>
         <label class="pdf-option">${text('paper')}<select name="paper"><option value="A4">${text('A4')}</option><option value="Letter">${text('Letter')}</option></select></label>
-        <label class="pdf-option">${text('perPage')}<select name="perPage"><option>1</option><option>2</option><option>3</option></select><small>${text('same')}</small></label>
+        <label class="pdf-option">${t('per-page')}<select name="perPage">${[1, 2, 3].map((v) => `<option value="${v}">${t(`per-${v}`)}</option>`).join('')}</select><small>${text('same')}</small></label>
         <label class="pdf-option">${text('quality')}<select name="quality"><option value="standard">${text('standard')}</option><option value="high">${text('high')}</option></select></label>
         <label class="pdf-check"><input name="cover" type="checkbox" checked>${text('cover')}</label>
         <label class="pdf-check"><input name="captions" type="checkbox" checked>${text('captions')}</label>

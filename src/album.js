@@ -58,8 +58,8 @@ export function renderAlbum(app, id) {
         <span class="menu-host"><button class="btn only-icon" type="button" data-act="menu" aria-label="${t('more')}" aria-haspopup="menu">${icon('more')}</button></span>
         <button class="btn only-icon" type="button" data-act="search" aria-label="${c('searchPhotos')}">${icon('search')}</button>
         <input class="album-search" type="search" aria-label="${c('searchPhotos')}" placeholder="${c('searchPhotos')}" hidden>
-        <label class="sort-label"><span class="sr-only">${c('photoSort')}</span><select class="photo-sort" data-write>${['taken', 'added', 'manual'].map((value) => `<option value="${value}">${c(value)}</option>`).join('')}</select></label>
-        <label class="density" title="${t('density')}"><input type="range" min="0" max="2" step="1" aria-label="${t('density')}"></label>
+        <label class="sort-label"><span>${c('sortBy')}</span><select class="photo-sort" data-write>${['taken', 'added', 'manual'].map((value) => `<option value="${value}">${c(value)}</option>`).join('')}</select></label>
+        <label class="density" title="${t('density')}">${icon('gridSmall')}<input type="range" min="0" max="2" step="1" aria-label="${t('density')}">${icon('gridLarge')}</label>
       </div>
       <div class="acts picking" hidden>
         <button class="btn" type="button" data-act="all">${c('all')}</button>
