@@ -121,15 +121,21 @@ test('holding a page while auto-flip plays waits a full step after the press', a
     await openBook(page);
     await page.locator('.ab-turn [data-act=play]').click();
     await page.locator('.ab-speed [data-speed=slow]').click(); // the next step is 8 s from here
+    const scheduled = Date.now();
     await page.waitForTimeout(6000);
     const box = await page.locator('.ab canvas').boundingBox();
     const [x, y] = [box.x + box.width * 0.75, box.y + box.height / 2];
     await page.mouse.move(x, y);
+    const pressed = Date.now();
     await page.mouse.down();
-    await page.mouse.move(x - 30, y, { steps: 3 });
-    await page.waitForTimeout(4000); // well past the old 8 s mark, well before press + 8 s
-    expect(await page.locator('.ab-count').textContent()).toBe('1 / 3');
-    await page.mouse.move(x, y, { steps: 3 });
+    await page.mouse.move(x - 30, y); // one move: each step waits for a frame, which takes seconds on a CPU renderer
+    // Past the old 8 s mark, before press + 8 s: timed from the press, since input can lag on a slow machine.
+    await page.waitForTimeout(Math.max(0, Math.max(scheduled + 9000, pressed + 3000) - Date.now()));
+    const count = await page.locator('.ab-count').textContent();
+    expect(Date.now() - scheduled, 'checked after the original step was due').toBeGreaterThan(8500);
+    expect(Date.now() - pressed, 'checked before a full step after the press').toBeLessThan(8000);
+    expect(count).toBe('1 / 3');
+    await page.mouse.move(x, y);
     await page.mouse.up();
   } finally { await fixture.close(); }
 });

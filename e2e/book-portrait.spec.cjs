@@ -28,7 +28,7 @@ async function swipe(page, from, to) {
   await expect.poll(() => settled(page), { timeout: 15000 }).toBe(true);
   await page.mouse.move(from, 420);
   await page.mouse.down();
-  await page.mouse.move(to, 420, { steps: 6 });
+  await page.mouse.move(to, 420, { steps: 2 }); // each step waits for a frame, slow on a CPU renderer
   await page.mouse.up();
 }
 
