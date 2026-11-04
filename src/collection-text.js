@@ -44,13 +44,6 @@ export function c(key, vars = {}) {
   return typeof value === 'function' ? value(vars) : value;
 }
 
-export function dateRange(range, month = false) {
-  if (!range?.from || !range?.to) return '';
-  const from = range.from.slice(0, month ? 7 : 10).replaceAll('-', '.');
-  const to = range.to.slice(0, month ? 7 : 10).replaceAll('-', '.');
-  return from === to ? from : `${from} – ${to}`;
-}
-
 export function preference(key, choices, fallback) {
   try {
     const value = localStorage.getItem(key);

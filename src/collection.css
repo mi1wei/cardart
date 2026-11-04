@@ -43,7 +43,6 @@
 }
 .sort-label select:focus { outline: none; }
 .sort-label:has(select:focus-visible) { outline: 2px solid var(--accent); outline-offset: 3px; }
-.folder-dates { display: block; margin-top: 4px; color: var(--ink-3); font-size: 11px; }
 .batch-bar {
   position: fixed;
   z-index: 45;

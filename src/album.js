@@ -2,11 +2,12 @@ import { api, mediaUrl } from './api.js';
 import { openLightbox } from './lightbox.js';
 import { close, open, swap } from './router.js';
 import { backLink, dialog, icon, toast } from './ui.js';
-import { mediaCountText, t } from './i18n.js';
+import { lang, mediaCountText, t } from './i18n.js';
 import { allowWrite, canWrite } from './license.js';
 import { probeVideo } from './video-probe.js';
 import { formatDuration, mediaCounts } from '../shared/media.js';
-import { c, dateRange } from './collection-text.js';
+import { c } from './collection-text.js';
+import { formatRange } from '../shared/dates.js';
 import { chooseAlbum, downloadPhotos } from './collection-actions.js';
 import { showUndo } from './undo.js';
 import { onComputer } from './phone.js';
@@ -216,7 +217,8 @@ export function renderAlbum(app, id) {
   function render() {
     const n = album.photos.length;
     $('.title').textContent = album.title;
-    $('.count').textContent = [mediaCountText(mediaCounts(album.photos)), dateRange(album.dateRange)].filter(Boolean).join(' · ');
+    const dates = formatRange(album.dateRange?.from, album.dateRange?.to, { lang: lang() });
+    $('.count').textContent = [mediaCountText(mediaCounts(album.photos)), dates].filter(Boolean).join(' · ');
     $('.photo-sort').value = album.sort ?? 'manual';
     document.title = `${album.title} · ${t('app')}`;
     $('.drop').hidden = n > 0;

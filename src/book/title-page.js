@@ -1,24 +1,20 @@
 import { CanvasTexture, SRGBColorSpace } from 'three';
 import { lang, mediaCountText } from '../i18n.js';
 import { mediaCounts } from '../../shared/media.js';
+import { formatRange } from '../../shared/dates.js';
 import { fitText, SERIF } from './text.js';
 
 const PX = 6; // canvas pixels per mm
 
 // The first left page when the book opens (v2 spec §8): name, a rule, the date range and the count.
 export function titlePageText(album) {
-  const days = album.photos
-    .map((p) => p.metadata?.takenAt?.local?.slice(0, 10))
-    .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d ?? ''))
-    .sort();
-  let dates = '';
-  if (days.length) {
-    const day = (d) => new Date(`${d}T00:00:00Z`);
-    const format = new Intl.DateTimeFormat(lang() === 'zh' ? 'zh-CN' : 'en', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
-    const [first, last] = [days[0], days.at(-1)];
-    dates = first === last ? format.format(day(first)) : format.formatRange(day(first), day(last));
-  }
-  return { title: album.title, dates, count: mediaCountText(mediaCounts(album.photos)) };
+  // formatRange(day) only skips capture times that cannot be read.
+  const days = album.photos.map((p) => p.metadata?.takenAt?.local).filter((day) => formatRange(day)).sort();
+  return {
+    title: album.title,
+    dates: formatRange(days[0], days.at(-1), { lang: lang() }),
+    count: mediaCountText(mediaCounts(album.photos)),
+  };
 }
 
 // Sizes are in mm; the context is already scaled.

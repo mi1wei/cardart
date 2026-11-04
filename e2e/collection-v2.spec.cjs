@@ -159,11 +159,32 @@ test('capture date ranges appear on the album and card, and phone long-press ope
       expect((await page.request.post(`${origin}/api/albums/${a.id}/photos?name=d${i}.jpg`, { headers: { 'X-Album-Upload': '1' }, data })).ok()).toBe(true);
     }
     await openWall(page, origin);
-    await expect(page.locator('.folder-dates')).toHaveText('2026.07');
+    await expect(page.locator('.folder .n')).toHaveText('2 photos');
+    await expect(page.locator('.folder .folder-dates')).toHaveText('Jul 2026');
     expect(await page.locator('.pocket img').first().evaluate((el) => getComputedStyle(el).borderTopWidth)).toBe('4px');
+    // A phone card with a long title: the count stays whole and the dates give way first.
+    expect((await page.request.patch(`${origin}/api/albums/${a.id}`, { data: { title: 'A rather long album name for a narrow phone' } })).ok()).toBe(true);
     await page.setViewportSize({ width: 320, height: 844 });
+    await page.reload();
+    const card = await page.locator('.folder').first().evaluate((el) => {
+      const box = (selector) => el.querySelector(selector).getBoundingClientRect();
+      const count = el.querySelector('.n');
+      const title = el.querySelector('h3');
+      return {
+        countWhole: count.scrollWidth <= count.clientWidth,
+        title: title.clientWidth, titleFull: title.scrollWidth, meta: el.querySelector('.meta').clientWidth,
+        sameLine: Math.abs(box('.folder-dates').top - box('.n').top),
+        inside: box('.folder-dates').right <= box('.meta').right + 0.5,
+        ellipsis: getComputedStyle(el.querySelector('.folder-dates')).textOverflow,
+      };
+    });
+    expect(card.countWhole).toBe(true);
+    expect(card.title).toBeGreaterThanOrEqual(Math.min(card.titleFull, card.meta * 0.6));
+    expect(card.sameLine).toBeLessThan(2);
+    expect(card.inside).toBe(true);
+    expect(card.ellipsis).toBe('ellipsis');
     await page.goto(`${origin}/#/a/${a.id}`);
-    await expect(page.locator('.album-page .count')).toContainText('2026.07.02 – 2026.07.15');
+    await expect(page.locator('.album-page .count')).toContainText('Jul 2 – 15, 2026');
     expect(await page.locator('.tile').first().evaluate((el) => getComputedStyle(el).boxShadow)).toContain('0px 0px 0px 2.5px');
     await page.locator('.tile').first().dispatchEvent('pointerdown', { pointerType: 'touch', button: 0, pointerId: 7, clientX: 80, clientY: 300 });
     await expect(page.locator('.batch-bar')).toBeVisible();

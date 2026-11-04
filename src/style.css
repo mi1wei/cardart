@@ -480,6 +480,22 @@ button {
   font-variant-numeric: tabular-nums;
 }
 
+/* The capture months follow the count and give way first when the row is short. */
+.folder .folder-dates {
+  flex: 0 100 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink-3);
+  font-size: 12px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.folder .folder-dates::before {
+  content: '·';
+  margin-right: 4px;
+}
+
 .folder .ibtn {
   width: 26px;
   height: 26px;
@@ -487,7 +503,7 @@ button {
   margin-left: auto;
 }
 
-/* Narrow cards (phones, the four-up home row): the count gets its own line so the title stays readable. */
+/* Narrow cards (phones): the count and its dates get their own line so the title stays readable. */
 @container (max-width: 279px) {
   .folder .meta {
     flex-wrap: wrap;
@@ -496,13 +512,20 @@ button {
     min-height: 22px;
   }
 
+  /* A zero-height break: the count and its dates start the second line. */
+  .folder .meta::before {
+    content: '';
+    order: 1;
+    flex-basis: 100%;
+  }
+
   .folder h3 {
     flex: 1 1 0;
   }
 
-  .folder .n {
-    order: 1;
-    flex-basis: 100%;
+  .folder .n,
+  .folder .folder-dates {
+    order: 2;
   }
 }
 

@@ -30,7 +30,7 @@ async function prepare(config) {
     const response = await fetch(`/api/albums/${config.albumId}`, { signal: controller.signal });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const album = await response.json();
-    const model = buildPrintModel(album, config.options);
+    const model = buildPrintModel(album, config.options, language);
     if (!model.pages.length) throw new Error(pdfText('empty', null, language));
     const rule = document.createElement('style');
     rule.textContent = `@page { size: ${model.paper.width}mm ${model.paper.height}mm; margin: 0; }`;

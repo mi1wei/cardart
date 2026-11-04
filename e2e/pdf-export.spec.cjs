@@ -5,6 +5,7 @@ const { mkdir, writeFile, rm, readdir, readFile } = require('node:fs/promises');
 const { join } = require('node:path');
 const { seed } = require('./ui-helpers.cjs');
 const { posterBytes, nativeVideo } = require('../tests/fixtures/video.cjs');
+const { photoBytes } = require('../tests/fixtures/photo-metadata.cjs');
 
 async function fixture() {
   const root = join(__dirname, `.pdf-e2e-${randomUUID()}`);
@@ -228,5 +229,21 @@ test('Chinese preview prints only video posters, labels them and respects the ca
     await expect(f.page.locator('.pdf-saved')).toContainText('已保存到 下载/');
     expect(movieRequests).toEqual([]);
     expect((await readdir(f.downloads)).filter((name) => name.endsWith('.pdf'))).toHaveLength(1);
+  } finally { await f.close(); }
+});
+
+test('the PDF cover writes the capture dates the way the rest of the app does', async () => {
+  const f = await fixture();
+  try {
+    const album = await seed(f.page, f.origin, 'Dated', 0);
+    for (const [i, date] of ['2026:07:12 19:02:11', '2026:07:15 08:00:00'].entries()) {
+      const data = await photoBytes({ width: 300 + i, height: 200, exif: { IFD2: { DateTimeOriginal: date } } });
+      expect((await f.page.request.post(`${f.origin}/api/albums/${album.id}/photos?name=d${i}.jpg`, { headers: { 'X-Album-Upload': '1' }, data })).ok()).toBe(true);
+    }
+    await f.page.goto(`${f.origin}/#/a/${album.id}`);
+    await f.page.locator('.album-page [data-act=menu]').click();
+    await f.page.locator('[data-act=pdf]').click();
+    await expect(f.page.locator('.pdf-export .print-cover p')).toHaveText('Jul 12 – 15, 2026');
+    await f.page.locator('.pdf-export [data-act=cancel]').click();
   } finally { await f.close(); }
 });
