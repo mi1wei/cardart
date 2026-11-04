@@ -10,4 +10,14 @@ export function initDesktop(desktop = window.folioDesktop) {
   const send = () => { desktop.setAppearance(theme()).catch(() => {}); };
   send();
   onThemeChange(send);
+  // The photo viewer is always dark: Windows then draws its window buttons on dark colours too.
+  let surface;
+  const report = () => {
+    const next = document.querySelector('body > .lb') ? 'dark' : 'page';
+    if (next === surface) return;
+    surface = next;
+    desktop.setSurface(next).catch(() => {});
+  };
+  new MutationObserver(report).observe(document.body, { childList: true });
+  report();
 }

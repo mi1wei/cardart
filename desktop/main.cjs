@@ -12,7 +12,7 @@ const { createTray } = require('./tray.cjs');
 const { createUpdateController } = require('./updater.cjs');
 const { createPdfExporter } = require('./pdf-export.cjs');
 const { DEFAULT, MIN, restoreBounds, validWindow } = require('./window-state.cjs');
-const { BAR, OVERLAY, background, themeSource, windowChrome } = require('./window-chrome.cjs');
+const { background, overlay, themeSource, windowChrome } = require('./window-chrome.cjs');
 
 const RELEASES = 'https://github.com/mi1wei/cardart/releases';
 
@@ -410,11 +410,12 @@ async function startDesktop({ appRoot = join(__dirname, '..'), licensePublicKeyF
   handle('folio:desktop:choose-library', () => chooseAnotherLibrary());
   handle('folio:desktop:update', () => runUpdate());
   // The page's appearance also sets native dialogs and menus, the window colour and the Windows title bar.
+  let surface = 'page';
   function applyChrome() {
     if (window.isDestroyed()) return;
     const darkNow = nativeTheme.shouldUseDarkColors;
     window.setBackgroundColor(background(darkNow));
-    if (process.platform === 'win32') window.setTitleBarOverlay({ ...OVERLAY[darkNow ? 'dark' : 'light'], height: BAR });
+    if (process.platform === 'win32') window.setTitleBarOverlay(overlay(darkNow, surface));
   }
   nativeTheme.on('updated', applyChrome);
   handle('folio:desktop:appearance', (mode) => {
@@ -425,6 +426,12 @@ async function startDesktop({ appRoot = join(__dirname, '..'), licensePublicKeyF
       settings = { ...settings, appearance: mode };
       void saveSoon();
     }
+  });
+  // The photo viewer is always dark; the Windows window buttons follow what lies under them.
+  handle('folio:desktop:surface', (value) => {
+    if (!['page', 'dark'].includes(value)) throw new Error('Invalid surface');
+    surface = value;
+    applyChrome();
   });
   window.on('enter-full-screen', () => sendState({ fullscreen: true }));
   window.on('leave-full-screen', () => sendState({ fullscreen: false }));

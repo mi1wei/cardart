@@ -151,3 +151,44 @@ test('minimizing a maximized window does not turn its saved size into the full-s
   } finally { await fixture.close(); }
 });
 
+test('the page tells the window when the dark photo viewer opens and closes', async () => {
+  const fixture = await desktopFixture();
+  try {
+    const { desktop, page } = await fixture.launch();
+    const origin = new URL(page.url()).origin;
+    const album = await seed(page, origin, 'Dark', 1);
+    await desktop.evaluate(({ ipcMain }) => {
+      global.folioTestSurfaces = [];
+      ipcMain.removeHandler('folio:desktop:surface');
+      ipcMain.handle('folio:desktop:surface', (event, value) => { global.folioTestSurfaces.push(value); });
+    });
+    await page.goto(`${origin}/#/a/${album.id}/p/p001`);
+    await expect(page.locator('.lb')).toBeVisible();
+    await expect.poll(() => desktop.evaluate(() => global.folioTestSurfaces.at(-1))).toBe('dark');
+    await page.locator('.lb [data-act=close]').click();
+    await expect(page.locator('.lb')).toHaveCount(0);
+    await expect.poll(() => desktop.evaluate(() => global.folioTestSurfaces.at(-1))).toBe('page');
+  } finally { await fixture.close(); }
+});
+
+test('Windows draws its window buttons on dark colours over the photo viewer in the light appearance', async () => {
+  test.skip(process.platform !== 'win32', 'the title-bar overlay exists on Windows only');
+  const fixture = await desktopFixture();
+  try {
+    const { desktop, page } = await fixture.launch();
+    const origin = new URL(page.url()).origin;
+    const album = await seed(page, origin, 'Dark', 1);
+    await (await openSettings(page)).locator('[data-theme-mode=light]').click();
+    await page.keyboard.press('Escape');
+    await desktop.evaluate(({ BrowserWindow }) => {
+      const window = BrowserWindow.getAllWindows()[0];
+      const set = window.setTitleBarOverlay.bind(window);
+      global.folioTestOverlay = [];
+      window.setTitleBarOverlay = (options) => { global.folioTestOverlay.push(options.color); return set(options); };
+    });
+    await page.goto(`${origin}/#/a/${album.id}/p/p001`);
+    await expect.poll(() => desktop.evaluate(() => global.folioTestOverlay.at(-1))).toBe('#121417');
+    await page.locator('.lb [data-act=close]').click();
+    await expect.poll(() => desktop.evaluate(() => global.folioTestOverlay.at(-1))).toBe('#f7f9fb');
+  } finally { await fixture.close(); }
+});
