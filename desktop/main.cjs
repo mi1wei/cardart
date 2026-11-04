@@ -257,12 +257,17 @@ async function startDesktop({ appRoot = join(__dirname, '..'), licensePublicKeyF
   });
   window.webContents.on('will-attach-webview', (event) => event.preventDefault());
   // Size and place are kept for the next launch (polish spec §6.5); full screen is not a place.
+  // The size under a maximized window is the last one seen unmaximized: on macOS getNormalBounds()
+  // turns into the zoomed frame after a minimize or a zoom from the window itself.
   let rememberTimer;
+  let normal = place ? { x: place.x, y: place.y, width: place.width, height: place.height } : null;
   function rememberWindow() {
     clearTimeout(rememberTimer);
     if (window.isDestroyed() || window.isFullScreen() || window.isMinimized()) return Promise.resolve();
-    const { x, y, width, height } = window.getNormalBounds();
-    const next = { x: Math.round(x), y: Math.round(y), width: Math.round(width), height: Math.round(height), maximized: window.isMaximized() };
+    const maximized = window.isMaximized();
+    if (!maximized) normal = window.getBounds();
+    const { x, y, width, height } = normal ?? window.getNormalBounds();
+    const next = { x: Math.round(x), y: Math.round(y), width: Math.round(width), height: Math.round(height), maximized };
     if (!validWindow(next) || JSON.stringify(next) === JSON.stringify(settings.window)) return Promise.resolve();
     settings = { ...settings, window: next };
     return saveSoon();

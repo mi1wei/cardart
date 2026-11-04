@@ -30,3 +30,11 @@ test('a place on a display that is gone, or nothing saved, gives the default', (
   assert.equal(restoreBounds(undefined, [main]), null);
   assert.equal(restoreBounds({ x: 0, y: 0, width: 10, height: 10, maximized: false }, [main]), null);
 });
+
+test('a window whose top bar is off every display opens at the default, even if the rest shows', () => {
+  const laptop = { workArea: { x: 0, y: 0, width: 1920, height: 1032 } };
+  // It straddled a monitor above that has been unplugged: only the lower part meets the laptop.
+  assert.equal(restoreBounds({ x: 300, y: -500, width: 1000, height: 600, maximized: false }, [laptop]), null);
+  // A bar partly under the top edge can still be grabbed.
+  assert.deepEqual(restoreBounds({ x: 300, y: -20, width: 1000, height: 600, maximized: false }, [laptop]), { x: 300, y: -20, width: 1000, height: 600, maximized: false });
+});

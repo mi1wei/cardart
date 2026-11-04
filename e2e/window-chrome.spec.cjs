@@ -128,3 +128,26 @@ test('the appearance chosen in Settings sets the native theme and the window col
     await expect.poll(() => desktop.evaluate(({ nativeTheme }) => nativeTheme.themeSource)).toBe('system');
   } finally { await fixture.close(); }
 });
+
+test('minimizing a maximized window does not turn its saved size into the full-screen frame', async () => {
+  test.setTimeout(60_000);
+  const fixture = await desktopFixture();
+  const file = join(fixture.profile, 'desktop.json');
+  const saved = async () => JSON.parse(await readFile(file, 'utf8')).window;
+  const win = (desktop, call) => desktop.evaluate(({ BrowserWindow }, call) => BrowserWindow.getAllWindows()[0][call](), call);
+  try {
+    const { desktop } = await fixture.launch();
+    const place = { x: 60, y: 80, width: 800, height: 560 };
+    await desktop.evaluate(({ BrowserWindow }, place) => BrowserWindow.getAllWindows()[0].setBounds(place), place);
+    await expect.poll(saved).toEqual({ ...place, maximized: false });
+    await win(desktop, 'maximize');
+    await expect.poll(async () => (await saved()).maximized).toBe(true);
+    await win(desktop, 'minimize');
+    await expect.poll(() => win(desktop, 'isMinimized')).toBe(true);
+    await win(desktop, 'restore');
+    await expect.poll(() => win(desktop, 'isMinimized')).toBe(false);
+    await fixture.stop();
+    expect(await saved()).toEqual({ ...place, maximized: true });
+  } finally { await fixture.close(); }
+});
+
