@@ -2,11 +2,12 @@ const { test, expect } = require('@playwright/test');
 const { readFile, writeFile } = require('node:fs/promises');
 const { join, basename } = require('node:path');
 const { desktopFixture } = require('./fixtures.cjs');
+const { setLang } = require('./ui-helpers.cjs');
 
 async function licensePage(fixture) {
   const { page, desktop } = await fixture.launch();
   await expect(page.locator('.nav .logo')).toBeVisible();
-  await page.locator('.lang [data-lang=en]').click();
+  await setLang(page, 'en');
   const origin = new URL(page.url()).origin;
   await page.goto(`${origin}/#/license`);
   await expect(page.locator('.license-page')).toBeVisible();
@@ -174,7 +175,7 @@ test('invalid licenses retain the safe state and responsive import controls work
     await expect(page.locator('.license-facts')).toBeHidden();
     for (const [lang, width] of [['en', 1440], ['zh', 390], ['en', 320]]) {
       await page.setViewportSize({ width, height: 900 });
-      await page.locator(`.lang [data-lang=${lang}]`).click();
+      await setLang(page, lang);
       await expect(page.locator('.license-status-title')).toHaveText(lang === 'zh' ? '许可证无效' : 'License not valid');
       await expect(page.locator('[data-act=choose-license]')).toBeVisible();
       await page.locator('#license-file').setInputFiles({

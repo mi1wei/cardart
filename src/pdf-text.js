@@ -3,7 +3,7 @@ import { lang } from './i18n.js';
 const TEXT = {
   en: {
     title: 'Export PDF', paper: 'Paper', A4: 'A4 landscape', Letter: 'Letter landscape',
-    perPage: 'Photos per page', same: 'Defaults to your 3D setting', quality: 'Quality',
+    same: 'Defaults to your 3D setting', quality: 'Quality',
     standard: 'Standard', high: 'High (print)', cover: 'Cover page (album name + dates)',
     captions: 'Notes as captions', video: 'Video', videoHint: 'Videos use their poster frame only, marked “Video”.',
     cancel: 'Cancel', export: 'Export', preparing: 'Preparing…', exporting: 'Exporting…',
@@ -17,7 +17,7 @@ const TEXT = {
   },
   zh: {
     title: '导出 PDF', paper: '纸张', A4: 'A4 横向', Letter: 'Letter 横向',
-    perPage: '每页照片', same: '默认同 3D 设置', quality: '画质',
+    same: '默认同 3D 设置', quality: '画质',
     standard: '标准', high: '高（打印）', cover: '封面页（相册名 + 日期）',
     captions: '备注作为图注', video: '视频', videoHint: '视频只放封面帧，并标注「视频」。',
     cancel: '取消', export: '导出', preparing: '正在准备…', exporting: '正在导出…',

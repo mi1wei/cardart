@@ -1,16 +1,5 @@
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-}
-
 .wall-search,
 .album-search,
-.wall-sort,
-.photo-sort,
 .transfer-mode {
   box-sizing: border-box;
   min-width: 0;
@@ -24,10 +13,36 @@
   font-size: 13px;
 }
 
+.wall-tools { display: contents; }
 .wall-search { width: min(220px, 22vw); }
 .album-search { width: min(240px, 30vw); }
 .acts.normal { flex-wrap: wrap; }
-.sort-label { display: inline-flex; }
+/* Sort pickers carry a visible label (polish spec §3.5): "Sort  Manual ▾" in one pill. */
+.sort-label {
+  display: inline-flex;
+  align-items: center;
+  box-sizing: border-box;
+  height: 36px;
+  padding-left: 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--raised);
+  color: var(--ink-3);
+  font-size: 13px;
+  white-space: nowrap;
+}
+.sort-label select {
+  min-width: 0;
+  height: 34px;
+  padding: 0 12px 0 6px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+.sort-label select:focus { outline: none; }
+.sort-label:has(select:focus-visible) { outline: 2px solid var(--accent); outline-offset: 3px; }
 .folder-dates { display: block; margin-top: 4px; color: var(--ink-3); font-size: 11px; }
 .batch-bar {
   position: fixed;
@@ -103,7 +118,7 @@
 }
 .undo-toast button { color: #9bd6ef; border: none; background: transparent; font: inherit; cursor: pointer; }
 .undo-toast button:disabled { opacity: 0.4; }
-:is(.wall-search, .album-search, .wall-sort, .photo-sort, .album-target, .trash-card, .trash-preview, .undo-toast button):focus-visible {
+:is(.wall-search, .album-search, .album-target, .trash-card, .trash-preview, .undo-toast button):focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 3px;
 }

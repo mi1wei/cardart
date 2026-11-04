@@ -245,8 +245,67 @@ button {
   text-align: center;
 }
 
-.empty .pocket {
-  width: 240px;
+/* Welcome: an empty library (polish spec §3.2) */
+.welcome {
+  max-width: 620px;
+  margin: 48px auto 0;
+  text-align: center;
+}
+
+.welcome h2 {
+  margin: 0 0 6px;
+  font-size: 24px;
+  line-height: 32px;
+  font-weight: 600;
+}
+
+.welcome-lead {
+  margin: 0 0 22px;
+  color: var(--ink-2);
+}
+
+.welcome-panel {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  padding: 32px 24px 24px;
+  border: 2px dashed var(--dash);
+  border-radius: 20px;
+  background: var(--soft);
+}
+
+.welcome-icon {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  background: var(--raised);
+  box-shadow: var(--card);
+  color: var(--accent);
+}
+
+.welcome-icon svg {
+  width: 26px;
+  height: 26px;
+}
+
+.welcome-formats {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.welcome-trash {
+  display: inline-block;
+  margin-top: 18px;
+  color: var(--ink-2);
+  font-size: 13px;
+}
+
+.welcome-trash:hover {
+  color: var(--ink);
 }
 
 .empty p {
@@ -1128,16 +1187,6 @@ button {
   }
 }
 
-@media (max-width: 600px) {
-  body:has(:is(.license-page, .album-page)) .nav [data-page='home'] {
-    display: none;
-  }
-
-  body:has(:is(.license-page, .album-page)) .nav .nl {
-    padding: 0 8px;
-  }
-}
-
 /* Navigation */
 .nav {
   position: sticky;
@@ -1174,32 +1223,13 @@ button {
   height: 28px;
 }
 
-.nl {
-  display: inline-flex;
-  align-items: center;
-  height: 34px;
-  padding: 0 14px;
-  border-radius: 999px;
-  color: var(--ink-2);
-  font-size: 14px;
-  line-height: 20px;
-  font-weight: 500;
-  text-decoration: none;
-}
-
-.nl:hover {
-  background: var(--hover);
-  color: var(--ink);
-}
-
-.nl[aria-current='page'] {
-  background: var(--press);
-  color: var(--ink);
-}
-
 .nav .btn {
   height: 34px;
   margin-right: 8px;
+}
+
+.nav .nav-settings {
+  margin-right: 0;
 }
 
 :is(.lang, .theme) {
@@ -1207,10 +1237,6 @@ button {
   padding: 3px;
   border-radius: 999px;
   background: var(--track);
-}
-
-.theme {
-  margin-right: 6px;
 }
 
 :is(.lang, .theme) button {
@@ -1243,13 +1269,7 @@ button {
   box-shadow: 0 1px 2px oklch(23.5% 0.02 255 / 0.12), inset 0 0 0 1px var(--line);
 }
 
-/* While photos import the language cannot change (spec §10). */
-[data-busy] .lang {
-  opacity: 0.4;
-  pointer-events: none;
-}
-
-:is(.logo, .nl, .lang button, .theme button, .cta, .more):focus-visible {
+:is(.logo, .lang button, .theme button):focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
@@ -1264,390 +1284,38 @@ button {
     margin-right: 4px;
   }
 
-  .nl {
-    padding: 0 11px;
-  }
-
   .nav [data-act='phone'] {
     display: none;
-  }
-
-  :is(.lang, .theme) button {
-    min-width: 34px;
-    padding: 0 8px;
-  }
-
-  .theme button:not([aria-pressed='true']) {
-    display: none;
-  }
-
-  .theme {
-    margin-right: 4px;
-  }
-}
-
-/* The narrowest phones: the wordmark stays for screen readers so the theme and language switches fit. */
-@media (max-width: 380px) {
-  .logo span {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-  }
-
-  /* Outranks the album and licence page rule above. */
-  :root .nav a.nl {
-    padding: 0 6px;
-  }
-
-  .logo {
-    margin-right: 0;
-  }
-
-  .theme {
-    margin-right: 2px;
-  }
-}
-
-/* Home */
-.home {
-  overflow-x: clip;
-}
-
-.hero {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 80px max(env(safe-area-inset-right, 0px), 40px) 0 max(env(safe-area-inset-left, 0px), 40px);
-  text-align: center;
-}
-
-.eyebrow {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  margin: 0;
-  color: var(--ink-3);
-  font-size: 13px;
-  line-height: 20px;
-}
-
-.eyebrow .dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--accent);
-}
-
-.eyebrow b {
-  color: var(--ink-2);
-  font-weight: 500;
-}
-
-.eyebrow .stats {
-  display: contents;
-}
-
-.eyebrow .rule {
-  width: 1px;
-  height: 12px;
-  margin: 0 4px;
-  background: var(--rule);
-}
-
-.h1 {
-  margin: 20px 0 0;
-  font-size: 52px;
-  line-height: 1.1;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-}
-
-:lang(zh) .h1 {
-  letter-spacing: 0.01em;
-}
-
-.h1 br {
-  display: none;
-}
-
-.lead {
-  max-width: 31em;
-  margin: 20px auto 0;
-  color: var(--ink-3);
-  font-size: 17px;
-  line-height: 28px;
-}
-
-.ctas {
-  display: flex;
-  justify-content: center;
-  gap: 8px;
-  margin-top: 32px;
-}
-
-.cta {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 44px;
-  padding: 0 16px 0 20px;
-  border: 0;
-  border-radius: 999px;
-  background: none;
-  font-size: 15px;
-  line-height: 22px;
-  font-weight: 500;
-  text-decoration: none;
-  cursor: pointer;
-}
-
-.cta svg {
-  width: 18px;
-  height: 18px;
-}
-
-.cta.dark {
-  background: var(--ink);
-  color: var(--bg);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.12), 0 1px 2px oklch(23.5% 0.02 255 / 0.3);
-}
-
-.cta.text {
-  padding: 0 20px;
-  color: var(--ink-2);
-}
-
-.cta.text:hover {
-  background: var(--hover);
-}
-
-/* The recorded book; its edges fade into the page, so a slight colour shift never shows as a box. */
-.home-book {
-  display: block;
-  width: 100%;
-  max-width: 1080px;
-  aspect-ratio: 1280 / 700;
-  margin: 8px auto 0;
-  object-fit: cover;
-  -webkit-mask: linear-gradient(90deg, transparent, #000 24px calc(100% - 24px), transparent),
-    linear-gradient(transparent, #000 24px calc(100% - 24px), transparent);
-  -webkit-mask-composite: source-in;
-  mask: linear-gradient(90deg, transparent, #000 24px calc(100% - 24px), transparent),
-    linear-gradient(transparent, #000 24px calc(100% - 24px), transparent);
-  mask-composite: intersect;
-}
-
-.sec {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 72px max(env(safe-area-inset-right, 0px), 40px) 0 max(env(safe-area-inset-left, 0px), 40px);
-}
-
-.sec h2 {
-  margin: 0 0 20px;
-  font-size: 20px;
-  line-height: 28px;
-  font-weight: 600;
-}
-
-.sec-h {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-  margin-bottom: 20px;
-}
-
-.sec-h h2 {
-  margin: 0;
-}
-
-.more {
-  margin-left: auto;
-  color: var(--ink-2);
-  font-size: 14px;
-  font-weight: 500;
-  text-decoration: none;
-}
-
-.more:hover {
-  color: var(--ink);
-}
-
-.feats {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
-}
-
-.feat {
-  padding: 22px 22px 24px;
-  border-radius: 18px;
-  background: var(--raised);
-  box-shadow: var(--card);
-}
-
-.feat .ic {
-  display: grid;
-  place-items: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
-  background: var(--accent-soft);
-  color: var(--accent);
-}
-
-.feat .ic svg {
-  width: 21px;
-  height: 21px;
-}
-
-.feat h3 {
-  margin: 16px 0 6px;
-  font-size: 15px;
-  line-height: 22px;
-  font-weight: 600;
-}
-
-.feat p {
-  margin: 0;
-  color: var(--ink-3);
-  font-size: 14px;
-  line-height: 22px;
-}
-
-.recent .folders {
-  grid-template-columns: repeat(4, 1fr);
-}
-
-.foot {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  margin-top: 16px;
-  padding: 24px 0 calc(env(safe-area-inset-bottom, 0px) + 36px);
-  border-top: 1px solid var(--line);
-  color: var(--ink-3);
-  font-size: 13px;
-  line-height: 20px;
-}
-
-.foot .logo {
-  margin: 0;
-  padding: 0;
-  font-size: 14px;
-}
-
-.foot .brand-logo {
-  width: 22px;
-  height: 22px;
-}
-
-@media (max-width: 600px) {
-  .hero {
-    padding: 40px max(env(safe-area-inset-right, 0px), 20px) 0 max(env(safe-area-inset-left, 0px), 20px);
-  }
-
-  .eyebrow .stats {
-    display: none;
-  }
-
-  .h1 {
-    font-size: 34px;
-    line-height: 1.18;
-  }
-
-  .h1 br {
-    display: inline;
-  }
-
-  .lead {
-    font-size: 16px;
-    line-height: 26px;
-  }
-
-  .ctas {
-    margin-top: 26px;
-  }
-
-  .cta.text {
-    display: none;
-  }
-
-  .cta.dark {
-    flex: 1;
-    justify-content: center;
-  }
-
-  .home-book {
-    width: 116%;
-    max-width: none;
-    margin: 12px -8% 0;
-  }
-
-  .sec {
-    padding: 52px max(env(safe-area-inset-right, 0px), 20px) 0 max(env(safe-area-inset-left, 0px), 20px);
-  }
-
-  .feats {
-    grid-template-columns: 1fr;
-    gap: 10px;
-  }
-
-  .feat {
-    display: grid;
-    grid-template-columns: 40px 1fr;
-    gap: 2px 14px;
-    padding: 16px;
-    border-radius: 16px;
-  }
-
-  .feat .ic {
-    grid-row: span 2;
-  }
-
-  .feat h3 {
-    margin: 0;
-  }
-
-  .recent .folders {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .foot {
-    flex-wrap: wrap;
   }
 }
 
 /* Album page */
-.crumb {
-  display: flex;
+.back-link {
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
-  margin: 0 0 8px;
+  gap: 2px;
+  margin: 0 0 8px -6px;
+  padding: 2px 10px 2px 2px;
+  border-radius: 999px;
   color: var(--ink-3);
   font-size: 13px;
   line-height: 20px;
-}
-
-.crumb a {
-  color: inherit;
   text-decoration: none;
 }
 
-.crumb a:hover {
+.back-link:hover {
+  background: var(--hover);
   color: var(--ink);
 }
 
-.crumb-here {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--ink-2);
-  font-weight: 500;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+.back-link svg {
+  width: 16px;
+  height: 16px;
+}
+
+.back-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .menu-host {
@@ -1748,7 +1416,15 @@ button {
 .density {
   display: flex;
   align-items: center;
+  gap: 8px;
   margin-left: auto;
+  color: var(--ink-3);
+}
+
+.density svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
 }
 
 .density input {
@@ -2142,6 +1818,66 @@ button {
   justify-content: flex-end;
   gap: 10px;
   margin-top: 18px;
+}
+
+/* Settings (polish spec §3.3) */
+.settings {
+  width: min(520px, calc(100vw - 32px));
+}
+
+.set-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  min-height: 56px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+
+.set-k {
+  flex: none;
+  width: 72px;
+  color: var(--ink-2);
+  font-size: 13px;
+}
+
+.set-v {
+  flex: 1 1 0;
+  min-width: min-content;
+}
+
+.set-v b {
+  display: block;
+  font-weight: 500;
+}
+
+.set-v small {
+  display: block;
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.settings .theme button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.settings :is(.theme, .lang) button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.settings .set-row .btn {
+  height: 32px;
+  padding: 0 14px;
+  font-size: 13px;
+}
+
+.settings .dlg-acts {
+  margin-top: 12px;
 }
 
 body:has(.ab, .lb) {
@@ -2606,6 +2342,74 @@ body:has(.ab, .lb) {
   cursor: pointer;
 }
 
+/* Layout: a segmented control on wide screens; phones keep the menu above (polish spec §3.5). */
+.ab-layout {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--raised);
+  box-shadow: inset 0 0 0 1px var(--line);
+  pointer-events: auto;
+}
+
+.ab-layout-k {
+  padding: 0 6px 0 9px;
+  color: var(--ink-3);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.ab-layout button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 30px;
+  padding: 0 11px 0 9px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.ab-layout button svg {
+  width: 18px;
+  height: 18px;
+}
+
+.ab-layout button:hover {
+  background: var(--hover);
+}
+
+.ab-layout button[aria-pressed='true'] {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+@media (min-width: 601px) {
+  .ab-select {
+    display: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .ab-layout-k {
+    display: none;
+  }
+}
+
+@media (max-width: 600px) {
+  .ab-layout {
+    display: none;
+  }
+}
+
 .ab-slider {
   width: min(360px, 60vw);
   margin: 2px 0;
@@ -2689,7 +2493,7 @@ body:has(.ab, .lb) {
   height: 16px;
 }
 
-:is(.ab-icon, .ab-primary, .ab-secondary, .ab-back, .ab-play, .ab-speed button):focus-visible {
+:is(.ab-icon, .ab-primary, .ab-secondary, .ab-back, .ab-play, .ab-speed button, .ab-layout button):focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }

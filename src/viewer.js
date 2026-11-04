@@ -26,6 +26,7 @@ export function openViewer({ album, onOpenPhoto, onClose, onPerPage }) {
     <header class="ab-bar">
       <button class="ab-back" type="button" data-act="close" aria-label="${t('back')}">${icon('close')}<span>${t('back')}</span></button>
       <h2 class="ab-title"></h2>
+      <span class="ab-layout" role="group" aria-label="${t('per-page')}"><span class="ab-layout-k" aria-hidden="true">${t('per-page')}</span>${DENSITY.map((v) => `<button type="button" data-write data-per="${v}" aria-pressed="false">${icon(`layout${v}`)}<span>${t(`per-${v}`)}</span></button>`).join('')}</span>
       <label class="ab-select"><span>${t('per-page')}</span><select data-write>${DENSITY.map((v) => `<option value="${v}">${t(`per-${v}`)}</option>`).join('')}</select></label>
       <button class="ab-icon" type="button" data-act="fullscreen" aria-label="${t('fullscreen')}" aria-pressed="false">${icon('fullscreen')}</button>
       <button class="ab-secondary" type="button" data-act="cover" aria-label="${t('close-book')}">${icon('bookClosed')}<span>${t('close-book')}</span></button>
@@ -219,7 +220,7 @@ export function openViewer({ album, onOpenPhoto, onClose, onPerPage }) {
     book?.dispose();
     book = null;
     pages = layoutPages(album.photos.map((p) => p.w / p.h), album.perPage ?? 2);
-    per.value = String(album.perPage ?? 2);
+    syncPerPage();
     $('.ab-title').textContent = album.title;
     root.setAttribute('aria-label', album.title);
     // The canvas cannot be read aloud: the title page's lines describe the book instead.
@@ -248,6 +249,23 @@ export function openViewer({ album, onOpenPhoto, onClose, onPerPage }) {
     }
   }
 
+  // One layout, two controls (polish spec §3.5): segmented buttons on wide screens, the menu on phones.
+  function syncPerPage() {
+    const value = String(album.perPage ?? 2);
+    per.value = value;
+    for (const button of root.querySelectorAll('[data-per]')) button.setAttribute('aria-pressed', String(button.dataset.per === value));
+  }
+
+  function setPerPage(value) {
+    if (value === (album.perPage ?? 2)) return;
+    if (!allowWrite()) { syncPerPage(); return; }
+    const i = shownPhoto();
+    const title = onTitlePage();
+    album = { ...album, perPage: value };
+    build(i, title);
+    onPerPage(album.perPage);
+  }
+
   function onKey(e) {
     // The menu and the slider keep their keys; so do the lightbox and confirmations above the book.
     if (e.target.closest?.('select, input') || document.querySelector('.lb, dialog[open]')) return;
@@ -262,10 +280,11 @@ export function openViewer({ album, onOpenPhoto, onClose, onPerPage }) {
   }
 
   function onClick(e) {
-    const target = e.target.closest('[data-act], [data-speed]');
+    const target = e.target.closest('[data-act], [data-speed], [data-per]');
     if (!target) return;
     const act = target.dataset.act;
-    if (target.dataset.speed) player.setSpeed(target.dataset.speed);
+    if (target.dataset.per) setPerPage(Number(target.dataset.per));
+    else if (target.dataset.speed) player.setSpeed(target.dataset.speed);
     else if (act === 'close') onClose();
     else if (act === 'fullscreen') toggleFullscreen();
     else if (act === 'play') startPlaying();
@@ -283,13 +302,8 @@ export function openViewer({ album, onOpenPhoto, onClose, onPerPage }) {
     book?.jump(Number(slider.value));
   });
   per.addEventListener('change', () => {
-    if (!allowWrite()) { per.value = String(album.perPage); return; }
-    const i = shownPhoto();
-    const title = onTitlePage();
-    album = { ...album, perPage: Number(per.value) };
-    build(i, title);
+    setPerPage(Number(per.value));
     per.blur(); // ← → turn pages again
-    onPerPage(album.perPage);
   });
 
   function close() {

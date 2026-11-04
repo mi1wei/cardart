@@ -1,5 +1,6 @@
 const { test, expect } = require('@playwright/test');
 const { desktopFixture } = require('./fixtures.cjs');
+const { openSettings, setLang } = require('./ui-helpers.cjs');
 const { launchProbe, openAlbum, seedMixed } = require('./video-fixtures.cjs');
 const { nativeVideo } = require('../tests/fixtures/video.cjs');
 const { photoBytes } = require('../tests/fixtures/photo-metadata.cjs');
@@ -54,13 +55,11 @@ test('real mixed uploads preserve MOV bytes, reject fake video locally and rende
       await page.setViewportSize({ width, height: 900 });
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     }
-    await page.locator('.nav [data-lang=zh]').click();
+    await setLang(page, 'zh');
     await expect(page.locator('.album-page .count')).toHaveText('1 张照片 · 1 个视频');
     await page.goto(`${origin}/#/albums`);
     await expect(page.locator('.page > .ph .sub')).toContainText('1 张照片 · 1 个视频');
     await expect(page.locator('.folders .video-badge')).toHaveCount(0);
-    await page.goto(`${origin}/#/`);
-    await expect(page.locator('.stats .n')).toContainText('1 张照片 · 1 个视频');
   } finally { await fixture.close(); }
 });
 
@@ -83,10 +82,12 @@ test('response-held imports keep navigation guarded and duplicate videos add no 
     await page.locator('.album-page input[type=file]').setInputFiles(clip);
     await expect.poll(() => responseHeld).toBe(true);
     // Interception stalls native upload events; the un-intercepted test checks load -> Saving.
-    await expect(page.locator('.upload')).toContainText('Uploading');
+    await expect(page.locator('.upload')).toContainText('Adding');
     await expect(page.locator('.tile')).toHaveCount(0);
     await expect(page.locator('html')).toHaveAttribute('data-busy', '');
-    await page.locator('.nav [data-lang=zh]').dispatchEvent('click');
+    const settings = await openSettings(page);
+    await settings.locator('[data-lang=zh]').dispatchEvent('click');
+    await settings.locator('[data-act=done]').click();
     await expect(page.locator('html')).toHaveAttribute('lang', 'en');
     await page.evaluate(() => { location.hash = '#/albums'; });
     await expect(page).toHaveURL(new RegExp(`/a/${album.id}$`));

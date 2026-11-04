@@ -152,7 +152,7 @@ test('the title page names the album with its date range and count, inside the c
       expect(res.ok()).toBe(true);
     }
     await page.goto(`${origin}/#/a/${album.id}/3d`);
-    await page.locator('.nav [data-lang=en]').evaluate((el) => el.click());
+    await page.evaluate(() => localStorage.setItem('lang', 'en'));
     await page.reload();
     await expect(page.locator('.ab')).toHaveAccessibleDescription(/^July 2\D+15, 2026 · 3 photos$/);
     // The left page at spread 1 is the inside of the cover: the title page puts dark text there.

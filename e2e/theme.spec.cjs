@@ -1,7 +1,7 @@
 const { test, expect } = require('@playwright/test');
 const sharp = require('sharp');
 const { desktopFixture } = require('./fixtures.cjs');
-const { seed, style } = require('./ui-helpers.cjs');
+const { openSettings, seed, setLang, style } = require('./ui-helpers.cjs');
 
 test('the dark palette covers page surfaces and the lightbox stays dark', async () => {
   const fixture = await desktopFixture();
@@ -41,19 +41,21 @@ test('auto follows the system and a manual choice survives a reload', async () =
     const origin = new URL(page.url()).origin;
     await page.emulateMedia({ colorScheme: 'dark' });
     await page.goto(`${origin}/#/albums`);
-    await expect(page.locator('.theme [data-theme-mode=auto]')).toHaveAttribute('aria-pressed', 'true');
+    let settings = await openSettings(page);
+    await expect(settings.locator('[data-theme-mode=auto]')).toHaveAttribute('aria-pressed', 'true');
     await expect.poll(() => bg(page)).toBe('rgb(18, 20, 23)');
     await page.emulateMedia({ colorScheme: 'light' });
     await expect.poll(() => bg(page)).toBe('rgb(247, 249, 251)');
-    await page.locator('.theme [data-theme-mode=dark]').click();
-    await expect(page.locator('.theme [data-theme-mode=dark]')).toHaveAttribute('aria-pressed', 'true');
+    await settings.locator('[data-theme-mode=dark]').click();
+    await expect(settings.locator('[data-theme-mode=dark]')).toHaveAttribute('aria-pressed', 'true');
     await expect.poll(() => bg(page)).toBe('rgb(18, 20, 23)');
     expect(await page.evaluate(() => localStorage.getItem('theme'))).toBe('dark');
     expect(await page.locator('head script[src="/theme-boot.js"]').count()).toBe(1);
     await page.reload();
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
     await expect.poll(() => bg(page)).toBe('rgb(18, 20, 23)');
-    await page.locator('.theme [data-theme-mode=auto]').click();
+    settings = await openSettings(page);
+    await settings.locator('[data-theme-mode=auto]').click();
     expect(await page.evaluate(() => document.documentElement.hasAttribute('data-theme'))).toBe(false);
     expect(await page.evaluate(() => localStorage.getItem('theme'))).toBeNull();
     await expect.poll(() => bg(page)).toBe('rgb(247, 249, 251)');
@@ -66,12 +68,14 @@ test('theme can change during an import while the language cannot', async () => 
     const { page } = await fixture.launch();
     const origin = new URL(page.url()).origin;
     await page.goto(`${origin}/#/albums`);
-    await page.locator('.nav [data-lang=zh]').click();
+    await setLang(page, 'zh');
     await page.evaluate(() => document.documentElement.setAttribute('data-busy', ''));
     try {
-      await page.locator('.theme [data-theme-mode=dark]').click();
+      const settings = await openSettings(page);
+      await settings.locator('[data-theme-mode=dark]').click();
       await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-      await page.locator('.nav [data-lang=en]').dispatchEvent('click');
+      await expect(settings.locator('[data-lang=en]')).toBeDisabled();
+      await settings.locator('[data-lang=en]').dispatchEvent('click');
       await expect(page.locator('html')).toHaveAttribute('lang', 'zh-CN');
     } finally {
       await page.evaluate(() => document.documentElement.removeAttribute('data-busy'));
@@ -79,7 +83,7 @@ test('theme can change during an import while the language cannot', async () => 
   } finally { await fixture.close(); }
 });
 
-test('without light-dark support the switch is hidden and the page stays light', async () => {
+test('without light-dark support the appearance setting is hidden and the page stays light', async () => {
   const fixture = await desktopFixture();
   try {
     const { page } = await fixture.launch();
@@ -91,7 +95,9 @@ test('without light-dark support the switch is hidden and the page stays light',
     await page.goto(`${origin}/#/albums`);
     await page.reload();
     await expect(page.locator('.nav .logo')).toBeVisible();
-    await expect(page.locator('.theme')).toHaveCount(0);
+    const settings = await openSettings(page);
+    await expect(settings.locator('[data-theme-mode]')).toHaveCount(0);
+    await expect(settings.locator('[data-lang]')).toHaveCount(2);
   } finally { await fixture.close(); }
 });
 
@@ -105,8 +111,9 @@ test('blocked storage falls back to auto and a choice still applies for this vis
     });
     await page.goto(`${origin}/#/albums`);
     await page.reload();
-    await expect(page.locator('.theme [data-theme-mode=auto]')).toHaveAttribute('aria-pressed', 'true');
-    await page.locator('.theme [data-theme-mode=dark]').click();
+    const settings = await openSettings(page);
+    await expect(settings.locator('[data-theme-mode=auto]')).toHaveAttribute('aria-pressed', 'true');
+    await settings.locator('[data-theme-mode=dark]').click();
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
     await expect.poll(() => bg(page)).toBe('rgb(18, 20, 23)');
   } finally { await fixture.close(); }
@@ -134,7 +141,7 @@ test('the 3D book background follows the theme while the book is open', async ()
   } finally { await fixture.close(); }
 });
 
-test('the album top bar with the theme switch fits a 320px phone in both languages', async () => {
+test('the album top bar fits a 320px phone in both languages', async () => {
   const fixture = await desktopFixture();
   try {
     const { page } = await fixture.launch();
@@ -144,8 +151,8 @@ test('the album top bar with the theme switch fits a 320px phone in both languag
     await expect(page.locator('.tile')).toHaveCount(1);
     await page.setViewportSize({ width: 320, height: 700 });
     for (const lang of ['en', 'zh']) {
-      await page.locator(`.nav [data-lang=${lang}]`).click();
-      await expect(page.locator('.nav .theme')).toBeVisible();
+      await setLang(page, lang);
+      await expect(page.locator('.nav [data-act=settings]')).toBeVisible();
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       await expect(page.locator('.nav .logo')).toHaveAccessibleName('Folio');
     }

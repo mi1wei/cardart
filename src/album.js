@@ -1,7 +1,7 @@
 import { api, mediaUrl } from './api.js';
 import { openLightbox } from './lightbox.js';
 import { close, open, swap } from './router.js';
-import { dialog, icon, toast } from './ui.js';
+import { backLink, dialog, icon, toast } from './ui.js';
 import { mediaCountText, t } from './i18n.js';
 import { allowWrite, canWrite } from './license.js';
 import { probeVideo } from './video-probe.js';
@@ -48,7 +48,7 @@ export function renderAlbum(app, id) {
 
   app.innerHTML = `
     <main class="page album-page">
-      <p class="crumb"><a href="#/albums">${t('albums')}</a><span>/</span><b class="crumb-here"></b></p>
+      ${backLink()}
       <h1 class="t1"><button class="title" type="button" data-write data-act="rename" title="${t('rename-hint')}"></button><span class="pen">${icon('pen')}</span></h1>
       <p class="sub count"></p>
       <div class="acts normal">
@@ -58,8 +58,8 @@ export function renderAlbum(app, id) {
         <span class="menu-host"><button class="btn only-icon" type="button" data-act="menu" aria-label="${t('more')}" aria-haspopup="menu">${icon('more')}</button></span>
         <button class="btn only-icon" type="button" data-act="search" aria-label="${c('searchPhotos')}">${icon('search')}</button>
         <input class="album-search" type="search" aria-label="${c('searchPhotos')}" placeholder="${c('searchPhotos')}" hidden>
-        <label class="sort-label"><span class="sr-only">${c('photoSort')}</span><select class="photo-sort" data-write>${['taken', 'added', 'manual'].map((value) => `<option value="${value}">${c(value)}</option>`).join('')}</select></label>
-        <label class="density" title="${t('density')}"><input type="range" min="0" max="2" step="1" aria-label="${t('density')}"></label>
+        <label class="sort-label"><span>${c('sortBy')}</span><select class="photo-sort" data-write>${['taken', 'added', 'manual'].map((value) => `<option value="${value}">${c(value)}</option>`).join('')}</select></label>
+        <label class="density" title="${t('density')}">${icon('gridSmall')}<input type="range" min="0" max="2" step="1" aria-label="${t('density')}">${icon('gridLarge')}</label>
       </div>
       <div class="acts picking" hidden>
         <button class="btn" type="button" data-act="all">${c('all')}</button>
@@ -216,7 +216,6 @@ export function renderAlbum(app, id) {
   function render() {
     const n = album.photos.length;
     $('.title').textContent = album.title;
-    $('.crumb-here').textContent = album.title;
     $('.count').textContent = [mediaCountText(mediaCounts(album.photos)), dateRange(album.dateRange)].filter(Boolean).join(' · ');
     $('.photo-sort').value = album.sort ?? 'manual';
     document.title = `${album.title} · ${t('app')}`;
@@ -297,7 +296,7 @@ export function renderAlbum(app, id) {
             if (!alive || !allowWrite()) { queue.length = 0; break; }
             res = await api.uploadVideo(id, file, prepared, ({ stage, loaded, total }) => {
               if (!alive) return;
-              box.querySelector('b').textContent = `${t(stage === 'saving' ? 'upload-saving' : 'upload-sending')} · ${i}/${tally.total}`;
+              box.querySelector('b').textContent = `${t(stage === 'saving' ? 'upload-saving' : onComputer ? 'upload-sending' : 'upload-sending-phone')} · ${i}/${tally.total}`;
               const fraction = total > 0 ? Math.min(1, Math.max(0, loaded / total)) : 0;
               box.querySelector('.prog i').style.width = `${((i - 1 + fraction) / tally.total) * 100}%`;
             }, { signal });
@@ -382,7 +381,6 @@ export function renderAlbum(app, id) {
     try {
       album = await api.updateAlbum(id, { title });
       $('.title').textContent = album.title;
-      $('.crumb-here').textContent = album.title;
       document.title = `${album.title} · ${t('app')}`;
     } catch (err) {
       toast(t('failed', { reason: err.message }));

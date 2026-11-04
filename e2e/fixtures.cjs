@@ -1,5 +1,5 @@
 const { _electron } = require('playwright');
-const { expect } = require('@playwright/test');
+const { test, expect } = require('@playwright/test');
 const { generateKeyPairSync, sign } = require('node:crypto');
 const { mkdtemp, mkdir, writeFile, rm } = require('node:fs/promises');
 const { tmpdir } = require('node:os');
@@ -66,8 +66,10 @@ async function desktopFixture({ license = 'active', plan = 'trial', features = [
     },
     async close() {
       await stop();
-      // Windows can release the app's file handles a moment after it exits (EBUSY).
-      await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+      // Windows removal retries need cleanup time after the scenario and shutdown have finished.
+      if (process.platform === 'win32') test.setTimeout(test.info().timeout + 30_000);
+      await test.step('Remove isolated desktop files', () =>
+        rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }));
     },
   };
 }

@@ -32,12 +32,16 @@ const PATHS = {
   fullscreen: '<path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/>',
   fullscreenExit: '<path d="M9 4v5H4M15 4v5h5M20 15h-5v5M4 15h5v5"/>',
   pen: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13.5 6.5 4 4"/>',
-  arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>',
   laptop: '<rect x="4" y="5" width="16" height="11" rx="1.5"/><path d="M2.5 19h19"/>',
-  layout: '<rect x="4" y="4" width="9" height="7" rx="1.2"/><rect x="15" y="4" width="5" height="16" rx="1.2"/><rect x="4" y="13" width="9" height="7" rx="1.2"/>',
   sun: '<circle cx="12" cy="12" r="3.5"/><path d="M12 3.5v2M12 18.5v2M3.5 12h2M18.5 12h2M6 6l1.4 1.4M16.6 16.6 18 18M6 18l1.4-1.4M16.6 7.4 18 6"/>',
   moon: '<path d="M19 14.5A7.5 7.5 0 0 1 9.5 5a7.5 7.5 0 1 0 9.5 9.5z"/>',
   select: '<rect x="4.5" y="4.5" width="15" height="15" rx="3"/><path d="m8.5 12 2.5 2.5 4.5-5"/>',
+  gear: '<path d="M18.2 10.3L20.3 10.7L20.3 13.3L18.2 13.7L17.5 15.2L18.8 16.9L16.9 18.8L15.2 17.5L13.7 18.2L13.3 20.3L10.7 20.3L10.3 18.2L8.8 17.5L7.1 18.8L5.2 16.9L6.5 15.2L5.8 13.7L3.7 13.3L3.7 10.7L5.8 10.3L6.5 8.8L5.2 7.1L7.1 5.2L8.8 6.5L10.3 5.8L10.7 3.7L13.3 3.7L13.7 5.8L15.2 6.5L16.9 5.2L18.8 7.1L17.5 8.8Z"/><circle cx="12" cy="12" r="2.6"/>',
+  gridSmall: '<path d="M5 5h3v3H5zM10.5 5h3v3h-3zM16 5h3v3h-3zM5 10.5h3v3H5zM10.5 10.5h3v3h-3zM16 10.5h3v3h-3zM5 16h3v3H5zM10.5 16h3v3h-3zM16 16h3v3h-3z"/>',
+  gridLarge: '<rect x="4.5" y="4.5" width="6" height="6" rx="1.2"/><rect x="13.5" y="4.5" width="6" height="6" rx="1.2"/><rect x="4.5" y="13.5" width="6" height="6" rx="1.2"/><rect x="13.5" y="13.5" width="6" height="6" rx="1.2"/>',
+  layout1: '<rect x="3.5" y="5" width="17" height="14" rx="2"/><rect x="8" y="8.5" width="8" height="7" rx="1" fill="currentColor" stroke="none"/>',
+  layout2: '<rect x="3.5" y="5" width="17" height="14" rx="2"/><rect x="6.8" y="8.5" width="4.6" height="7" rx="1" fill="currentColor" stroke="none"/><rect x="12.6" y="8.5" width="4.6" height="7" rx="1" fill="currentColor" stroke="none"/>',
+  layout3: '<rect x="3.5" y="5" width="17" height="14" rx="2"/><rect x="6.8" y="8.5" width="5" height="7" rx="1" fill="currentColor" stroke="none"/><rect x="13" y="8.5" width="4.2" height="3" rx=".8" fill="currentColor" stroke="none"/><rect x="13" y="12.5" width="4.2" height="3" rx=".8" fill="currentColor" stroke="none"/>',
 };
 
 // Full-colour app illustration for brand spots; the single-colour mark stays for icon buttons.
@@ -47,6 +51,9 @@ export const icon = (name) =>
   name === 'book'
     ? brandMark
     : `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${PATHS[name]}</svg>`;
+
+// The way back to the album wall from the album, Recently Deleted and License pages (polish spec §3.5).
+export const backLink = () => `<a class="back-link" href="#/albums">${icon('prev')}<span>${t('all-albums')}</span></a>`;
 
 // iPhone browsers cannot go full screen; a Home Screen web app opens without browser bars (spec §9).
 export const fullscreenTip = () => t(/MicroMessenger/i.test(navigator.userAgent) ? 'tip-wechat' : 'tip-iphone');

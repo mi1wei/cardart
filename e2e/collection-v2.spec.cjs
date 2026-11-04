@@ -1,6 +1,6 @@
 const { test, expect } = require('@playwright/test');
 const { desktopFixture } = require('./fixtures.cjs');
-const { seed } = require('./ui-helpers.cjs');
+const { openWall, seed } = require('./ui-helpers.cjs');
 
 test('album and wall searches clear empty results, and sort choices persist', async () => {
   const fixture = await desktopFixture();
@@ -9,7 +9,7 @@ test('album and wall searches clear empty results, and sort choices persist', as
     const origin = new URL(page.url()).origin;
     const a = await seed(page, origin, 'Kyoto', 3);
     await seed(page, origin, 'Summer', 1);
-    await page.goto(`${origin}/#/albums`);
+    await openWall(page, origin);
     await page.locator('.wall-search').fill('KYOTO');
     await expect(page.locator('.folder')).toHaveCount(1);
     await page.locator('.wall-sort').selectOption('name');
@@ -23,7 +23,18 @@ test('album and wall searches clear empty results, and sort choices persist', as
     await expect(page.locator('.search-empty')).toBeVisible();
     await page.locator('.search-empty [data-act=clear-search]').click();
     await expect(page.locator('.tile')).toHaveCount(3);
-    await page.locator('.photo-sort').selectOption('added');
+    // Delay the real write to catch a reload that races persistence.
+    await page.route(`${origin}/api/albums/${a.id}`, async (route) => {
+      if (route.request().method() === 'PATCH') await new Promise((resolve) => setTimeout(resolve, 200));
+      try { await route.continue(); }
+      catch (error) { if (!/abort|closed|handled/i.test(error.message)) throw error; }
+    });
+    const [saved] = await Promise.all([
+      page.waitForResponse((response) => response.request().method() === 'PATCH' &&
+        new URL(response.url()).pathname === `/api/albums/${a.id}`),
+      page.locator('.photo-sort').selectOption('added'),
+    ]);
+    expect(saved.ok()).toBe(true);
     await page.reload();
     await expect(page.locator('.photo-sort')).toHaveValue('added');
   } finally { await fixture.close(); }
@@ -147,7 +158,7 @@ test('capture date ranges appear on the album and card, and phone long-press ope
       const data = await photoBytes({ width: 300 + i, height: 200, exif: { IFD2: { DateTimeOriginal: date } } });
       expect((await page.request.post(`${origin}/api/albums/${a.id}/photos?name=d${i}.jpg`, { headers: { 'X-Album-Upload': '1' }, data })).ok()).toBe(true);
     }
-    await page.goto(`${origin}/#/albums`);
+    await openWall(page, origin);
     await expect(page.locator('.folder-dates')).toHaveText('2026.07');
     expect(await page.locator('.pocket img').first().evaluate((el) => getComputedStyle(el).borderTopWidth)).toBe('4px');
     await page.setViewportSize({ width: 320, height: 844 });

@@ -2,7 +2,6 @@ import '@fontsource-variable/geist';
 import './style.css';
 import './collection.css';
 import { renderAlbum } from './album.js';
-import { renderHome } from './home.js';
 import { lang, t } from './i18n.js';
 import { createNav } from './nav.js';
 import { start, swap } from './router.js';
@@ -44,12 +43,11 @@ function show(next, again = false, previousHash) {
   const key = next.album ?? next.page;
   if (again || view?.key !== key) {
     view?.destroy();
-    const page = next.album ? renderAlbum(app, next.album) : next.page === 'albums' ? renderWall(app) : next.page === 'trash' ? renderTrash(app) : next.page === 'license' ? renderLicense(app) : renderHome(app);
+    const page = next.album ? renderAlbum(app, next.album) : next.page === 'trash' ? renderTrash(app) : next.page === 'license' ? renderLicense(app) : renderWall(app);
     view = { key, ...page };
     if (!again) scrollTo(0, 0);
   }
   view.update?.(next);
-  nav.update(next.album || next.page === 'trash' ? 'albums' : next.page);
 }
 
 start((next, previousHash) => show(next, false, previousHash));
