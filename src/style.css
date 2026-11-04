@@ -1955,6 +1955,18 @@ button {
   font-size: 13px;
 }
 
+.set-acts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* A long library path breaks anywhere rather than widening the row. */
+.set-library-path {
+  overflow-wrap: anywhere;
+}
+
 .settings .dlg-acts {
   margin-top: 12px;
 }

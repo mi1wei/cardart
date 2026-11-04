@@ -23,4 +23,10 @@ function isOriginalURL(target, origin) {
   return !url.search && !url.hash && /^\/media\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/p\d{3,}\/original$/.test(url.pathname);
 }
 
-module.exports = { isAppURL, isAllowedPermission, parseReady, isOriginalURL };
+// Only the app page in the main window may use the desktop channels (polish spec §6.4).
+function isAppSender(event, window, origin) {
+  return Boolean(window) && !window.isDestroyed() && event.sender === window.webContents &&
+    event.senderFrame === window.webContents.mainFrame && isAppURL(event.senderFrame?.url, origin);
+}
+
+module.exports = { isAppURL, isAllowedPermission, parseReady, isOriginalURL, isAppSender };

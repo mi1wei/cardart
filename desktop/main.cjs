@@ -3,7 +3,8 @@ const { mkdirSync, realpathSync } = require('node:fs');
 const { readFile, writeFile, rename, rm } = require('node:fs/promises');
 const { join, isAbsolute } = require('node:path');
 const { loadSettings, saveSettings, resolveLibraryChoice } = require('./settings.cjs');
-const { isAppURL, isAllowedPermission, isOriginalURL } = require('./security.cjs');
+const { isAppURL, isAllowedPermission, isOriginalURL, isAppSender } = require('./security.cjs');
+const { desktopInfo } = require('./desktop-info.cjs');
 const { createBackend } = require('./backend.cjs');
 const { createLog } = require('./log.cjs');
 const { createLifecycle } = require('./lifecycle.cjs');
@@ -295,6 +296,9 @@ async function startDesktop({ appRoot = join(__dirname, '..'), licensePublicKeyF
     updater = require('electron-updater').autoUpdater;
     updater.logger = { info: (message) => { void log(message); }, warn: (message) => { void log(message); }, error: (message) => { void log(message); }, debug: () => {} };
   }
+  function sendState(state) {
+    if (!window.isDestroyed() && !window.webContents.isDestroyed()) window.webContents.send('folio:desktop:state', state);
+  }
   updates = createUpdateController({
     platform: process.platform, packaged: app.isPackaged, updater,
     requestShutdown: lifecycle.requestShutdown, showDialog: showUpdateDialog,
@@ -304,8 +308,16 @@ async function startDesktop({ appRoot = join(__dirname, '..'), licensePublicKeyF
       if (window.isDestroyed()) return;
       window.setProgressBar(status.phase === 'downloading' ? (status.percent || 0) / 100 : -1);
       setMenu();
+      sendState({ update: status });
     },
   });
+  // The update menu item and Settings' Version row do the same: check, download or install.
+  function runUpdate() {
+    const state = updates?.status() || { phase: 'idle' };
+    const download = state.phase === 'available' || (state.phase === 'error' && state.retry === 'download');
+    const run = state.phase === 'downloaded' ? updates.install() : download ? updates.download() : updates.check();
+    return run.catch((error) => { void log(error.message); });
+  }
   function updateMenu() {
     const state = updates?.status() || { phase: 'idle' };
     // macOS has no automatic updates; its manual entry (open the releases page) is hidden for now.
@@ -320,7 +332,7 @@ async function startDesktop({ appRoot = join(__dirname, '..'), licensePublicKeyF
     return [{
       id: 'updates', label,
       enabled: !isStopping() && !['checking', 'downloading', 'installing'].includes(state.phase) && !state.terminal,
-      click: () => { void (install ? updates.install() : download ? updates.download() : updates.check()).catch((error) => { void log(error.message); }); },
+      click: () => { void runUpdate(); },
     }];
   }
   async function isImporting() {
@@ -375,6 +387,19 @@ async function startDesktop({ appRoot = join(__dirname, '..'), licensePublicKeyF
       setMenu();
     }
   }
+  // folioDesktop (polish spec §6.4): only the app page in the main window may call these.
+  function handle(channel, run) {
+    ipcMain.handle(channel, (event, ...args) => {
+      if (!isAppSender(event, window, origin)) throw new Error('Denied desktop sender');
+      return run(...args);
+    });
+  }
+  handle('folio:desktop:info', () => desktopInfo({
+    version: metadata.version, libraryDir: settings.libraryDir, home: app.getPath('home'), platform: process.platform, update: updates.status(),
+  }));
+  handle('folio:desktop:reveal-library', () => { openPath(settings.libraryDir); });
+  handle('folio:desktop:choose-library', () => chooseAnotherLibrary());
+  handle('folio:desktop:update', () => runUpdate());
   function setMenu() {
     const items = [
       { id: 'license', label: text('许可证', 'License'), enabled: !isStopping(), click: () => { showWindow(); void window.loadURL(`${origin}/#/license`); } },

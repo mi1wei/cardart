@@ -2,6 +2,7 @@ const { test, expect } = require('@playwright/test');
 const { readFile, writeFile } = require('node:fs/promises');
 const { join } = require('node:path');
 const { desktopFixture } = require('./fixtures.cjs');
+const { openSettings, seed } = require('./ui-helpers.cjs');
 
 const mainWindow = (desktop, read) => desktop.evaluate(({ BrowserWindow }, read) => {
   const window = BrowserWindow.getAllWindows()[0];
@@ -38,5 +39,41 @@ test('the window comes back where it was left, maximized too, and to the default
       return bounds.x + bounds.width > area.x && bounds.x < area.x + area.width && bounds.y + bounds.height > area.y && bounds.y < area.y + area.height;
     });
     expect(shown).toBe(true);
+  } finally { await fixture.close(); }
+});
+
+test('Settings shows the library and the version in the desktop app, and its buttons reach the app', async () => {
+  const fixture = await desktopFixture();
+  try {
+    const { desktop, page } = await fixture.launch();
+    const origin = new URL(page.url()).origin;
+    await seed(page, origin, 'One', 2);
+    await page.reload();
+    expect(await page.evaluate(() => typeof window.folioDesktop === 'object' && Object.isFrozen(window.folioDesktop))).toBe(true);
+    await desktop.evaluate(({ shell, dialog }) => {
+      shell.openPath = async (path) => { global.folioTestOpened = path; return ''; };
+      dialog.showOpenDialog = async () => { global.folioTestChose = true; return { canceled: true, filePaths: [] }; };
+      dialog.showMessageBox = async (...args) => { global.folioTestUpdateDialog = args.at(-1); return { response: 0 }; };
+    });
+    const settings = await openSettings(page);
+    const rows = await settings.locator('.set-row .set-k').allTextContents();
+    expect(rows.filter((text) => ['Library', 'License', 'Version'].includes(text))).toEqual(['Library', 'License', 'Version']);
+    const library = settings.locator('.set-library');
+    await expect(library.locator('.set-library-path')).toHaveText(/相册库 with spaces$/);
+    await expect(library.locator('.set-library-count')).toHaveText('1 album · 2 photos');
+    await expect(library.locator('[data-act=reveal-library]')).toHaveText(process.platform === 'win32' ? 'Show in Explorer' : 'Show in Finder');
+    await library.locator('[data-act=reveal-library]').click();
+    await expect.poll(() => desktop.evaluate(() => global.folioTestOpened || '')).toMatch(/相册库 with spaces$/);
+    await library.locator('[data-act=choose-library]').click();
+    await expect.poll(() => desktop.evaluate(() => global.folioTestChose === true)).toBe(true);
+    const { version } = JSON.parse(await readFile(join(__dirname, '..', 'package.json'), 'utf8'));
+    await expect(settings.locator('.set-version-name')).toHaveText(`Folio ${version}`);
+    const update = settings.locator('[data-act=update]');
+    if (process.platform === 'darwin') await expect(update).toBeHidden();
+    else {
+      await expect(update).toHaveText('Check for Updates');
+      await update.click();
+      await expect.poll(() => desktop.evaluate(() => global.folioTestUpdateDialog?.message || '')).toBe('Online updates are disabled in development');
+    }
   } finally { await fixture.close(); }
 });
