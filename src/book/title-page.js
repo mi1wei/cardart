@@ -27,7 +27,7 @@ export function drawTitlePage(ctx, { title, dates, count }, w, h) {
   ctx.fillStyle = 'rgba(38, 50, 61, 0.35)';
   ctx.fillRect(w / 2 - 14, h / 2 - 1.5, 28, 0.4);
   ctx.fillStyle = '#56636f';
-  ctx.font = `4.2px system-ui, sans-serif`;
+  ctx.font = `5.2px system-ui, sans-serif`;
   let y = h / 2 + 7;
   for (const line of [dates, count]) {
     if (!line) continue;

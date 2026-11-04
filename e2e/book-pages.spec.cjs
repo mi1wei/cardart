@@ -176,7 +176,7 @@ test('title page text leaves out a missing date range and cuts a long name to on
       canvas.height = 900;
       const ctx = canvas.getContext('2d');
       const fillText = ctx.fillText.bind(ctx);
-      ctx.fillText = (text, ...rest) => { labels.push({ text, width: ctx.measureText(text).width }); return fillText(text, ...rest); };
+      ctx.fillText = (text, ...rest) => { labels.push({ text, width: ctx.measureText(text).width, font: ctx.font }); return fillText(text, ...rest); };
       drawTitlePage(ctx, { title: 'A very long album name '.repeat(8).trim(), dates: '', count: '2 photos' }, 150, 150);
       return { plain, labels };
     });
@@ -186,6 +186,7 @@ test('title page text leaves out a missing date range and cuts a long name to on
     expect(result.labels[0].text.endsWith('…')).toBe(true);
     expect(result.labels[0].width).toBeLessThanOrEqual(150 - 24);
     expect(result.labels[1].text).toBe('2 photos');
+    expect(result.labels[1].font).toMatch(/^5\.2px /);
   } finally { await fixture.close(); }
 });
 
@@ -199,8 +200,9 @@ test('a photo with a note gets a one-line caption under it; blank notes change n
     const result = await page.evaluate(async ({ image, long }) => {
       const { createPageTexture } = await import('/__folio-caption-test.js');
       const labels = [];
+      const fonts = [];
       const fillText = CanvasRenderingContext2D.prototype.fillText;
-      CanvasRenderingContext2D.prototype.fillText = function (text, ...args) { labels.push(text); return fillText.call(this, text, ...args); };
+      CanvasRenderingContext2D.prototype.fillText = function (text, ...args) { labels.push(text); fonts.push(this.font); return fillText.call(this, text, ...args); };
       const page = { rects: [{ i: 0, x: 0, y: 0, w: 60, h: 40 }, { i: 1, x: 80, y: 0, w: 60, h: 40 }, { i: 2, x: 0, y: 60, w: 60, h: 40 }] };
       const notes = ['Hi', long, ' \n '];
       let loaded;
@@ -215,6 +217,8 @@ test('a photo with a note gets a one-line caption under it; blank notes change n
       // Pocket origin on a front face: x 22 + 5, y 6.4 + 5 mm.
       const out = {
         labels,
+        fonts,
+        captionGap: pixel(27 + 30, 11.4 + 33.6),
         captionedCorner: pixel(27 + 1.5, 11.4 + 40 - 1),
         captionedTop: pixel(27 + 30, 11.4 + 10),
         blankCorner: pixel(27 + 1.5, 11.4 + 60 + 40 - 1),
@@ -227,6 +231,10 @@ test('a photo with a note gets a one-line caption under it; blank notes change n
     expect(cut.endsWith('…')).toBe(true);
     expect(cut).not.toContain('\n');
     expect(result.labels).toHaveLength(2);
+    // Upright and about 12 px on screen at 1180 × 800 (polish spec §4.2).
+    expect(result.fonts).toHaveLength(2);
+    for (const font of result.fonts) expect(font).toMatch(/^5px /);
+    expect(result.captionGap[0]).toBeGreaterThan(180); // the photo leaves 7.4 mm for the caption: film shows
     expect(result.captionedCorner[0]).toBeGreaterThan(180); // the photo moved up and in: film shows
     expect(result.captionedTop[0]).toBeLessThan(80); // the photo is still there
     expect(result.blankCorner[0]).toBeLessThan(80); // a blank note keeps the full photo

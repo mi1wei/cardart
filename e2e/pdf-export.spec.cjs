@@ -216,6 +216,10 @@ test('Chinese preview prints only video posters, labels them and respects the ca
     await expect(d.locator('.print-cover-video')).toHaveText('视频');
     await expect(d.locator('.print-video')).toHaveText('视频');
     await expect(d.locator('figcaption')).toHaveText('海边 <sunset>');
+    // Upright 3 mm captions (polish spec §4.2).
+    const caption = await d.locator('figcaption').evaluate((el) => ({ style: getComputedStyle(el).fontStyle, size: parseFloat(getComputedStyle(el).fontSize) }));
+    expect(caption.style).toBe('normal');
+    expect(caption.size).toBeCloseTo((3 * 96) / 25.4, 1);
     await expect(d.locator('video')).toHaveCount(0);
     await expect(d.locator('.print-cover h1')).toHaveText('中文 <Summer>');
     await d.locator('[name=captions]').uncheck();

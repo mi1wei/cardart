@@ -10,7 +10,7 @@ const EDGE = 'rgba(255,255,255,0.9)';
 const SHADE = 'rgba(24,31,40,0.16)';
 const EMPTY = '#d5dbe1'; // a photo that has not arrived (or failed)
 const PX = 4; // canvas pixels per mm
-const CAPTION = 6; // mm under a photo with a note (v2 spec §8)
+const CAPTION = 7.4; // mm under a photo with a note (polish spec §4.2)
 const INK = '#4a5662';
 
 const noteOf = (info) => (typeof info?.note === 'string' ? info.note.replace(/\s+/g, ' ').trim() : '');
@@ -55,7 +55,7 @@ function drawPage(ctx, face, page, itemInfo) {
     ctx.restore();
     if (note) {
       ctx.save();
-      ctx.font = `italic 3.4px ${SERIF}`;
+      ctx.font = `5px ${SERIF}`;
       ctx.textAlign = 'center';
       ctx.fillStyle = INK;
       const below = r.h < CAPTION * 2 ? CAPTION : 0;
