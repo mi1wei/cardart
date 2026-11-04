@@ -297,6 +297,48 @@ button {
   gap: 10px;
 }
 
+.welcome-drop {
+  margin: 0;
+  color: var(--ink);
+  font-size: 18px;
+  line-height: 26px;
+  font-weight: 600;
+}
+
+.welcome-drop-hint {
+  margin: -10px 0 4px;
+  color: var(--ink-2);
+  font-size: 14px;
+}
+
+/* The whole wall takes a drop (polish spec §5). */
+.drop-hint {
+  position: fixed;
+  inset: 12px;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  border: 2px dashed var(--accent);
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  pointer-events: none;
+}
+
+.drop-hint span {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  color: var(--ink);
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.drop-hint svg {
+  width: 40px;
+  height: 40px;
+  color: var(--accent);
+}
+
 .welcome-formats {
   margin: 0;
   color: var(--ink-3);

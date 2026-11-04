@@ -1,6 +1,7 @@
 const { test, expect } = require('@playwright/test');
 const { desktopFixture } = require('./fixtures.cjs');
-const { seed } = require('./ui-helpers.cjs');
+const { openWall, seed } = require('./ui-helpers.cjs');
+const { nativeVideo } = require('../tests/fixtures/video.cjs');
 const { dropFiles, jpeg } = require('./drop-helpers.cjs');
 const { join } = require('node:path');
 const { mkdir, writeFile } = require('node:fs/promises');
@@ -175,6 +176,104 @@ test('a read-only license imports no folder', async () => {
     await expect(page.locator('.welcome [data-act=import-folder]')).toHaveAttribute('aria-disabled', 'true');
     // As if the license ran out while the folder dialog was open.
     await page.locator('.folder-input').setInputFiles(dir);
+    await expect(page.locator('.toast')).toHaveText(/^Read-only mode/);
+    expect(await (await page.request.get(`${origin}/api/albums`)).json()).toEqual([]);
+  } finally { await fixture.close(); }
+});
+
+test('folders dropped on the wall become albums one after another; an empty one gets none', async () => {
+  const fixture = await desktopFixture();
+  let release = () => {};
+  try {
+    const { page } = await fixture.launch();
+    const origin = new URL(page.url()).origin;
+    await seed(page, origin, 'Existing', 1);
+    await openWall(page, origin);
+    await expect(page.locator('.folder')).toHaveCount(1);
+    // Hovering shows the whole-page hint, which goes once the drag leaves.
+    expect((await dropFiles(page, [{ name: 'Summer', children: [] }], { drop: false })).hint).toBe(true);
+    await expect(page.locator('.drop-hint')).toBeHidden();
+    const held = new Promise((resolve) => { release = resolve; });
+    let posts = 0;
+    await page.route(/\/api\/albums\/[^/]+\/photos\?/, async (route) => {
+      if (route.request().method() === 'POST' && ++posts === 1) await held;
+      await route.continue();
+    });
+    const long = '海'.repeat(60);
+    await dropFiles(page, [
+      { name: `  ${long} `, children: [
+        { name: 'a.jpg', type: 'image/jpeg', bytes: await jpeg(80) },
+        { name: 'b.jpg', type: 'image/jpeg', bytes: await jpeg(81) },
+        { name: 'clip.mov', type: 'video/quicktime', bytes: await nativeVideo('h264-aac.mov') },
+      ] },
+      { name: 'Empty', children: [{ name: '.DS_Store', bytes: Buffer.from('junk') }] },
+      { name: '   ', children: [{ name: 'c.jpg', type: 'image/jpeg', bytes: await jpeg(82) }] },
+    ]);
+    await expect(page.locator('.toast')).toHaveText('"Empty" has no photos or videos');
+    await expect(page.locator('.upload b')).toHaveText(`Importing "${'海'.repeat(50)}" · 1/3`);
+    release();
+    await expect(page.locator('.toast')).toHaveText('Imported 4 items');
+    expect((await page.locator('.folder h3').allTextContents()).sort()).toEqual(['Existing', 'New album', '海'.repeat(50)].sort());
+    await expect(page.locator('.folder', { hasText: '海'.repeat(50) }).locator('.n')).toHaveText('2 photos · 1 video');
+  } finally {
+    release(); // quitting waits for the import, so never leave the upload held
+    await fixture.close();
+  }
+});
+
+test('an album that cannot be created stops only its own folder', async () => {
+  const fixture = await desktopFixture();
+  try {
+    const { page } = await fixture.launch();
+    const origin = new URL(page.url()).origin;
+    let refused = false;
+    await page.route(`${origin}/api/albums`, async (route) => {
+      if (route.request().method() !== 'POST' || refused) return route.continue();
+      refused = true;
+      await route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: 'Disk full' }) });
+    });
+    await dropFiles(page, [
+      { name: 'First', children: [{ name: 'a.jpg', type: 'image/jpeg', bytes: await jpeg(90) }, { name: 'b.jpg', type: 'image/jpeg', bytes: await jpeg(91) }] },
+      { name: 'Second', children: [{ name: 'c.jpg', type: 'image/jpeg', bytes: await jpeg(92) }] },
+    ]);
+    await expect(page.locator('.toast')).toHaveText('Imported 1 item, 2 failed · Couldn\'t create "First": Disk full');
+    await expect(page.locator('.folder h3')).toHaveText(['Second']);
+  } finally { await fixture.close(); }
+});
+
+test('loose photos dropped on the wall get a new album named first; cancelling imports nothing', async () => {
+  const fixture = await desktopFixture();
+  try {
+    const { page } = await fixture.launch();
+    const origin = new URL(page.url()).origin;
+    await expect(page.locator('.welcome .welcome-drop')).toHaveText('Drop photos or folders here');
+    const drop = async () => dropFiles(page, [
+      { name: 'x.jpg', type: 'image/jpeg', bytes: await jpeg(100) },
+      { name: 'y.jpg', type: 'image/jpeg', bytes: await jpeg(101) },
+      { name: 'Folder', children: [{ name: 'z.jpg', type: 'image/jpeg', bytes: await jpeg(102) }] },
+    ]);
+    const dialog = page.locator('dialog.dlg');
+    await drop();
+    await expect(dialog.locator('h3')).toHaveText('New album');
+    await expect(dialog.locator('.dlg-text')).toHaveText('Put these 2 items in a new album');
+    await dialog.locator('[data-act=cancel]').click();
+    await expect(dialog).toHaveCount(0);
+    await expect(page.locator('.welcome')).toBeVisible();
+    expect(await (await page.request.get(`${origin}/api/albums`)).json()).toEqual([]);
+    await drop();
+    await dialog.locator('input').fill('Beach day');
+    await dialog.locator('[value=ok]').click();
+    await expect(page.locator('.toast')).toHaveText('Imported 3 items');
+    expect((await page.locator('.folder h3').allTextContents()).sort()).toEqual(['Beach day', 'Folder']);
+  } finally { await fixture.close(); }
+});
+
+test('a read-only license takes no drop on the wall', async () => {
+  const fixture = await desktopFixture({ license: 'expired' });
+  try {
+    const { page } = await fixture.launch();
+    const origin = new URL(page.url()).origin;
+    await dropFiles(page, [{ name: 'Locked', children: [{ name: 'a.jpg', type: 'image/jpeg', bytes: await jpeg(110) }] }]);
     await expect(page.locator('.toast')).toHaveText(/^Read-only mode/);
     expect(await (await page.request.get(`${origin}/api/albums`)).json()).toEqual([]);
   } finally { await fixture.close(); }
