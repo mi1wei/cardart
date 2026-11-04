@@ -4,7 +4,8 @@ import { close, open, swap } from './router.js';
 import { backLink, dialog, icon, toast } from './ui.js';
 import { lang, mediaCountText, t } from './i18n.js';
 import { allowWrite, canWrite } from './license.js';
-import { probeVideo } from './video-probe.js';
+import { createImporter } from './import-files.js';
+import { collectDrop } from './folder-files.js';
 import { formatDuration, mediaCounts } from '../shared/media.js';
 import { c } from './collection-text.js';
 import { formatRange } from '../shared/dates.js';
@@ -13,7 +14,6 @@ import { showUndo } from './undo.js';
 import { onComputer } from './phone.js';
 
 const fine = matchMedia('(pointer: fine)');
-const SKIP = { duplicate: 'dup', unsupported: 'bad', 'too-large': 'big' };
 const DENSITY = ['s', 'm', 'l'];
 // Rough aspect ratios, so the placeholder rows look like photos.
 const SKELETON = [1.5, 0.75, 1.33, 1, 1.5, 0.75, 1.33, 1.5].map((a) => `<i class="skel" style="--a:${a}" aria-hidden="true"></i>`).join('');
@@ -35,14 +35,10 @@ export function renderAlbum(app, id) {
   const selected = new Set();
   let drag = null;
   let suppressClick = false;
-  const queue = [];
-  const tally = { total: 0, done: 0, dup: 0, bad: 0, big: 0, fail: 0 };
-  let uploading = false;
   let mutating = false;
   let query = '';
   let anchor = null;
   let longPress = null;
-  let uploadController;
   let lightbox = null;
   let viewer = null;
   let viewerLoading = false;
@@ -87,14 +83,13 @@ export function renderAlbum(app, id) {
         <button class="btn pri" type="button" data-act="3d">${icon('book')}<span>${t('flip-3d')}</span></button>
       </div>
       <input type="file" data-write accept="image/*,.heic,.heif,video/mp4,video/quicktime,video/x-m4v,.mp4,.mov,.m4v" multiple hidden>
-      <div class="upload" role="status" aria-live="polite" hidden><div class="r"><b></b><span></span></div><div class="prog"><i></i></div><small></small></div>
     </main>`;
   const $ = (s) => app.querySelector(s);
   const main = $('.page');
   const grid = $('.grid');
   const input = $('input[type=file]');
-  const box = $('.upload');
   const density = $('.density input');
+  const importer = createImporter(main, { beforeFile: () => album, onPhoto: addedPhoto, onDone: load });
   main.dataset.density = savedDensity();
   density.value = String(DENSITY.indexOf(main.dataset.density));
   density.addEventListener('input', () => {
@@ -106,9 +101,9 @@ export function renderAlbum(app, id) {
     if (album) render();
   });
   $('.photo-sort').addEventListener('change', async (event) => {
-    if (!allowWrite() || uploading || mutating) {
+    if (!allowWrite() || importer.active || mutating) {
       event.target.value = album?.sort ?? 'manual';
-      if (uploading || mutating) toast(c('busy'));
+      if (importer.active || mutating) toast(c('busy'));
       return;
     }
     mutating = true;
@@ -214,11 +209,16 @@ export function renderAlbum(app, id) {
     return el;
   }
 
+  // The count and the capture dates under the title (polish spec §4.3).
+  function countText() {
+    const dates = formatRange(album.dateRange?.from, album.dateRange?.to, { lang: lang() });
+    return [mediaCountText(mediaCounts(album.photos)), dates].filter(Boolean).join(' · ');
+  }
+
   function render() {
     const n = album.photos.length;
     $('.title').textContent = album.title;
-    const dates = formatRange(album.dateRange?.from, album.dateRange?.to, { lang: lang() });
-    $('.count').textContent = [mediaCountText(mediaCounts(album.photos)), dates].filter(Boolean).join(' · ');
+    $('.count').textContent = countText();
     $('.photo-sort').value = album.sort ?? 'manual';
     document.title = `${album.title} · ${t('app')}`;
     $('.drop').hidden = n > 0;
@@ -247,15 +247,13 @@ export function renderAlbum(app, id) {
     return album.photos.filter((p) => !query || `${p.name}\n${p.note ?? ''}`.toLocaleLowerCase().includes(query));
   }
 
-  // Uploads go one at a time (spec §7); files added meanwhile join the same run.
-  function enqueue(files) {
+  // Files from the file input or a drop join the import queue (import-files.js).
+  function enqueue(files, { notMedia = 0, unsupported = 0, unreadable = 0 } = {}) {
     if (!allowWrite()) return;
-    if (mutating || (document.documentElement.hasAttribute('data-busy') && !uploading)) { toast(c('busy')); return; }
+    if (mutating || (document.documentElement.hasAttribute('data-busy') && !importer.active)) { toast(c('busy')); return; }
     const list = [...files];
-    if (!list.length || !album) return;
-    queue.push(...list);
-    tally.total += list.length;
-    if (!uploading) pump();
+    if ((!list.length && !notMedia && !unsupported && !unreadable) || !album) return;
+    importer.add({ album: id, files: list, notMedia, unsupported, unreadable });
   }
 
   async function refreshAfterUpload(signal) {
@@ -271,97 +269,34 @@ export function renderAlbum(app, id) {
     }
   }
 
-  async function pump() {
-    uploading = true;
-    document.documentElement.setAttribute('data-busy', '');
-    box.hidden = false;
-    clearTimeout(box.timer);
-    box.querySelector('small').textContent = '';
-    let lastFailure = '';
-    try {
-      while (queue.length && alive) {
-        if (!allowWrite()) { queue.length = 0; break; }
-        const file = queue.shift();
-        const i = tally.total - queue.length;
-        const startingAlbum = album;
-        uploadController = new AbortController();
-        const signal = uploadController.signal;
-        box.querySelector('b').textContent = t('importing', { i, n: tally.total });
-        box.querySelector('.r span').textContent = file.name;
-        box.querySelector('.prog i').style.width = `${((i - 1) / tally.total) * 100}%`;
-        try {
-          const video = /\.(mp4|mov|m4v)$/i.test(file.name) || /^(video\/mp4|video\/quicktime|video\/x-m4v)$/i.test(file.type);
-          let res;
-          if (video) {
-            box.querySelector('b').textContent = `${t('video-preparing')} · ${i}/${tally.total}`;
-            const prepared = await probeVideo(file, { signal });
-            if (!alive || !allowWrite()) { queue.length = 0; break; }
-            res = await api.uploadVideo(id, file, prepared, ({ stage, loaded, total }) => {
-              if (!alive) return;
-              box.querySelector('b').textContent = `${t(stage === 'saving' ? 'upload-saving' : onComputer ? 'upload-sending' : 'upload-sending-phone')} · ${i}/${tally.total}`;
-              const fraction = total > 0 ? Math.min(1, Math.max(0, loaded / total)) : 0;
-              box.querySelector('.prog i').style.width = `${((i - 1 + fraction) / tally.total) * 100}%`;
-            }, { signal });
-          } else if (/^video\//i.test(file.type)) res = { skipped: 'unsupported' };
-          else res = await api.upload(id, file, { signal });
-          if (!alive) break;
-          if (res.photo) {
-            tally.done++;
-            if (!album.photos.some((photo) => photo.id === res.photo.id)) {
-              if (album !== startingAlbum || (album.sort && album.sort !== 'manual') || query) {
-                try { await refreshAfterUpload(signal); }
-                catch (error) {
-                  if (!alive || error.name === 'AbortError') break;
-                  lastFailure = t('upload-refresh-failed');
-                }
-              } else {
-                album = { ...album, photos: [...album.photos, res.photo] };
-                if (album.photos.length === 1) render();
-                else grid.append(tile(res.photo, false));
-              }
-            } else render();
-            if (!alive) break;
-            $('.count').textContent = mediaCountText(mediaCounts(album.photos));
-          } else if (SKIP[res.skipped]) tally[SKIP[res.skipped]]++;
-          else throw Object.assign(new Error('Invalid upload response'), { code: 'bad-response' });
-        } catch (error) {
-          if (!alive || error.name === 'AbortError') continue;
-          if (SKIP[error.code]) tally[SKIP[error.code]]++;
-          else {
-            tally.fail++;
-            const key = { timeout: 'video-timeout', blocked: 'video-blocked', unreadable: 'video-unreadable',
-              network: 'upload-network', 'bad-response': 'upload-bad-response' }[error.code];
-            lastFailure = `${file.name.slice(0, 200)}: ${key ? t(key) : error.message}`;
-          }
-        }
-      }
-    } finally {
-      uploadController = null;
-      uploading = false;
-      document.documentElement.removeAttribute('data-busy');
-    }
+  // A photo has been added: show its tile, or reload when the album changed meanwhile or is sorted
+  // or searched. Returns a note for the import summary when that reload fails.
+  async function addedPhoto(photo, { signal, before }) {
     if (!alive) return;
-    await load();
-    const skipped = tally.dup + tally.bad + tally.big;
-    const why = [tally.dup && t('dup', { n: tally.dup }), tally.bad && t('bad', { n: tally.bad }), tally.big && t('big', { n: tally.big })]
-      .filter(Boolean)
-      .join(t('sep'));
-    box.querySelector('b').textContent = t('import-done');
-    box.querySelector('.r span').textContent = '';
-    box.querySelector('.prog i').style.width = '100%';
-    box.querySelector('small').textContent =
-      t('imported', { n: tally.done }) + (skipped ? t('skipped', { n: skipped, why }) : '') + (tally.fail ? t('failed-n', { n: tally.fail }) : '') +
-      (lastFailure ? ` · ${lastFailure}` : '');
-    Object.assign(tally, { total: 0, done: 0, dup: 0, bad: 0, big: 0, fail: 0 });
-    if (!lastFailure) box.timer = setTimeout(() => (box.hidden = true), 4000);
+    let note;
+    if (!album.photos.some((item) => item.id === photo.id)) {
+      if (album !== before || (album.sort && album.sort !== 'manual') || query) {
+        try { await refreshAfterUpload(signal); }
+        catch (error) {
+          if (!alive || error.name === 'AbortError') throw error;
+          note = t('upload-refresh-failed');
+        }
+      } else {
+        album = { ...album, photos: [...album.photos, photo] };
+        if (album.photos.length === 1) render();
+        else grid.append(tile(photo, false));
+      }
+    } else render();
+    if (alive) $('.count').textContent = countText();
+    return note;
   }
 
   async function removeSelected() {
     if (!allowWrite()) return;
-    if (uploading || mutating) { toast(c('busy')); return; }
+    if (importer.active || mutating) { toast(c('busy')); return; }
     const text = t('delete-photos-text', { n: selected.size });
     if (!(await dialog({ title: t('delete-photos'), text, ok: t('delete'), danger: true }))) return;
-    if (!alive || !allowWrite() || uploading || mutating) return;
+    if (!alive || !allowWrite() || importer.active || mutating) return;
     mutating = true;
     renderPicking();
     try {
@@ -400,11 +335,11 @@ export function renderAlbum(app, id) {
 
   async function removeAlbum() {
     if (!allowWrite()) return;
-    if (uploading || mutating) { toast(t('upload-wait')); return; }
+    if (importer.active || mutating) { toast(t('upload-wait')); return; }
     const text = t('delete-album-text', { name: album.title });
     if (!(await dialog({ title: t('delete-album'), text, ok: t('delete'), danger: true })) || !alive) return;
     // An import may have started while the confirmation was open.
-    if (uploading || mutating) { toast(t('upload-wait')); return; }
+    if (importer.active || mutating) { toast(t('upload-wait')); return; }
     try {
       mutating = true;
       const result = await api.deleteAlbum(id);
@@ -434,11 +369,11 @@ export function renderAlbum(app, id) {
   }
 
   async function transfer(mode) {
-    if (!allowWrite() || uploading || mutating || !selected.size) { if (uploading || mutating) toast(c('busy')); return; }
+    if (!allowWrite() || importer.active || mutating || !selected.size) { if (importer.active || mutating) toast(c('busy')); return; }
     try {
       const target = await chooseAlbum(id, mode);
       if (!target || !alive || !allowWrite()) return;
-      if (uploading || mutating) { toast(c('busy')); return; }
+      if (importer.active || mutating) { toast(c('busy')); return; }
       mutating = true;
       document.documentElement.setAttribute('data-busy', '');
       renderPicking();
@@ -503,7 +438,7 @@ export function renderAlbum(app, id) {
       longPress = { timer, x: e.clientX, y: e.clientY };
     }
     if (!t || selecting || !fine.matches || e.button !== 0 || !canWrite()) return;
-    if (query || uploading || mutating || e.pointerType === 'touch') return;
+    if (query || importer.active || mutating || e.pointerType === 'touch') return;
     drag = { t, x0: e.clientX, y0: e.clientY, mx: -Infinity, my: -Infinity, ghost: null, before: '' };
   }
 
@@ -516,7 +451,7 @@ export function renderAlbum(app, id) {
         drag = null;
         suppressClick = true;
         dialog({ title: c('manualPrompt'), ok: c('manual') }).then(async (yes) => {
-          if (!yes || !alive || !allowWrite() || uploading || mutating) return;
+          if (!yes || !alive || !allowWrite() || importer.active || mutating) return;
           changed(await api.updateAlbum(id, { sort: 'manual' }));
           toast(c('manualHint'));
         }).catch((error) => toast(t('failed', { reason: error.message })));
@@ -578,15 +513,28 @@ export function renderAlbum(app, id) {
     clearTimeout(main.dropTimer);
     main.dropTimer = setTimeout(() => main.classList.remove('dropping'), 150);
   }
-  function onDrop(e) {
+  // Dropped folders add what is inside them, at any depth, to this album (polish spec §5).
+  async function onDrop(e) {
     if (!hasFiles(e) || !album) return;
     e.preventDefault();
     main.classList.remove('dropping');
-    enqueue(e.dataTransfer.files);
+    if (!allowWrite()) return;
+    const { folders, loose } = await collectDrop(e.dataTransfer); // takes the items before it awaits
+    if (!alive) return;
+    const groups = [loose, ...folders];
+    const files = groups.flatMap((group) => group.files);
+    const count = (key) => groups.reduce((n, group) => n + group[key], 0);
+    const unreadable = count('unreadable');
+    const unsupported = count('unsupported');
+    if (!files.length && !unreadable && !unsupported && folders.length) {
+      toast(t('folder-empty', { names: folders.map((group) => group.name) }));
+      return;
+    }
+    enqueue(files, { notMedia: count('skipped'), unsupported, unreadable });
   }
 
   const onFocus = () => {
-    if (!uploading && !mutating && !drag && !viewer) load();
+    if (!importer.active && !mutating && !drag && !viewer) load();
   };
   const refreshTimer = setInterval(() => {
     if (album?.sort === 'taken' && !document.hidden && !document.querySelector('dialog[open]')) onFocus();
@@ -624,7 +572,7 @@ export function renderAlbum(app, id) {
 
   return {
     canLeave(next, again) {
-      if ((uploading || mutating) && (again || next.album !== id)) { toast(c('busy')); return false; }
+      if ((importer.active || mutating) && (again || next.album !== id)) { toast(c('busy')); return false; }
       if (!again && next.album === id && next.photo === route.photo) return true;
       return lightbox?.canLeave() ?? true;
     },
@@ -634,9 +582,7 @@ export function renderAlbum(app, id) {
     },
     destroy() {
       alive = false;
-      uploadController?.abort();
-      queue.length = 0;
-      clearTimeout(box.timer);
+      importer.destroy();
       clearInterval(refreshTimer);
       clearTimeout(longPress?.timer);
       viewer?.close();

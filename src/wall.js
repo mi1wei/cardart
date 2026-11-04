@@ -1,6 +1,8 @@
 import { api } from './api.js';
 import { folder, folderClick } from './folder.js';
+import { albumTitle, collectDrop, pickedFolder } from './folder-files.js';
 import { t } from './i18n.js';
+import { createImporter } from './import-files.js';
 import { onComputer } from './phone.js';
 import { open } from './router.js';
 import { dialog, icon, toast } from './ui.js';
@@ -35,15 +37,22 @@ export function renderWall(app) {
         <h2 id="welcome-title">${t('welcome-title')}</h2>
         <p class="welcome-lead">${t(onComputer ? 'welcome-lead' : 'welcome-lead-phone')}</p>
         <div class="welcome-panel">
-          <span class="welcome-icon">${icon('bookOpen')}</span>
-          <button class="btn pri" type="button" data-write data-act="new">${icon('plus')}<span>${t('new-album')}</span></button>
+          <span class="welcome-icon">${icon(onComputer ? 'upload' : 'bookOpen')}</span>
+          ${onComputer ? `<h3 class="welcome-drop">${t('welcome-drop')}</h3><p class="welcome-drop-hint">${t('welcome-drop-hint')}</p>` : ''}
+          <div class="welcome-acts">
+            <button class="btn pri" type="button" data-write data-act="new">${icon('plus')}<span>${t('new-album')}</span></button>
+            ${onComputer ? `<button class="btn" type="button" data-write data-act="import-folder">${icon('folder')}<span>${t('import-folder')}</span></button>` : ''}
+          </div>
           <p class="welcome-formats">${t('formats')}</p>
         </div>
         <a class="welcome-trash" href="#/trash" hidden></a>
       </section>
+      ${onComputer ? `<input class="folder-input" type="file" webkitdirectory hidden><div class="drop-hint" hidden><span>${icon('upload')}<b>${t('drop-hint')}</b></span></div>` : ''}
     </main>`;
   const wall = app.querySelector('.folders');
   const sub = app.querySelector('.sub');
+  const importer = createImporter(app.querySelector('.page'), { finish: 'toast', onDone: load });
+  const folderInput = app.querySelector('.folder-input');
   app.querySelector('.wall-sort').value = sort;
   app.querySelector('.wall-sort').addEventListener('change', (event) => {
     sort = event.target.value;
@@ -102,6 +111,36 @@ export function renderWall(app) {
     trashLink.textContent = `${c('trash')} · ${c('trashCount', { n: entries.length })}`;
   }
 
+  // Imports wait for other changes; one already running takes more files (polish spec §5).
+  function canImport() {
+    if (!allowWrite()) return false;
+    if (mutating || (document.documentElement.hasAttribute('data-busy') && !importer.active)) { toast(c('busy')); return false; }
+    return true;
+  }
+
+  // One album per folder, named after it and created when its turn comes; a folder with nothing to
+  // import gets no album.
+  function importFolders(groups) {
+    const counted = (group) => group.files.length || group.unsupported || group.unreadable;
+    const empty = groups.filter((group) => !counted(group));
+    if (empty.length) toast(t('folder-empty', { names: empty.map((group) => group.name) }));
+    for (const group of groups) {
+      if (counted(group)) importInto(albumTitle(group.name, t('new-album-name')), group);
+    }
+  }
+
+  // The new cards come with the summary (onDone), not as empty cards while their photos come in.
+  function importInto(title, { files, skipped, unsupported = 0, unreadable }) {
+    importer.add({
+      album: async () => (await api.createAlbum(title)).id,
+      label: title,
+      files,
+      notMedia: skipped,
+      unsupported,
+      unreadable,
+    });
+  }
+
   const closeMenu = () => app.querySelector('.menu')?.remove();
 
   async function onClick(e) {
@@ -111,6 +150,10 @@ export function renderWall(app) {
       query = '';
       app.querySelector('.wall-search').value = '';
       render();
+      return;
+    }
+    if (act === 'import-folder') {
+      if (canImport()) folderInput.click();
       return;
     }
     if (['new', 'rename', 'delete'].includes(act) && !allowWrite()) return;
@@ -151,14 +194,68 @@ export function renderWall(app) {
 
   const onFocus = () => load();
   const onKey = (event) => { if (event.key === 'Escape') closeMenu(); };
+  folderInput?.addEventListener('change', () => {
+    const group = pickedFolder(folderInput.files);
+    folderInput.value = '';
+    if (!canImport()) return;
+    if (group) importFolders([group]);
+    else toast(t('folder-picked-empty'));
+  });
+
+  // Files dragged in from the computer (polish spec §5): each folder becomes an album, loose photos
+  // get one album, named before anything is imported.
+  const hint = app.querySelector('.drop-hint');
+  const hasFiles = (e) => [...(e.dataTransfer?.types ?? [])].includes('Files');
+  function onDragOver(e) {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    if (document.querySelector('dialog[open]')) return;
+    hint.hidden = false;
+    clearTimeout(hint.timer);
+    hint.timer = setTimeout(() => (hint.hidden = true), 150);
+  }
+  async function onDrop(e) {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    clearTimeout(hint.timer);
+    hint.hidden = true;
+    if (document.querySelector('dialog[open]') || !canImport()) return;
+    const { folders, loose } = await collectDrop(e.dataTransfer); // takes the items before it awaits
+    if (!alive) return;
+    if (loose.files.length || loose.unreadable) {
+      const n = loose.files.length + loose.unreadable;
+      const title = await dialog({ title: t('new-album'), text: t('loose-new-album', { n }), value: t('new-album-name'), ok: t('create') });
+      // Cancelling drops everything, the folders too.
+      if (!title || !alive || !canImport()) return;
+      importInto(albumTitle(title, t('new-album-name')), loose);
+    } else if (!folders.length) {
+      toast(t('nothing-to-import'));
+      return;
+    }
+    importFolders(folders);
+  }
+  if (onComputer) {
+    window.addEventListener('dragover', onDragOver);
+    window.addEventListener('drop', onDrop);
+  }
   app.addEventListener('click', onClick);
   window.addEventListener('focus', onFocus);
   window.addEventListener('keydown', onKey);
   window.addEventListener('folio-library-changed', onFocus);
   load();
   return {
+    // An import keeps the wall open (polish spec §5).
+    canLeave() {
+      if (!importer.active) return true;
+      toast(c('busy'));
+      return false;
+    },
     destroy() {
       alive = false;
+      importer.destroy();
+      clearTimeout(hint?.timer);
+      window.removeEventListener('dragover', onDragOver);
+      window.removeEventListener('drop', onDrop);
       app.removeEventListener('click', onClick);
       window.removeEventListener('focus', onFocus);
       window.removeEventListener('keydown', onKey);

@@ -194,3 +194,41 @@ test('in Chinese the app keeps the name Folio in the nav, titles and phone tips'
     expect(await page.evaluate(() => /(?<!相)册页/.test(document.body.innerText))).toBe(false);
   } finally { await fixture.close(); }
 });
+
+test('the album header keeps its capture dates while photos are being added', async () => {
+  const fixture = await desktopFixture();
+  let release = () => {};
+  try {
+    const { photoBytes } = require('../tests/fixtures/photo-metadata.cjs');
+    const { page } = await fixture.launch();
+    const origin = new URL(page.url()).origin;
+    const album = await seed(page, origin, 'Dated', 0);
+    for (const [i, date] of ['2026:07:02 09:00:00', '2026:07:15 18:00:00'].entries()) {
+      const data = await photoBytes({ width: 300 + i, height: 200, exif: { IFD2: { DateTimeOriginal: date } } });
+      expect((await page.request.post(`${origin}/api/albums/${album.id}/photos?name=d${i}.jpg`, { headers: { 'X-Album-Upload': '1' }, data })).ok()).toBe(true);
+    }
+    await page.goto(`${origin}/#/a/${album.id}`);
+    const count = page.locator('.album-page .count');
+    await expect(count).toHaveText('2 photos · Jul 2 – 15, 2026');
+    // Hold the second upload so the header can be read between the two.
+    const held = new Promise((resolve) => { release = resolve; });
+    let posts = 0;
+    await page.route(new RegExp(`/api/albums/${album.id}/photos\\?`), async (route) => {
+      if (route.request().method() === 'POST' && ++posts === 2) await held;
+      await route.continue();
+    });
+    await page.locator('.album-page input[type=file]').setInputFiles([
+      { name: 'n0.jpg', mimeType: 'image/jpeg', buffer: await photoBytes({ width: 320, height: 200, exif: null }) },
+      { name: 'n1.jpg', mimeType: 'image/jpeg', buffer: await photoBytes({ width: 321, height: 200, exif: null }) },
+    ]);
+    await expect(page.locator('.tile')).toHaveCount(3);
+    await expect(count).toHaveText('3 photos · Jul 2 – 15, 2026');
+    release();
+    await expect(page.locator('.tile')).toHaveCount(4);
+    await expect(page.locator('html')).not.toHaveAttribute('data-busy', '');
+    await expect(count).toHaveText('4 photos · Jul 2 – 15, 2026');
+  } finally {
+    release(); // quitting waits for the import, so never leave the upload held
+    await fixture.close();
+  }
+});
