@@ -1,7 +1,8 @@
 // Light, dark or follow the system (v2 spec §3). Each device keeps its own choice.
 const KEY = 'theme';
 const MODES = ['light', 'dark', 'auto'];
-const system = matchMedia('(prefers-color-scheme: dark)');
+// Made on first use: the 3D book's geometry helpers import this module in Node too.
+let system;
 
 export const themeSupported = () => typeof CSS !== 'undefined' && CSS.supports('color', 'light-dark(#000, #fff)');
 
@@ -24,6 +25,7 @@ export function setTheme(mode) {
 
 // Calls fn whenever the colours may have changed: a choice here, or the system switching in auto mode.
 export function onThemeChange(fn) {
+  system ??= matchMedia('(prefers-color-scheme: dark)');
   document.addEventListener('folio-theme', fn);
   system.addEventListener('change', fn);
   return () => {

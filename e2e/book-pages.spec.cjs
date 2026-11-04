@@ -317,3 +317,78 @@ test('the cover title is opaque dark ink with a light edge, legible against the 
     expect(result.light, 'a light edge under the letters').toBeGreaterThan(0);
   } finally { await fixture.close(); }
 });
+
+test('the title page reads in both themes: the see-through cover follows the page, the plain board stays light', async () => {
+  const fixture = await desktopFixture();
+  try {
+    const { page } = await fixture.launch();
+    // Each bundle has its own GPU check, so one can be a graphics card and the other a CPU renderer.
+    await serveModule(page, 'src/book/binder.js', '/__folio-title-ink-gpu.js');
+    await serveModule(page, 'src/book/binder.js', '/__folio-title-ink-lite.js');
+    const result = await page.evaluate(async () => {
+      const linear = (c) => ((c /= 255) <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+      const luminance = (css) => {
+        const [r, g, b] = css.startsWith('#') ? [1, 3, 5].map((i) => parseInt(css.slice(i, i + 2), 16)) : css.match(/[\d.]+/g).map(Number);
+        return 0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b);
+      };
+      const contrast = (a, b) => {
+        const [high, low] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+        return (high + 0.05) / (low + 0.05);
+      };
+      const fills = [];
+      let renderer = '';
+      const fillText = CanvasRenderingContext2D.prototype.fillText;
+      const getParameter = WebGL2RenderingContext.prototype.getParameter;
+      CanvasRenderingContext2D.prototype.fillText = function (text, ...args) {
+        fills.push({ canvas: this.canvas, ink: this.fillStyle });
+        return fillText.call(this, text, ...args);
+      };
+      WebGL2RenderingContext.prototype.getParameter = function (parameter) {
+        return parameter === 0x9246 ? renderer : getParameter.call(this, parameter);
+      };
+      const theme = (mode) => {
+        document.documentElement.dataset.theme = mode;
+        document.dispatchEvent(new Event('folio-theme'));
+      };
+      const titlePage = { title: 'Summer by the sea', dates: 'Jul 12 – 15, 2026', count: '8 photos' };
+      const inks = (binder) => {
+        const canvas = binder.group.getObjectByName('title-page').material.map.image;
+        return fills.filter((fill) => fill.canvas === canvas).map((fill) => fill.ink);
+      };
+      // Title, dates and count from the latest drawing, each against what shows behind them.
+      const ratios = (binder, behind) => inks(binder).slice(-3).map((ink) => contrast(ink, behind));
+      const pageColour = () => getComputedStyle(document.body).backgroundColor;
+      try {
+        theme('dark');
+        renderer = 'ANGLE (Apple, ANGLE Metal Renderer: Apple M5, Unspecified Version)';
+        const gpu = (await import('/__folio-title-ink-gpu.js')).createBinder({ sheets: 2, title: 'Summer', titlePage });
+        const map = gpu.group.getObjectByName('title-page').material.map;
+        const darkPage = ratios(gpu, pageColour());
+        const version = map.version;
+        theme('light');
+        const lightPage = ratios(gpu, pageColour());
+        const redrawn = map.version > version;
+        gpu.dispose();
+        const drawn = inks(gpu).length;
+        theme('dark');
+        const afterDispose = inks(gpu).length - drawn;
+        renderer = 'ANGLE (Google, Vulkan SwiftShader Device (Subzero))';
+        const lite = (await import('/__folio-title-ink-lite.js')).createBinder({ sheets: 2, title: 'Summer', titlePage });
+        const board = `#${lite.group.getObjectByName('title-page').parent.material.color.getHexString()}`;
+        const plain = ratios(lite, board);
+        lite.dispose();
+        return { darkPage, lightPage, redrawn, afterDispose, plain };
+      } finally {
+        CanvasRenderingContext2D.prototype.fillText = fillText;
+        WebGL2RenderingContext.prototype.getParameter = getParameter;
+        delete document.documentElement.dataset.theme;
+      }
+    });
+    for (const [name, list] of Object.entries({ darkPage: result.darkPage, lightPage: result.lightPage, plain: result.plain })) {
+      expect(list, name).toHaveLength(3);
+      for (const ratio of list) expect(ratio, `${name} (WCAG AA: 4.5)`).toBeGreaterThanOrEqual(4.5);
+    }
+    expect(result.redrawn, 'a theme change repaints the title page').toBe(true);
+    expect(result.afterDispose, 'a closed book stops following the theme').toBe(0);
+  } finally { await fixture.close(); }
+});

@@ -13,10 +13,11 @@ import {
   TorusGeometry,
 } from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { onThemeChange } from '../theme.js';
 import { DIM } from './layout.js';
 import { softwareWebGL } from './gpu.js';
 import { arc, restEdgeX } from './sheet.js';
-import { createTitleTexture } from './title-page.js';
+import { createTitlePage, titleInk } from './title-page.js';
 
 const { H, T, CT, HB, h, drop } = DIM;
 const clamp01 = (v) => Math.min(1, Math.max(0, v));
@@ -161,13 +162,19 @@ export function createBinder({ sheets, title, titlePage = null }) {
 
   // The title page sits on the inside of the cover, which faces up once the book is open. Turned
   // half a turn in its own plane, it reads the right way round from the front (v2 spec §8).
+  let stopTheme = () => {};
   if (titlePage) {
     const pw = B - 28;
     const ph = H - 40;
+    const { texture, paint } = createTitlePage(titlePage, pw, ph);
+    paint(titleInk(!lite));
+    // The see-through board shows the page colour, so its ink follows the theme (polish spec §4.2).
+    if (!lite) stopTheme = onThemeChange(() => paint(titleInk(true)));
     const inside = new Mesh(
       new PlaneGeometry(pw, ph).rotateZ(Math.PI).rotateX(Math.PI / 2),
-      new MeshBasicMaterial({ map: createTitleTexture(titlePage, pw, ph), transparent: true, depthWrite: false }),
+      new MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false }),
     );
+    inside.name = 'title-page';
     inside.position.set(16 + pw / 2, -CT / 2 - 0.05, 0);
     cover.add(inside);
   }
@@ -214,6 +221,7 @@ export function createBinder({ sheets, title, titlePage = null }) {
       return { C: p.C };
     },
     dispose() {
+      stopTheme();
       const items = new Set();
       group.traverse((o) => {
         if (o.isMesh) items.add(o.geometry).add(o.material);
