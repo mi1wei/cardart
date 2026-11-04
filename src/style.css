@@ -136,12 +136,13 @@ button {
   color: inherit;
 }
 
-button, input, select, summary, .back-link, .link, .welcome-trash {
+button, input, select, summary, .back-link, .link, .welcome-trash,
+.license-bar a, .empty a {
   min-width: 24px;
   min-height: 24px;
 }
 
-.welcome-trash {
+.welcome-trash, .license-bar a, .empty a {
   display: inline-flex;
   align-items: center;
 }
@@ -2837,7 +2838,7 @@ body:has(.ab, .lb) {
 }
 
 @media (pointer: coarse) {
-  :root :is(button, input:not([type=checkbox], [type=radio]), select, textarea, summary, .logo, .back-link, .link, .welcome-trash) {
+  :root :is(button, input:not([type=checkbox], [type=radio]), select, textarea, summary, .logo, .back-link, .link, .welcome-trash, .license-bar a, .empty a) {
     min-width: 44px;
     min-height: 44px;
   }

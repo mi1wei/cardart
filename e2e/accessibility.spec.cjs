@@ -320,6 +320,43 @@ for (const width of [320, 390]) {
   });
 }
 
+for (const recovery of ['read-only license', 'missing album']) {
+  test(`recovery targets keep the ${recovery} link usable with fine and coarse pointers`, async () => {
+    const fixture = await desktopFixture(recovery === 'read-only license' ? { license: 'expired' } : {});
+    try {
+      const { page, desktop } = await fixture.launch();
+      const origin = new URL(page.url()).origin;
+      const session = await desktop.context().newCDPSession(page);
+      let album;
+      if (recovery === 'missing album') {
+        album = await seedBook(page, origin, 'Deleted album', 0, 1);
+        expect((await page.request.delete(`${origin}/api/albums/${album.id}`)).ok()).toBe(true);
+      } else {
+        await expect(page.locator('html')).toHaveAttribute('data-readonly', 'true');
+      }
+      for (const language of ['en', 'zh']) {
+        await setLang(page, language);
+        for (const coarse of [false, true]) {
+          await session.send('Emulation.setTouchEmulationEnabled', { enabled: coarse, maxTouchPoints: 1 });
+          expect(await page.evaluate(() => matchMedia('(pointer: coarse)').matches)).toBe(coarse);
+          for (const width of [320, 390]) {
+            await page.setViewportSize({ width, height: 844 });
+            await page.goto(`${origin}/#/${album ? `a/${album.id}` : 'albums'}`);
+            const link = page.locator(album ? '.album-page .empty a' : '.license-bar a');
+            await expect(link).toBeVisible();
+            await targets(link, coarse ? 44 : 24, `${language} ${recovery} target at ${width}px`);
+            await noOverflow(page);
+            const box = await link.boundingBox();
+            await link.click({ position: { x: 1, y: box.height - 1 } });
+            await expect(page).toHaveURL(album ? /#\/albums$/ : /#\/license$/);
+            await expect(page.locator(album ? '.welcome' : '.license-page')).toBeVisible();
+          }
+        }
+      }
+    } finally { await fixture.close(); }
+  });
+}
+
 test('a long library path stays readable in narrow Settings in both languages', async () => {
   const fixture = await desktopFixture();
   try {
