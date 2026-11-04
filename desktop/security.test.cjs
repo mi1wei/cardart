@@ -38,3 +38,17 @@ test('only an exact original-photo path may open a controlled preview window', (
   assert.equal(isOriginalURL(origin + '/api/phone', origin), false);
   assert.equal(isOriginalURL(origin + path + '?key=unexpected', origin), false);
 });
+
+test('desktop calls are taken only from the app page in the main window', () => {
+  const { isAppSender } = require('./security.cjs');
+  const origin = 'http://localhost:5180';
+  const mainFrame = { url: `${origin}/#/albums` };
+  const webContents = { mainFrame };
+  const window = { isDestroyed: () => false, webContents };
+  assert.equal(isAppSender({ sender: webContents, senderFrame: mainFrame }, window, origin), true);
+  assert.equal(isAppSender({ sender: webContents, senderFrame: { url: `${origin}/` } }, window, origin), false); // a sub-frame
+  assert.equal(isAppSender({ sender: {}, senderFrame: mainFrame }, window, origin), false); // another window
+  assert.equal(isAppSender({ sender: webContents, senderFrame: mainFrame }, window, 'http://localhost:5181'), false);
+  assert.equal(isAppSender({ sender: webContents, senderFrame: mainFrame }, { ...window, isDestroyed: () => true }, origin), false);
+  assert.equal(isAppSender({ sender: webContents, senderFrame: mainFrame }, null, origin), false);
+});

@@ -32,7 +32,7 @@ async function swipe(page, from, to) {
   await page.mouse.up();
 }
 
-test('an upright phone shows one page at a time, counts pages and goes back to spreads sideways', async () => {
+test('an upright phone shows one page at a time and swipes through its pages', async () => {
   test.setTimeout(60_000);
   const fixture = await desktopFixture();
   try {
@@ -60,6 +60,26 @@ test('an upright phone shows one page at a time, counts pages and goes back to s
     await next.click();
     await expect(count).toHaveText('Page 5 of 5');
     await expect(next).toBeDisabled();
+  } finally { await fixture.close(); }
+});
+
+test('rotating an upright phone to spreads and back keeps the page it shows', async () => {
+  test.setTimeout(60_000);
+  const fixture = await desktopFixture();
+  try {
+    const { page } = await fixture.launch();
+    const origin = new URL(page.url()).origin;
+    await page.setViewportSize({ width: 390, height: 844 });
+    const album = await seedBook(page, origin, 'Rotation', 3, 1);
+    await page.goto(`${origin}/#/a/${album.id}/3d`);
+    const count = page.locator('.ab-count');
+    await expect(count).toHaveText('Page 2 of 5', { timeout: 15000 });
+    await page.locator('.ab [data-act=next]').click();
+    await expect(count).toHaveText('Page 3 of 5');
+    await page.locator('.ab [data-act=next]').click();
+    await expect(count).toHaveText('Page 4 of 5');
+    await page.locator('.ab [data-act=next]').click();
+    await expect(count).toHaveText('Page 5 of 5');
     await page.locator('.ab [data-act=prev]').click();
     await expect(count).toHaveText('Page 4 of 5');
     await page.setViewportSize({ width: 844, height: 390 });

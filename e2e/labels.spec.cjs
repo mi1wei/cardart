@@ -48,7 +48,7 @@ test('the 3D book offers single, relaxed and compact layouts as one control', as
     const { page } = await fixture.launch();
     const origin = new URL(page.url()).origin;
     const album = await seedBook(page, origin, 'Layouts', 12, 2);
-    const perPage = async () => (await (await page.request.get(`${origin}/api/albums/${album.id}`)).json()).perPage;
+    const perPage = async () => (await (await page.request.get(`${origin}/api/albums/${album.id}`, { maxRetries: 1 })).json()).perPage;
     await page.goto(`${origin}/#/a/${album.id}/3d`);
     await expect(page.locator('.ab canvas')).toBeVisible();
     const layout = page.locator('.ab-layout');

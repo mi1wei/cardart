@@ -1282,6 +1282,28 @@ button {
   box-shadow: 0 1px 0 var(--line);
 }
 
+/* The desktop app (polish spec §6.1): the top bars are the window's title bar. Real windows are at
+   least 720 px wide; narrower views are phone emulation and keep the page as it is. */
+@media (min-width: 720px) {
+  [data-desktop] :is(.nav, .lb-bar, .ab-bar) {
+    -webkit-app-region: drag;
+  }
+
+  [data-desktop] :is(.nav, .lb-bar, .ab-bar) :is(a, button, input, select, label, [role='button'], [role='menu']) {
+    -webkit-app-region: no-drag;
+  }
+
+  /* 78 px for the traffic lights, then the bar's own space. */
+  [data-desktop='mac']:not([data-fullscreen]) :is(.nav, .lb-bar, .ab-bar) {
+    padding-left: 96px;
+  }
+
+  /* The minimize, maximize and close buttons sit over the right end. */
+  [data-desktop='win'] :is(.nav, .lb-bar, .ab-bar) {
+    padding-right: calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw) + 24px);
+  }
+}
+
 .logo {
   display: flex;
   align-items: center;
@@ -1953,6 +1975,18 @@ button {
   height: 32px;
   padding: 0 14px;
   font-size: 13px;
+}
+
+.set-acts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* A long library path breaks anywhere rather than widening the row. */
+.set-library-path {
+  overflow-wrap: anywhere;
 }
 
 .settings .dlg-acts {
