@@ -5,7 +5,7 @@ const { desktopFixture } = require('./fixtures.cjs');
 const { seedMixed, openAlbum } = require('./video-fixtures.cjs');
 
 async function open(fixture, options = {}) {
-  const album = await seedMixed(fixture, options);
+  const album = await test.step('Prepare mixed-media album', () => seedMixed(fixture, options));
   const launched = await openAlbum(fixture, album, { suffix: '/p/p001', ...options });
   await expect(launched.page.locator('.lb')).toBeVisible();
   return { ...launched, album };

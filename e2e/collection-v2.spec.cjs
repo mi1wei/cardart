@@ -23,7 +23,18 @@ test('album and wall searches clear empty results, and sort choices persist', as
     await expect(page.locator('.search-empty')).toBeVisible();
     await page.locator('.search-empty [data-act=clear-search]').click();
     await expect(page.locator('.tile')).toHaveCount(3);
-    await page.locator('.photo-sort').selectOption('added');
+    // Delay the real write to catch a reload that races persistence.
+    await page.route(`${origin}/api/albums/${a.id}`, async (route) => {
+      if (route.request().method() === 'PATCH') await new Promise((resolve) => setTimeout(resolve, 200));
+      try { await route.continue(); }
+      catch (error) { if (!/abort|closed|handled/i.test(error.message)) throw error; }
+    });
+    const [saved] = await Promise.all([
+      page.waitForResponse((response) => response.request().method() === 'PATCH' &&
+        new URL(response.url()).pathname === `/api/albums/${a.id}`),
+      page.locator('.photo-sort').selectOption('added'),
+    ]);
+    expect(saved.ok()).toBe(true);
     await page.reload();
     await expect(page.locator('.photo-sort')).toHaveValue('added');
   } finally { await fixture.close(); }
