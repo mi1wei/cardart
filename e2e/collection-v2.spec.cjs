@@ -183,6 +183,33 @@ test('capture date ranges appear on the album and card, and phone long-press ope
     expect(card.sameLine).toBeLessThan(2);
     expect(card.inside).toBe(true);
     expect(card.ellipsis).toBe('ellipsis');
+    // A range across a year is longer than the row: it still follows the count, cut with "…" (polish spec §4.3).
+    const months = await seed(page, origin, 'Months', 0);
+    for (const [i, date] of ['2025:12:30 09:00:00', '2026:07:15 18:00:00'].entries()) {
+      const data = await photoBytes({ width: 310 + i, height: 200, exif: { IFD2: { DateTimeOriginal: date } } });
+      expect((await page.request.post(`${origin}/api/albums/${months.id}/photos?name=m${i}.jpg`, { headers: { 'X-Album-Upload': '1' }, data })).ok()).toBe(true);
+    }
+    for (const width of [320, 390]) {
+      await page.setViewportSize({ width, height: 844 });
+      await page.reload();
+      const folder = page.locator(`.folder[data-id="${months.id}"]`);
+      await expect(folder.locator('.folder-dates')).toHaveText('Dec 2025 – Jul 2026');
+      const row = await folder.evaluate((el) => {
+        const box = (selector) => el.querySelector(selector).getBoundingClientRect();
+        const count = el.querySelector('.n');
+        const dates = el.querySelector('.folder-dates');
+        return {
+          countWhole: count.scrollWidth <= count.clientWidth,
+          sameLine: Math.abs(box('.folder-dates').top - box('.n').top),
+          inside: box('.folder-dates').right <= box('.meta').right + 0.5,
+          cut: dates.scrollWidth > dates.clientWidth,
+        };
+      });
+      expect(row.countWhole, `${width}px`).toBe(true);
+      expect(row.sameLine, `${width}px: no line of its own`).toBeLessThan(2);
+      expect(row.inside, `${width}px`).toBe(true);
+      if (width === 320) expect(row.cut, 'cut with an ellipsis').toBe(true);
+    }
     await page.goto(`${origin}/#/a/${a.id}`);
     await expect(page.locator('.album-page .count')).toContainText('Jul 2 – 15, 2026');
     expect(await page.locator('.tile').first().evaluate((el) => getComputedStyle(el).boxShadow)).toContain('0px 0px 0px 2.5px');

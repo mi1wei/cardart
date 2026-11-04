@@ -527,6 +527,12 @@ button {
   .folder .folder-dates {
     order: 2;
   }
+
+  /* No width of its own when lines break, so the dates never wrap below the count: they fill what
+     is left of its line and are cut with an ellipsis (polish spec §4.3). */
+  .folder .folder-dates {
+    flex: 1 1 0;
+  }
 }
 
 @media (hover: hover) {
