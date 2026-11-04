@@ -473,11 +473,17 @@ async function startDesktop({ appRoot = join(__dirname, '..'), licensePublicKeyF
       { role: 'about', label: text('关于 Folio', 'About Folio') },
       { role: 'quit', id: 'quit', label: text('退出', 'Quit') },
     ];
-    Menu.setApplicationMenu(Menu.buildFromTemplate([
-      { label: 'Folio', submenu: items },
-      { label: text('编辑', 'Edit'), submenu: [{ role: 'undo' }, { role: 'redo' }, { type: 'separator' }, { role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { role: 'selectAll' }] },
-      { label: text('窗口', 'Window'), submenu: [{ role: 'minimize' }, { role: 'zoom' }, { label: text('显示 Folio', 'Show Folio'), click: showWindow }] },
-    ]));
+    Menu.setApplicationMenu(Menu.buildFromTemplate(appMenu({
+      platform: process.platform, text, context: pageContext,
+      writable: licenseStatus.canWrite && (!licenseStatus.expiresAt || Date.now() < Date.parse(licenseStatus.expiresAt)),
+      enabled: !isStopping() && !choosingLibrary, updates: updateMenu(), send: sendCommand,
+      actions: {
+        reveal: () => openPath(settings.libraryDir), choose: chooseAnotherLibrary, show: showWindow,
+        logs: () => openPath(join(profile, 'logs')),
+        notices: () => openPath(app.isPackaged ? join(process.resourcesPath, 'legal/THIRD_PARTY_NOTICES.txt') : join(appRoot, 'licenses/THIRD_PARTY_NOTICES.txt')),
+      },
+    })));
+    if (process.platform === 'win32') window.setMenuBarVisibility(false);
     if (tray && !tray.isDestroyed()) {
       const expired = licenseStatus.expiresAt && Date.now() >= Date.parse(licenseStatus.expiresAt);
       const writable = licenseStatus.state === 'active' && licenseStatus.canWrite && !expired;

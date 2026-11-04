@@ -398,6 +398,9 @@ export function renderAlbum(app, id) {
     render();
   }
 
+  const exportPdf = () => import('./pdf-export.js').then(({ openPdfExport }) => openPdfExport(album))
+    .catch((error) => toast(t('failed', { reason: error.message })));
+
   function onClick(e) {
     const act = e.target.closest('[data-act]')?.dataset.act;
     if (act !== 'menu') app.querySelector('.acts .menu')?.remove();
@@ -416,7 +419,7 @@ export function renderAlbum(app, id) {
     else if (act === 'download') downloadPhotos(album, [...selected]).catch((error) => toast(t('failed', { reason: error.message })));
     else if (act === 'search') { $('.album-search').hidden = !$('.album-search').hidden; if (!$('.album-search').hidden) $('.album-search').focus(); }
     else if (act === 'clear-search') { query = ''; $('.album-search').value = ''; render(); }
-    else if (act === 'pdf') import('./pdf-export.js').then(({ openPdfExport }) => openPdfExport(album)).catch((error) => toast(t('failed', { reason: error.message })));
+    else if (act === 'pdf') exportPdf();
     else if (act === 'rename') rename();
     else if (act === 'menu') toggleMenu(e.target.closest('[data-act=menu]'));
     else if (act === 'delete-album') removeAlbum();
@@ -571,6 +574,16 @@ export function renderAlbum(app, id) {
   load();
 
   return {
+    desktopContext: () => ({ density: main.dataset.density }),
+    command(name) {
+      if (!album) return;
+      if (name === 'add-photos' && allowWrite() && !mutating) input.click();
+      else if (name === 'export-pdf') exportPdf();
+      else if (name.startsWith('density-')) {
+        density.value = String(DENSITY.indexOf(name.slice('density-'.length)));
+        density.dispatchEvent(new Event('input'));
+      }
+    },
     canLeave(next, again) {
       if ((importer.active || mutating) && (again || next.album !== id)) { toast(c('busy')); return false; }
       if (!again && next.album === id && next.photo === route.photo) return true;

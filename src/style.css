@@ -1922,6 +1922,40 @@ button {
 }
 
 /* Settings (polish spec §3.3) */
+.shortcuts {
+  width: min(620px, calc(100vw - 32px));
+  max-height: calc(100dvh - 40px);
+  overflow: auto;
+}
+
+.shortcuts h4 {
+  margin: 20px 0 8px;
+  color: var(--ink-2);
+  font-size: 13px;
+}
+
+.shortcuts dl {
+  margin: 0;
+  font-size: 14px;
+}
+
+.shortcuts dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 6px 0;
+}
+
+.shortcuts dd {
+  margin: 0;
+  text-align: right;
+}
+
+.shortcuts kbd {
+  font: inherit;
+  color: var(--ink-2);
+}
+
 .settings {
   width: min(520px, calc(100vw - 32px));
 }

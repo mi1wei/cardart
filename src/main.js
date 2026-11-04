@@ -5,14 +5,17 @@ import { renderAlbum } from './album.js';
 import { lang, t } from './i18n.js';
 import { createNav } from './nav.js';
 import { initDesktop } from './desktop.js';
-import { start, swap } from './router.js';
-import { fullscreenTip, icon, toast } from './ui.js';
+import { start, swap, open } from './router.js';
+import { fullscreenTip, icon, toast, dialog } from './ui.js';
 import { renderWall } from './wall.js';
 import { renderTrash } from './trash.js';
-import { initLicense, renderLicense, refreshLicense } from './license.js';
+import { initLicense, renderLicense, refreshLicense, canWrite, allowWrite } from './license.js';
+import { api } from './api.js';
+import { theme, setTheme } from './theme.js';
+import { commandAllowed } from '../shared/commands.js';
+import { openShortcuts, initShortcuts } from './shortcuts.js';
 
 lang(); // the cookie tells the server our language before the first request
-initDesktop();
 const app = document.querySelector('#app');
 let view = null;
 let route = null;
@@ -52,4 +55,35 @@ function show(next, again = false, previousHash) {
   view.update?.(next);
 }
 
+function desktopContext() {
+  return {
+    page: route?.page ?? 'albums',
+    busy: document.documentElement.hasAttribute('data-busy'),
+    appearance: theme(), density: view?.desktopContext?.().density ?? 'm',
+  };
+}
+
+async function command(name) {
+  if (!commandAllowed(name, desktopContext(), canWrite())) return;
+  if (document.querySelector('dialog[open]') && !name.startsWith('appearance-')) return;
+  try {
+    if (name.startsWith('appearance-')) setTheme(name.slice('appearance-'.length));
+    else if (name === 'settings') nav.settings();
+    else if (name === 'shortcuts') openShortcuts();
+    else if (name === 'license') open('#/license');
+    else if (name === 'import-folder') {
+      if (route?.page !== 'albums') open('#/albums');
+      if (route?.page === 'albums') view?.command?.(name);
+    } else if (name === 'new-album' && route?.page !== 'albums') {
+      const next = { page: 'albums', album: null, photo: null, three: false };
+      if (view?.canLeave && !view.canLeave(next, false)) return;
+      const title = await dialog({ title: t('new-album'), value: t('new-album-name'), ok: t('create') });
+      if (!title || !allowWrite() || desktopContext().busy || (view?.canLeave && !view.canLeave(next, false))) return;
+      open(`#/a/${(await api.createAlbum(title)).id}`);
+    } else view?.command?.(name);
+  } catch (error) { toast(t('failed', { reason: error.message })); }
+}
+
+initDesktop({ onCommand: command, getContext: desktopContext });
+initShortcuts();
 start((next, previousHash) => show(next, false, previousHash));

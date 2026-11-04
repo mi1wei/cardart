@@ -244,6 +244,10 @@ export function renderWall(app) {
   window.addEventListener('folio-library-changed', onFocus);
   load();
   return {
+    command(name) {
+      if (name === 'new-album') app.querySelector('[data-act=new]').click();
+      else if (name === 'import-folder' && canImport()) folderInput?.click();
+    },
     // An import keeps the wall open (polish spec §5).
     canLeave() {
       if (!importer.active) return true;
