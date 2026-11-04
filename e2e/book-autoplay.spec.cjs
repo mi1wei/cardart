@@ -6,8 +6,43 @@ const { seedBook } = require('./ui-helpers.cjs');
 async function openBook(page) {
   const origin = new URL(page.url()).origin;
   const album = await seedBook(page, origin, 'Auto', 3, 1);
-  await page.goto(`${origin}/#/a/${album.id}/3d`);
-  await expect(page.locator('.ab-count')).toHaveText('1 / 3', { timeout: 15000 }); // three.js can take a while on a busy machine
+  // Auto-flip is timed, so tests start it once the pages are loaded and drawn: on a CPU renderer each
+  // texture upload holds the page for seconds and would delay the step under test.
+  const loading = new Set();
+  const track = (request) => { if (new URL(request.url()).pathname.startsWith('/media/')) loading.add(request); };
+  const done = (request) => loading.delete(request);
+  page.on('request', track);
+  page.on('requestfinished', done);
+  page.on('requestfailed', done);
+  const frames = await page.evaluateHandle(() => {
+    const request = window.requestAnimationFrame.bind(window);
+    const cancel = window.cancelAnimationFrame.bind(window);
+    const pending = new Set();
+    let last = performance.now();
+    window.requestAnimationFrame = (callback) => {
+      const id = request((time) => {
+        pending.delete(id);
+        try { callback.call(window, time); }
+        finally { last = performance.now(); }
+      });
+      pending.add(id);
+      return id;
+    };
+    window.cancelAnimationFrame = (id) => {
+      pending.delete(id);
+      cancel(id);
+    };
+    return { quiet: () => (pending.size ? 0 : performance.now() - last) };
+  });
+  try {
+    await page.goto(`${origin}/#/a/${album.id}/3d`);
+    await expect(page.locator('.ab-count')).toHaveText('1 / 3', { timeout: 15000 }); // three.js can take a while on a busy machine
+    await expect.poll(async () => (loading.size ? 0 : await frames.evaluate((state) => state.quiet())), { timeout: 30_000 }).toBeGreaterThan(1000);
+  } finally {
+    page.off('request', track);
+    page.off('requestfinished', done);
+    page.off('requestfailed', done);
+  }
   return { origin, album };
 }
 
@@ -23,13 +58,24 @@ test('auto-flip turns spreads at the chosen speed, closes the book at the end an
     await expect(page.locator('.ab')).toHaveAttribute('data-autoplay', 'playing');
     await expect(page.locator('.ab-turn')).toBeHidden();
     await expect(page.locator('.ab-progress')).toBeVisible();
+    // Time the step in the page: a frame on a CPU renderer can hold up the test's own checks for seconds.
+    await page.evaluate(() => {
+      const times = window.flipTimes = {};
+      const fast = document.querySelector('.ab-speed [data-speed=fast]');
+      const shown = document.querySelector('.ab-count');
+      new MutationObserver(() => { if (fast.getAttribute('aria-pressed') === 'true') times.fast ??= performance.now(); })
+        .observe(fast, { attributes: true, attributeFilter: ['aria-pressed'] });
+      new MutationObserver(() => { times[shown.textContent] ??= performance.now(); })
+        .observe(shown, { childList: true, characterData: true, subtree: true });
+    });
     await page.locator('.ab-speed [data-speed=fast]').click();
     await expect(page.locator('.ab-speed [data-speed=fast]')).toHaveAttribute('aria-pressed', 'true');
-    const started = Date.now();
-    await expect(count).toHaveText('2 / 3', { timeout: 6000 });
-    expect(Date.now() - started).toBeGreaterThan(3000);
-    await expect(count).toHaveText('3 / 3', { timeout: 6000 });
-    await expect(page.locator('.ab-shut')).toBeVisible({ timeout: 6000 });
+    await expect(count).toHaveText('2 / 3', { timeout: 15_000 });
+    const step = await page.evaluate(() => window.flipTimes['2 / 3'] - window.flipTimes.fast);
+    expect(step, 'the next spread waits for the fast interval').toBeGreaterThan(3000);
+    expect(step, 'and comes before the default interval would end').toBeLessThan(6000);
+    await expect(count).toHaveText('3 / 3', { timeout: 15_000 });
+    await expect(page.locator('.ab-shut')).toBeVisible({ timeout: 15_000 });
     await expect(page.locator('.ab[data-autoplay]')).toHaveCount(0);
     await expect(page.locator('.ab-progress')).toBeHidden();
     expect(await page.evaluate(() => localStorage.getItem('flip-speed'))).toBe('fast');
