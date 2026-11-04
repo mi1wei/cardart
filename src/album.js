@@ -5,6 +5,7 @@ import { backLink, dialog, icon, toast } from './ui.js';
 import { lang, mediaCountText, t } from './i18n.js';
 import { allowWrite, canWrite } from './license.js';
 import { createImporter } from './import-files.js';
+import { collectDrop } from './folder-files.js';
 import { formatDuration, mediaCounts } from '../shared/media.js';
 import { c } from './collection-text.js';
 import { formatRange } from '../shared/dates.js';
@@ -247,12 +248,12 @@ export function renderAlbum(app, id) {
   }
 
   // Files from the file input or a drop join the import queue (import-files.js).
-  function enqueue(files) {
+  function enqueue(files, { notMedia = 0, unreadable = 0 } = {}) {
     if (!allowWrite()) return;
     if (mutating || (document.documentElement.hasAttribute('data-busy') && !importer.active)) { toast(c('busy')); return; }
     const list = [...files];
-    if (!list.length || !album) return;
-    importer.add({ album: id, files: list });
+    if ((!list.length && !notMedia && !unreadable) || !album) return;
+    importer.add({ album: id, files: list, notMedia, unreadable });
   }
 
   async function refreshAfterUpload(signal) {
@@ -512,11 +513,22 @@ export function renderAlbum(app, id) {
     clearTimeout(main.dropTimer);
     main.dropTimer = setTimeout(() => main.classList.remove('dropping'), 150);
   }
-  function onDrop(e) {
+  // Dropped folders add what is inside them, at any depth, to this album (polish spec §5).
+  async function onDrop(e) {
     if (!hasFiles(e) || !album) return;
     e.preventDefault();
     main.classList.remove('dropping');
-    enqueue(e.dataTransfer.files);
+    if (!allowWrite()) return;
+    const { folders, loose } = await collectDrop(e.dataTransfer); // takes the items before it awaits
+    if (!alive) return;
+    const groups = [loose, ...folders];
+    const files = groups.flatMap((group) => group.files);
+    const unreadable = groups.reduce((n, group) => n + group.unreadable, 0);
+    if (!files.length && !unreadable && folders.length) {
+      toast(t('folder-empty', { names: folders.map((group) => group.name) }));
+      return;
+    }
+    enqueue(files, { notMedia: groups.reduce((n, group) => n + group.skipped, 0), unreadable });
   }
 
   const onFocus = () => {

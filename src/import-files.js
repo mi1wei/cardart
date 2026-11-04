@@ -7,7 +7,7 @@ import { probeVideo } from './video-probe.js';
 const SKIP = { duplicate: 'dup', unsupported: 'bad', 'too-large': 'big' };
 const FAILURE = { timeout: 'video-timeout', blocked: 'video-blocked', unreadable: 'video-unreadable', network: 'upload-network', 'bad-response': 'upload-bad-response' };
 const isVideo = (file) => /\.(mp4|mov|m4v)$/i.test(file.name) || /^(video\/mp4|video\/quicktime|video\/x-m4v)$/i.test(file.type);
-const fresh = () => ({ total: 0, done: 0, dup: 0, bad: 0, big: 0, fail: 0 });
+const fresh = () => ({ total: 0, done: 0, dup: 0, bad: 0, big: 0, other: 0, unreadable: 0, fail: 0 });
 
 // The import queue and its progress box, shared by the album page and the album wall (polish spec §5).
 // Files go up one at a time (v1 spec §7) and files added during a run join it; html[data-busy] holds
@@ -28,13 +28,14 @@ export function createImporter(host, { beforeFile, onPhoto, onDone } = {}) {
   let dead = false;
   let controller = null;
 
+  // Files that are not photos or videos never went up; they are counted with the skipped ones.
   function summary() {
-    const skipped = tally.dup + tally.bad + tally.big;
-    const why = [tally.dup && t('dup', { n: tally.dup }), tally.bad && t('bad', { n: tally.bad }), tally.big && t('big', { n: tally.big })]
-      .filter(Boolean)
-      .join(t('sep'));
-    return t('imported', { n: tally.done }) + (skipped ? t('skipped', { n: skipped, why }) : '') + (tally.fail ? t('failed-n', { n: tally.fail }) : '') +
-      (lastFailure ? ` · ${lastFailure}` : '');
+    const skipped = tally.dup + tally.bad + tally.big + tally.other;
+    const why = [tally.dup && t('dup', { n: tally.dup }), tally.bad && t('bad', { n: tally.bad }), tally.big && t('big', { n: tally.big }),
+      tally.other && t('not-media', { n: tally.other })].filter(Boolean).join(t('sep'));
+    const skip = !skipped ? '' : skipped === tally.other ? t('skipped-not-media', { n: skipped }) : t('skipped', { n: skipped, why });
+    const note = lastFailure || (tally.unreadable ? t('read-failed', { n: tally.unreadable }) : '');
+    return t('imported', { n: tally.done }) + skip + (tally.fail ? t('failed-n', { n: tally.fail }) : '') + (note ? ` · ${note}` : '');
   }
 
   async function run() {
@@ -95,7 +96,7 @@ export function createImporter(host, { beforeFile, onPhoto, onDone } = {}) {
     await onDone?.();
     // Files added meanwhile started another run; it carries these counts on to its own summary.
     if (dead || active) return;
-    const failed = Boolean(lastFailure);
+    const failed = Boolean(lastFailure || tally.unreadable);
     heading.textContent = t('import-done');
     current.textContent = '';
     bar.style.width = '100%';
@@ -107,10 +108,14 @@ export function createImporter(host, { beforeFile, onPhoto, onDone } = {}) {
 
   return {
     get active() { return active; },
-    add({ album, files }) {
+    // notMedia and unreadable come from collecting a drop or a folder: counted, never uploaded.
+    add({ album, files, notMedia = 0, unreadable = 0 }) {
       const list = [...files];
       for (const file of list) queue.push({ album, file });
       tally.total += list.length;
+      tally.other += notMedia;
+      tally.unreadable += unreadable;
+      tally.fail += unreadable;
       if (!active && !dead) void run();
     },
     destroy() {
