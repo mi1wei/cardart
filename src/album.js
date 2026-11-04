@@ -202,6 +202,7 @@ export function renderAlbum(app, id) {
     el.style.setProperty('--a', (p.w / p.h).toFixed(4));
     el.classList.toggle('sel', selected.has(p.id));
     el.innerHTML = `<img alt="" loading="lazy" draggable="false" src="${mediaUrl(id, p.id, 600)}">${isCover ? `<span class="badge">${t('cover')}</span>` : ''}<span class="chk">${icon('check')}</span>`;
+    let label = p.name;
     if (p.kind === 'video') {
       el.classList.add('tile-video');
       const badge = document.createElement('span');
@@ -209,8 +210,10 @@ export function renderAlbum(app, id) {
       badge.innerHTML = icon('play');
       badge.append(document.createTextNode(formatDuration(p.duration)));
       el.append(badge);
-      el.setAttribute('aria-label', `${p.name} · ${t('video')} · ${formatDuration(p.duration)}`);
-    } else el.setAttribute('aria-label', p.name);
+      label = `${p.name} · ${t('video')} · ${formatDuration(p.duration)}`;
+    }
+    if (isCover) label += `${lang() === 'zh' ? '，' : ', '}${t('cover')}`;
+    el.setAttribute('aria-label', label);
     el.querySelector('img').onerror = () => el.classList.add('missing');
     return el;
   }

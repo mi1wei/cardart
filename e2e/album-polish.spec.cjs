@@ -131,9 +131,9 @@ test('narrow album cards keep the title readable next to the full count', async 
       const sizes = await page.locator('.folder').first().evaluate((card) => {
         const box = (sel) => card.querySelector(sel);
         return {
-          title: box('h3').clientWidth, titleFull: box('h3').scrollWidth,
+          title: box('h2').clientWidth, titleFull: box('h2').scrollWidth,
           count: box('.n').clientWidth, countFull: box('.n').scrollWidth, meta: box('.meta').clientWidth,
-          gap: box('.n').getBoundingClientRect().top - box('h3').getBoundingClientRect().bottom,
+          gap: box('.n').getBoundingClientRect().top - box('h2').getBoundingClientRect().bottom,
         };
       });
       expect(sizes.title, `title at ${width}px`).toBeGreaterThanOrEqual(Math.min(sizes.titleFull, sizes.meta * 0.6));

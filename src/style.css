@@ -136,6 +136,16 @@ button {
   color: inherit;
 }
 
+button, input, select, summary, .back-link, .link, .welcome-trash {
+  min-width: 24px;
+  min-height: 24px;
+}
+
+.welcome-trash {
+  display: inline-flex;
+  align-items: center;
+}
+
 /* Buttons: pills, as on cardart.cc */
 .btn {
   display: inline-flex;
@@ -537,7 +547,7 @@ button {
   margin-top: 12px;
 }
 
-.folder h3 {
+.folder h2 {
   flex: 0 1 auto;
   min-width: 0;
   margin: 0;
@@ -598,7 +608,7 @@ button {
     flex-basis: 100%;
   }
 
-  .folder h3 {
+  .folder h2 {
     flex: 1 1 0;
   }
 
@@ -1637,8 +1647,9 @@ button {
 .tile {
   position: relative;
   flex: calc(var(--a) * 1000) 1 calc(var(--a) * var(--row));
-  min-width: 0;
+  min-width: 24px;
   max-width: calc(var(--a) * var(--row) * 2);
+  max-height: calc(var(--row) * 2);
   aspect-ratio: var(--a);
   padding: 0;
   overflow: hidden;
@@ -1654,7 +1665,7 @@ button {
   inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   transition: transform 0.4s var(--ease-out);
 }
 
@@ -2819,4 +2830,29 @@ body:has(.ab, .lb) {
     padding: 0;
     justify-content: center;
   }
+}
+
+@media (pointer: coarse) {
+  :root :is(button, input:not([type=checkbox], [type=radio]), select, textarea, summary, .logo, .back-link, .link, .welcome-trash) {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .sort-label, .ab-select, .ab-layout {
+    height: auto;
+    min-height: 44px;
+  }
+
+  .tg { min-height: 44px; }
+}
+
+@media (pointer: coarse) and (max-width: 600px) {
+  .ab-bar {
+    gap: 4px;
+    padding-left: max(10px, env(safe-area-inset-left, 0px));
+    padding-right: max(10px, env(safe-area-inset-right, 0px));
+  }
+
+  .ab-foot { padding-left: 10px; padding-right: 10px; }
+  .trash-page .ph { flex-wrap: wrap; }
 }

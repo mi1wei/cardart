@@ -95,7 +95,7 @@
 .trash-groups h2 { font-size: var(--text-20); line-height: var(--leading-20); }
 .trash-item { margin-bottom: 12px; border: 1px solid var(--line); border-radius: var(--radius-12); background: var(--raised); padding: 16px; }
 .trash-item label { display: flex; align-items: center; gap: 12px; }
-.trash-item input { width: 18px; height: 18px; accent-color: var(--accent); }
+.trash-item input { flex: none; width: 24px; height: 24px; accent-color: var(--accent); }
 .trash-item strong { display: block; }
 .trash-item small { display: block; margin-top: 4px; color: var(--ink-3); }
 .trash-photos { display: flex; gap: 8px; overflow-x: auto; margin: 12px 0 0 30px; }
@@ -146,4 +146,15 @@
   .trash-card span { text-align: center; font-size: var(--text-12); line-height: var(--leading-12); }
   .trash-page .ph .btn { width: auto; padding: 0 12px; }
   .photo-sort { max-width: 120px; }
+}
+
+@media (pointer: coarse) {
+  .trash-item label { min-height: 44px; }
+}
+
+@media (pointer: coarse) and (max-width: 600px) {
+  .trash-page:has(.batch-bar:not([hidden])) { padding-bottom: 130px; }
+  .trash-page .batch-bar { width: max-content; flex-wrap: wrap; justify-content: center; gap: 6px; }
+  .trash-page .batch-bar .picked { flex-basis: 100%; text-align: center; }
+  .trash-page .batch-bar .btn { width: auto; padding: 0 12px; }
 }

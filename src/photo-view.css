@@ -295,3 +295,6 @@
 @media (prefers-reduced-motion: reduce) {
   .lb-filmstrip { transition: none; }
 }
+@media (pointer: coarse) {
+  .lb :is(button, .btn) { min-width: 44px; min-height: 44px; }
+}

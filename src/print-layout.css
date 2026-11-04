@@ -36,6 +36,7 @@
 .pdf-saved { display: flex; align-items: center; gap: 16px; }
 .pdf-saved button { border: 0; background: none; color: #a7d5ed; font: inherit; cursor: pointer; text-decoration: underline; }
 @media (max-width: 740px) { .pdf-export-form { grid-template-columns: minmax(200px, 1fr) minmax(240px, 1fr); } .pdf-options, .pdf-preview { padding: 20px; } }
+@media (pointer: coarse) { .pdf-check { min-height: 44px; } }
 @media print {
   @page { margin: 0; }
   .print-document { background: #fff; }

@@ -169,7 +169,7 @@ test('capture date ranges appear on the album and card, and phone long-press ope
     const card = await page.locator('.folder').first().evaluate((el) => {
       const box = (selector) => el.querySelector(selector).getBoundingClientRect();
       const count = el.querySelector('.n');
-      const title = el.querySelector('h3');
+      const title = el.querySelector('h2');
       return {
         countWhole: count.scrollWidth <= count.clientWidth,
         title: title.clientWidth, titleFull: title.scrollWidth, meta: el.querySelector('.meta').clientWidth,

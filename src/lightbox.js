@@ -184,6 +184,7 @@ export function openLightbox({ album, index = 0, onIndex = () => {}, onAlbum = (
     setMedia(p);
     $('.lb-count').textContent = `${index + 1} / ${album.photos.length}`;
     $('.lb-album-name').textContent = album.title;
+    $('.lb-back').setAttribute('aria-label', t(trashActions ? 'back-to-trash' : 'back-to-album', { title: album.title }));
     root.setAttribute('aria-label', `${trashActions ? lt('trash-preview') : album.title} · ${index + 1} / ${album.photos.length}`);
     details?.setPhoto(album.id, p);
     filmstrip.set(album.photos, index);
