@@ -9,6 +9,7 @@ import { dialog, icon, toast } from './ui.js';
 import { allowWrite } from './license.js';
 import { c, preference } from './collection-text.js';
 import { showUndo } from './undo.js';
+import { bindContextMenu } from './context-menu.js';
 
 export function renderWall(app) {
   let alive = true;
@@ -143,6 +144,42 @@ export function renderWall(app) {
 
   const closeMenu = () => app.querySelector('.menu')?.remove();
 
+  async function runAction(action, a) {
+    if (action === 'open' || action === '3d') return open(`#/a/${a.id}${action === '3d' ? '/3d' : ''}`);
+    if (!['new', 'rename', 'delete', 'pdf'].includes(action) || !allowWrite()) return;
+    if (mutating || document.documentElement.hasAttribute('data-busy')) { toast(c('busy')); return; }
+    let writing = false;
+    let destination;
+    try {
+      if (action === 'pdf') {
+        const album = await api.album(a.id);
+        const { openPdfExport } = await import('./pdf-export.js');
+        if (alive) openPdfExport(album);
+        return;
+      }
+      let title;
+      if (action === 'new') title = await dialog({ title: t('new-album'), value: t('new-album-name'), ok: t('create') });
+      else if (action === 'rename') title = await dialog({ title: t('rename-album'), value: a.title, ok: t('save') });
+      else if (!await dialog({ title: t('delete-album'), text: t('delete-album-text', { name: a.title }), ok: t('delete'), danger: true })) return;
+      if (action !== 'delete' && (!title || title === a?.title)) return;
+      if (!alive || !allowWrite()) return;
+      if (mutating || document.documentElement.hasAttribute('data-busy')) { toast(c('busy')); return; }
+      writing = true;
+      mutating = true;
+      document.documentElement.setAttribute('data-busy', '');
+      if (action === 'new') destination = (await api.createAlbum(title)).id;
+      else if (action === 'rename') await api.updateAlbum(a.id, { title });
+      else {
+        const result = await api.deleteAlbum(a.id);
+        showUndo(result.trashId, load);
+      }
+      if (action !== 'new') await load();
+    } finally {
+      if (writing) { mutating = false; document.documentElement.removeAttribute('data-busy'); }
+    }
+    if (destination && alive) open(`#/a/${destination}`);
+  }
+
   async function onClick(e) {
     const target = e.target.closest('[data-act]');
     const act = target?.dataset.act;
@@ -171,26 +208,25 @@ export function renderWall(app) {
             `<div class="menu" role="menu"><button type="button" data-write data-act="rename">${t('rename')}</button><button type="button" data-write class="red" data-act="delete">${t('delete-album')}</button></div>`,
           );
         }
-      } else if (act === 'new') {
-        const title = await dialog({ title: t('new-album'), value: t('new-album-name'), ok: t('create') });
-        if (title) open(`#/a/${(await api.createAlbum(title)).id}`);
-      } else if (act === 'rename') {
-        const title = await dialog({ title: t('rename-album'), value: a.title, ok: t('save') });
-        if (title && title !== a.title) await api.updateAlbum(a.id, { title });
-        load();
-      } else if (act === 'delete') {
-        const text = t('delete-album-text', { name: a.title });
-        if (!(await dialog({ title: t('delete-album'), text, ok: t('delete'), danger: true })) || !alive || !allowWrite()) return;
-        if (document.documentElement.hasAttribute('data-busy')) { toast(c('busy')); return; }
-        mutating = true;
-        const result = await api.deleteAlbum(a.id);
-        showUndo(result.trashId, load);
-        load();
-      }
+      } else await runAction(act, a);
     } catch (err) {
       toast(t('failed', { reason: err.message }));
-    } finally { mutating = false; }
+    }
   }
+
+  const closeContext = bindContextMenu(wall, '.folder', (element) => {
+    const a = albums.find((album) => album.id === element.dataset.id);
+    if (!a) return [];
+    return [
+      { id: 'open', label: t('context-open'), run: () => runAction('open', a) },
+      { id: '3d', label: t('flip-3d'), disabled: !a.count, run: () => runAction('3d', a) },
+      null,
+      { id: 'rename', label: t('rename-album'), write: true, disabled: mutating, run: () => runAction('rename', a) },
+      ...(onComputer ? [{ id: 'pdf', label: c('pdf'), write: true, disabled: mutating, run: () => runAction('pdf', a) }] : []),
+      null,
+      { id: 'delete', label: t('delete-album'), write: true, disabled: mutating, danger: true, run: () => runAction('delete', a) },
+    ];
+  });
 
   const onFocus = () => load();
   const onKey = (event) => { if (event.key === 'Escape') closeMenu(); };
@@ -250,11 +286,12 @@ export function renderWall(app) {
     },
     // An import keeps the wall open (polish spec §5).
     canLeave() {
-      if (!importer.active) return true;
+      if (!importer.active && !mutating) return true;
       toast(c('busy'));
       return false;
     },
     destroy() {
+      closeContext();
       alive = false;
       importer.destroy();
       clearTimeout(hint?.timer);

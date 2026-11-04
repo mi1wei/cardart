@@ -5,6 +5,7 @@ import { allowWrite } from './license.js';
 import { openLightbox } from './lightbox.js';
 import { backLink, dialog, icon, toast } from './ui.js';
 import { mediaCounts } from '../shared/media.js';
+import { bindContextMenu } from './context-menu.js';
 
 export function renderTrash(app) {
   let alive = true;
@@ -147,12 +148,20 @@ export function renderTrash(app) {
     else if (action === 'purge') void operate('purge', [...selected]);
     else if (action === 'purge-all') void operate('purge', [], true);
   }
+  const closeContext = bindContextMenu(app, '.trash-item', (element) => {
+    const id = element.dataset.id;
+    return [
+      { id: 'restore', label: c('restore'), write: true, disabled: busy, run: () => operate('restore', [id]) },
+      { id: 'purge', label: c('purge'), write: true, disabled: busy, danger: true, run: () => operate('purge', [id]) },
+    ];
+  });
   app.addEventListener('click', onClick);
   window.addEventListener('focus', load);
   load();
   return {
     canLeave() { if (busy) { toast(c('busy')); return false; } return true; },
     destroy() {
+      closeContext();
       alive = false;
       preview?.close();
       app.removeEventListener('click', onClick);

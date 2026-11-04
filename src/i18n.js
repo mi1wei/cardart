@@ -2,6 +2,11 @@
 export const TEXT = {
   zh: {
     shortcuts: '键盘快捷键',
+    'context-open': '打开',
+    'context-3d': '在 3D 中查看',
+    'context-note': '编辑备注…',
+    'context-download': ({ n }) => `下载（${n} 项）`,
+    'context-delete': ({ n }) => `删除（${n} 项）`,
     'shortcut-group-global': '全局',
     'shortcut-group-album': '相册页',
     'shortcut-group-selection': '选择',
@@ -307,6 +312,11 @@ export const TEXT = {
   },
   en: {
     shortcuts: 'Keyboard Shortcuts',
+    'context-open': 'Open',
+    'context-3d': 'View in 3D',
+    'context-note': 'Edit note…',
+    'context-download': ({ n }) => `Download (${n} items)`,
+    'context-delete': ({ n }) => `Delete (${n} items)`,
     'shortcut-group-global': 'Global',
     'shortcut-group-album': 'Album',
     'shortcut-group-selection': 'Selection',
