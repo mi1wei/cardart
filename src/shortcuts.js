@@ -23,7 +23,7 @@ export function openShortcuts() {
     ['viewer', [['\u2190 / \u2192', 'shortcut-photos'], ['I', 'details'], ['+ / \u2212', 'shortcut-zoom'], ['0', 'shortcut-fit'], ['Space', 'shortcut-video'], ['Esc', 'close']]],
     ['book', [['\u2190 / \u2192 / PageUp / PageDown', 'shortcut-pages'], ['Space', 'autoplay'], ['Esc', 'shortcut-book-close']]],
   ];
-  d.innerHTML = `<form method="dialog"><h3 id="shortcuts-title">${t('shortcuts')}</h3>${groups.map(([group, rows]) =>
+  d.innerHTML = `<form method="dialog"><h3 id="shortcuts-title" tabindex="-1" autofocus>${t('shortcuts')}</h3>${groups.map(([group, rows]) =>
     `<section><h4>${t(`shortcut-group-${group}`)}</h4><dl>${rows.map(([key, label]) => `<div><dt>${t(label)}</dt><dd><kbd>${key}</kbd></dd></div>`).join('')}</dl></section>`).join('')}
     <div class="dlg-acts"><button class="btn pri">${t('settings-done')}</button></div></form>`;
   d.addEventListener('close', () => {

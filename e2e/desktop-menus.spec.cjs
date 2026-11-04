@@ -57,6 +57,7 @@ test('keyboard help is reachable from question mark, Settings and the native hel
     const { desktop, page } = await fixture.launch();
     await page.keyboard.press('?');
     await expect(page.locator('dialog.shortcuts')).toBeVisible();
+    await expect(page.locator('#shortcuts-title')).toBeInViewport();
     await expect(page.locator('.shortcuts h4')).toHaveText(['Global', 'Album', 'Selection', 'Photo viewer', '3D']);
     await page.keyboard.press('Escape');
     await expect(page.locator('dialog.shortcuts')).toHaveCount(0);
