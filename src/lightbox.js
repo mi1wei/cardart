@@ -7,6 +7,8 @@ import { createPhotoZoom } from './lightbox-zoom.js';
 import { createFilmstrip } from './lightbox-filmstrip.js';
 import { lt } from './lightbox-text.js';
 import { showUndo } from './undo.js';
+import { c } from './collection-text.js';
+import { chooseAlbum } from './collection-actions.js';
 import './photo-view.css';
 
 const KEYS = { ArrowLeft: 'prev', ArrowRight: 'next', Escape: 'close', '+': 'zoom-in', '=': 'zoom-in', '-': 'zoom-out', '−': 'zoom-out', '0': 'fit', i: 'details', I: 'details', ' ': 'play' };
@@ -43,6 +45,8 @@ export function openLightbox({ album, index = 0, onIndex = () => {}, onAlbum = (
     </section></div>
     ${trashActions ? '' : `<div class="lb-menu" role="menu" hidden>
       <button type="button" role="menuitem" data-write data-act="menu-cover">${icon('image')}<span>${t('set-album-cover')}</span></button>
+      <button type="button" role="menuitem" data-write data-act="menu-copy">${icon('copy')}<span>${t('copy-to-album')}</span></button>
+      <button type="button" role="menuitem" data-write data-act="menu-move">${icon('move')}<span>${t('move-to-album')}</span></button>
       <button type="button" role="menuitem" data-write data-act="menu-delete">${icon('trash')}<span>${t('delete')}</span></button>
     </div>`}`;
   const $ = (s) => root.querySelector(s);
@@ -225,9 +229,10 @@ export function openLightbox({ album, index = 0, onIndex = () => {}, onAlbum = (
     name = name.replace(/^(sheet|menu)-/, '');
     if (disposed || !album.photos[index]) return;
     if (trashActions && !['prev', 'next', 'close', 'restore', 'purge', 'video-retry', 'play', 'fit', 'actual', 'zoom-in', 'zoom-out'].includes(name)) return;
-    if (['cover', 'delete', 'restore', 'purge'].includes(name) && !allowWrite()) return;
+    const writes = ['cover', 'copy', 'move', 'delete', 'restore', 'purge'];
+    if (writes.includes(name) && !allowWrite()) return;
     const p = album.photos[index];
-    if (busy || (['cover', 'delete', 'restore', 'purge'].includes(name) && details?.saving)) { toast(t(p.kind === 'video' ? 'note-video-wait-save' : 'note-wait-save')); return; }
+    if (busy || (writes.includes(name) && details?.saving)) { toast(t(p.kind === 'video' ? 'note-video-wait-save' : 'note-wait-save')); return; }
     try {
       if (name === 'prev') go(index - 1);
       else if (name === 'next') go(index + 1);
@@ -284,6 +289,32 @@ export function openLightbox({ album, index = 0, onIndex = () => {}, onAlbum = (
           onAlbum(album);
           toast(t('cover-set'));
         } finally { setPending(false); }
+      } else if (name === 'copy' || name === 'move') {
+        if (name === 'move' && !details.canLeave()) return;
+        closeMenu();
+        // Imports and batch changes hold html[data-busy]; a transfer waits for them (polish spec §8).
+        if (document.documentElement.hasAttribute('data-busy')) { toast(c('busy')); return; }
+        const target = await chooseAlbum(album.id, name);
+        if (!target || !root.isConnected || !allowWrite()) return;
+        if (document.documentElement.hasAttribute('data-busy')) { toast(c('busy')); return; }
+        setPending(true);
+        document.documentElement.setAttribute('data-busy', '');
+        let result;
+        try { result = await api.transferPhotos(album.id, [p.id], target.id, target.mode); }
+        finally {
+          // Released before the album changes: a busy viewer would refuse the close below.
+          document.documentElement.removeAttribute('data-busy');
+          setPending(false);
+        }
+        onAlbum(result.album);
+        toast(result.skipped
+          ? c('transferred', { n: result.copied, skipped: result.skipped })
+          : t(target.mode === 'move' ? 'moved-to' : 'copied-to', { album: target.title }));
+        if (!root.isConnected) return;
+        // A moved item leaves: show the next one, the previous one at the end, or close when none is left.
+        if (!result.album.photos.length) return onClose();
+        show(index, result.album);
+        onIndex(album.photos[index].id);
       } else if (name === 'delete') {
         if (!details.canLeave()) return;
         closeMenu();

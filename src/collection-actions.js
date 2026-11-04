@@ -53,9 +53,11 @@ export async function chooseAlbum(sourceId, mode = 'move') {
   if (choice === 'new') {
     const name = await dialog({ title: t('new-album'), value: t('new-album-name'), ok: t('create') });
     if (!name || !allowWrite()) return null;
-    return { id: (await api.createAlbum(name)).id, mode: operation.value };
+    const created = await api.createAlbum(name);
+    return { id: created.id, mode: operation.value, title: created.title };
   }
-  return choice && choice !== 'cancel' ? { id: choice, mode: operation.value } : null;
+  if (!choice || choice === 'cancel') return null;
+  return { id: choice, mode: operation.value, title: albums.find((album) => album.id === choice)?.title ?? '' };
 }
 
 export async function downloadPhotos(album, ids) {

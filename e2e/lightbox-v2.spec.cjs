@@ -353,3 +353,75 @@ test('the top bar keeps details, download, delete and More; More sets the album 
     await expect(cover).toBeDisabled();
   } finally { await fixture.close(); }
 });
+
+test('More copies or moves the current item to another album, then shows the next one', async () => {
+  test.setTimeout(60_000);
+  const fixture = await desktopFixture();
+  try {
+    const { page, origin, album } = await open(fixture);
+    const kyoto = await (await page.request.post(`${origin}/api/albums`, { data: { title: 'Kyoto' } })).json();
+    const count = async (id) => (await (await page.request.get(`${origin}/api/albums/${id}`)).json()).photos.length;
+    const pick = async (act) => {
+      await page.locator('.lb-bar [data-act=menu]').click();
+      await page.locator(`.lb-menu [data-act=menu-${act}]`).click();
+      await expect(page.locator('.album-picker .transfer-mode')).toHaveValue(act);
+    };
+    await pick('copy');
+    await page.locator(`.album-picker [data-target="${kyoto.id}"]`).click();
+    await expect(page.locator('.toast')).toHaveText('Copied to "Kyoto"');
+    await expect(page.locator('.lb-count')).toHaveText('1 / 2');
+    expect(await count(kyoto.id)).toBe(1);
+    // The same photo again is skipped as a duplicate, reported as batch transfers report it.
+    await pick('copy');
+    await page.locator(`.album-picker [data-target="${kyoto.id}"]`).click();
+    await expect(page.locator('.toast')).toHaveText('0 items transferred · 1 duplicates skipped');
+    // Moving into a new album: the viewer goes on to the next item.
+    await pick('move');
+    await page.locator('.album-picker [data-action=new]').click();
+    await page.locator('dialog.dlg input').fill('Nara');
+    await page.locator('dialog.dlg [value=ok]').click();
+    await expect(page.locator('.toast')).toHaveText('Moved to "Nara"');
+    await expect(page.locator('.lb-count')).toHaveText('1 / 1');
+    await expect(page.locator('.lb-filmstrip [aria-current=true]')).toHaveAccessibleName(/clip.mp4/);
+    expect(await count(album.id)).toBe(1);
+    // Moving the last item from the viewer over the 3D book closes both and leaves an empty album.
+    await page.goto(`${origin}/#/a/${album.id}/3d/p/${album.photos[1].id}`);
+    await expect(page.locator('.ab canvas')).toBeVisible();
+    await expect(page.locator('.lb')).toBeVisible();
+    await pick('move');
+    await page.locator(`.album-picker [data-target="${kyoto.id}"]`).click();
+    await expect(page.locator('.lb')).toHaveCount(0);
+    await expect(page.locator('.ab')).toHaveCount(0);
+    await expect(page).toHaveURL(new RegExp(`#/a/${album.id}$`));
+    await expect(page.locator('.album-page .drop')).toBeVisible();
+    expect(await count(kyoto.id)).toBe(2);
+  } finally { await fixture.close(); }
+});
+
+test('copy and move wait for an import to finish', async () => {
+  const fixture = await desktopFixture();
+  try {
+    const { page } = await open(fixture);
+    await page.evaluate(() => document.documentElement.setAttribute('data-busy', ''));
+    try {
+      await page.locator('.lb-bar [data-act=menu]').click();
+      await page.locator('.lb-menu [data-act=menu-move]').click();
+      await expect(page.locator('.toast')).toHaveText('Please wait for the current operation to finish.');
+      await expect(page.locator('.album-picker')).toHaveCount(0);
+    } finally {
+      // Quitting waits for imports to finish, so end the pretend one.
+      await page.evaluate(() => document.documentElement.removeAttribute('data-busy'));
+    }
+  } finally { await fixture.close(); }
+});
+
+test('a read-only license disables setting the cover, copying and moving in More', async () => {
+  const fixture = await desktopFixture({ license: 'expired' });
+  try {
+    const { page } = await open(fixture);
+    await page.locator('.lb-bar [data-act=menu]').click();
+    for (const act of ['cover', 'copy', 'move']) await expect(page.locator(`.lb-menu [data-act=menu-${act}]`)).toHaveAttribute('aria-disabled', 'true');
+    await page.locator('.lb-menu [data-act=menu-copy]').dispatchEvent('click');
+    await expect(page.locator('.album-picker')).toHaveCount(0);
+  } finally { await fixture.close(); }
+});
