@@ -398,6 +398,41 @@ test('More copies or moves the current item to another album, then shows the nex
   } finally { await fixture.close(); }
 });
 
+test('switching the album picker from Copy to Move still asks before an unsaved note is lost', async () => {
+  const fixture = await desktopFixture();
+  try {
+    const { page, origin, album } = await open(fixture);
+    const kyoto = await (await page.request.post(`${origin}/api/albums`, { data: { title: 'Kyoto' } })).json();
+    const count = async (id) => (await (await page.request.get(`${origin}/api/albums/${id}`)).json()).photos.length;
+    await page.locator('.lb-bar [data-act=details]').click();
+    await page.locator('[data-note-edit]').click();
+    const input = page.getByLabel('Note text', { exact: true });
+    await input.fill('Unsaved draft');
+    const asked = [];
+    const moveFromCopy = async (answer) => {
+      await page.locator('.lb-bar [data-act=menu]').click();
+      await page.locator('.lb-menu [data-act=menu-copy]').click();
+      await page.locator('.album-picker .transfer-mode').selectOption('move');
+      page.once('dialog', (dialog) => { asked.push(dialog.message()); return dialog[answer](); });
+      await page.locator(`.album-picker [data-target="${kyoto.id}"]`).click();
+      await expect(page.locator('.album-picker')).toHaveCount(0);
+    };
+    // Keep the draft: nothing moves.
+    await moveFromCopy('dismiss');
+    await expect.poll(() => asked.length).toBe(1);
+    await expect(input).toHaveValue('Unsaved draft');
+    await expect(page.locator('.lb-count')).toHaveText('1 / 2');
+    expect(await count(kyoto.id)).toBe(0);
+    // Discard it: the move goes ahead.
+    await moveFromCopy('accept');
+    await expect(page.locator('.toast')).toHaveText('Moved to "Kyoto"');
+    expect(asked).toHaveLength(2);
+    await expect(page.locator('.lb-count')).toHaveText('1 / 1');
+    expect(await count(kyoto.id)).toBe(1);
+    expect(await count(album.id)).toBe(1);
+  } finally { await fixture.close(); }
+});
+
 test('copy and move wait for an import to finish', async () => {
   const fixture = await desktopFixture();
   try {

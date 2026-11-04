@@ -296,6 +296,8 @@ export function openLightbox({ album, index = 0, onIndex = () => {}, onAlbum = (
         if (document.documentElement.hasAttribute('data-busy')) { toast(c('busy')); return; }
         const target = await chooseAlbum(album.id, name);
         if (!target || !root.isConnected || !allowWrite()) return;
+        // The picker can turn a copy into a move, which takes the item and any unsaved note away.
+        if (target.mode === 'move' && !details.canLeave()) return;
         if (document.documentElement.hasAttribute('data-busy')) { toast(c('busy')); return; }
         setPending(true);
         document.documentElement.setAttribute('data-busy', '');
