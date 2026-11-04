@@ -284,3 +284,36 @@ test('a caption never collapses a panoramic photo shorter than the caption line'
     expect(result.captions.find((item) => item.text === 'Panorama').y).toBeGreaterThan(y + h);
   } finally { await fixture.close(); }
 });
+
+test('the cover title is opaque dark ink with a light edge, legible against the cover', async () => {
+  const fixture = await desktopFixture();
+  try {
+    const { page } = await fixture.launch();
+    await serveModule(page, 'src/book/binder.js', '/__folio-binder-test.js');
+    const result = await page.evaluate(async () => {
+      const { createBinder } = await import('/__folio-binder-test.js');
+      const { group } = createBinder({ sheets: 2, title: 'Summer by the sea' });
+      const label = group.getObjectByName('cover-title');
+      const canvas = label.material.map.image;
+      const { data } = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+      const board = label.parent.material.color.getHexString();
+      const base = [0, 2, 4].map((i) => parseInt(board.slice(i, i + 2), 16));
+      const linear = (c) => ((c /= 255) <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+      const luminance = (rgb) => 0.2126 * linear(rgb[0]) + 0.7152 * linear(rgb[1]) + 0.0722 * linear(rgb[2]);
+      // What the eye sees: each title pixel laid over the board at the label's opacity.
+      let ink = luminance(base);
+      let light = 0;
+      for (let i = 0; i < data.length; i += 4) {
+        const alpha = (data[i + 3] / 255) * label.material.opacity;
+        if (alpha < 0.3) continue;
+        const seen = luminance([0, 1, 2].map((k) => data[i + k] * alpha + base[k] * (1 - alpha)));
+        ink = Math.min(ink, seen);
+        if (seen > luminance(base)) light++;
+      }
+      return { opacity: label.material.opacity, contrast: (luminance(base) + 0.05) / (ink + 0.05), light };
+    });
+    expect(result.opacity).toBe(1);
+    expect(result.contrast, 'title against the cover (WCAG AA: 4.5)').toBeGreaterThanOrEqual(4.5);
+    expect(result.light, 'a light edge under the letters').toBeGreaterThan(0);
+  } finally { await fixture.close(); }
+});

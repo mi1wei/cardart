@@ -69,6 +69,8 @@ function boardGeometry(length) {
     .rotateX(Math.PI / 2);
 }
 
+// The cover title is pressed into the frosted board (polish spec §4.1): dark ink with a light edge
+// under it, drawn opaque so it reads whatever page shows through the cover.
 function titleTexture(title, width) {
   const canvas = document.createElement('canvas');
   canvas.width = Math.round(width * 8);
@@ -76,10 +78,10 @@ function titleTexture(title, width) {
   const ctx = canvas.getContext('2d');
   ctx.scale(8, 8);
   ctx.font = '600 7.2px system-ui, sans-serif';
-  for (const [color, d] of [['rgba(20,30,40,0.35)', 0.2], ['#fff', 0]]) {
+  for (const [color, d] of [['rgba(255,255,255,0.75)', 0.25], ['#1f2c37', 0]]) {
     ctx.fillStyle = color;
-    ctx.fillRect(d, 15 + d, 9, 0.7);
-    ctx.fillText(title, d, 25 + d);
+    ctx.fillRect(0, 15 + d, 9, 0.7);
+    ctx.fillText(title, 0, 25 + d);
   }
   const texture = new CanvasTexture(canvas);
   texture.colorSpace = SRGBColorSpace;
@@ -151,8 +153,9 @@ export function createBinder({ sheets, title, titlePage = null }) {
   const tw = Math.min(B - 44, 150);
   const label = new Mesh(
     new PlaneGeometry(tw, 30).rotateX(-Math.PI / 2),
-    new MeshBasicMaterial({ map: titleTexture(title, tw), transparent: true, opacity: 0.7, depthWrite: false }),
+    new MeshBasicMaterial({ map: titleTexture(title, tw), transparent: true, depthWrite: false }),
   );
+  label.name = 'cover-title';
   label.position.set(24 + tw / 2, CT / 2 + 0.05, HB / 2 - 37);
   cover.add(label);
 
