@@ -211,6 +211,9 @@ test('folders dropped on the wall become albums one after another; an empty one 
     ]);
     await expect(page.locator('.toast')).toHaveText('"Empty" has no photos or videos');
     await expect(page.locator('.upload b')).toHaveText(`Importing "${'海'.repeat(50)}" · 1/3`);
+    // New cards come with the summary, not as empty cards while their photos are still coming in.
+    await page.waitForTimeout(500);
+    expect(await page.locator('.folder').count()).toBe(1);
     release();
     await expect(page.locator('.toast')).toHaveText('Imported 4 items');
     expect((await page.locator('.folder h3').allTextContents()).sort()).toEqual(['Existing', 'New album', '海'.repeat(50)].sort());

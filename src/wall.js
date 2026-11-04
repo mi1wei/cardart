@@ -128,13 +128,10 @@ export function renderWall(app) {
     }
   }
 
+  // The new cards come with the summary (onDone), not as empty cards while their photos come in.
   function importInto(title, { files, skipped, unreadable }) {
     importer.add({
-      album: async () => {
-        const created = await api.createAlbum(title);
-        void load(); // the new card shows while its photos come in
-        return created.id;
-      },
+      album: async () => (await api.createAlbum(title)).id,
       label: title,
       files,
       notMedia: skipped,

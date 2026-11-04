@@ -320,7 +320,8 @@ button {
   place-items: center;
   border: 2px dashed var(--accent);
   border-radius: 20px;
-  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  background: color-mix(in srgb, var(--bg) 94%, transparent);
+  backdrop-filter: blur(6px);
   pointer-events: none;
 }
 
