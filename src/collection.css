@@ -5,12 +5,13 @@
   min-width: 0;
   height: 36px;
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--raised);
   color: var(--ink);
   padding: 0 14px;
   font: inherit;
-  font-size: 13px;
+  font-size: var(--text-13);
+  line-height: var(--leading-13);
 }
 
 .wall-tools { display: contents; }
@@ -25,10 +26,11 @@
   height: 36px;
   padding-left: 14px;
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--raised);
   color: var(--ink-3);
-  font-size: 13px;
+  font-size: var(--text-13);
+  line-height: var(--leading-13);
   white-space: nowrap;
 }
 .sort-label select {
@@ -56,7 +58,7 @@
   box-sizing: border-box;
   padding: 8px 12px;
   border: 1px solid rgb(255 255 255 / 0.1);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: #1a2028;
   color: #fff;
   box-shadow: 0 14px 40px rgb(0 0 0 / 0.25);
@@ -81,23 +83,23 @@
   justify-content: center;
   gap: 12px;
   border: 1px dashed var(--line);
-  border-radius: 16px;
+  border-radius: var(--radius-12);
   color: var(--ink-2);
   text-decoration: none;
 }
 .trash-card:hover { background: var(--hover); }
 .trash-card svg { width: 36px; height: 36px; }
-.trash-card span { font-size: 12px; color: var(--ink-3); }
-.trash-info { padding: 16px 20px; border-radius: 14px; background: var(--soft); color: var(--ink-2); }
+.trash-card span { font-size: var(--text-12); line-height: var(--leading-12); color: var(--ink-3); }
+.trash-info { padding: 16px 20px; border-radius: var(--radius-12); background: var(--soft); color: var(--ink-2); }
 .trash-groups section { margin: 32px 0; }
-.trash-groups h2 { font-size: 17px; }
-.trash-item { margin-bottom: 12px; border: 1px solid var(--line); border-radius: 16px; background: var(--raised); padding: 16px; }
+.trash-groups h2 { font-size: var(--text-20); line-height: var(--leading-20); }
+.trash-item { margin-bottom: 12px; border: 1px solid var(--line); border-radius: var(--radius-12); background: var(--raised); padding: 16px; }
 .trash-item label { display: flex; align-items: center; gap: 12px; }
 .trash-item input { width: 18px; height: 18px; accent-color: var(--accent); }
 .trash-item strong { display: block; }
 .trash-item small { display: block; margin-top: 4px; color: var(--ink-3); }
 .trash-photos { display: flex; gap: 8px; overflow-x: auto; margin: 12px 0 0 30px; }
-.trash-preview { flex: 0 0 100px; height: 80px; position: relative; border: none; padding: 0; border-radius: 4px; overflow: hidden; background: var(--tile); cursor: pointer; }
+.trash-preview { flex: 0 0 100px; height: 80px; position: relative; border: none; padding: 0; border-radius: var(--radius-4); overflow: hidden; background: var(--tile); cursor: pointer; }
 .trash-preview img { width: 100%; height: 100%; object-fit: cover; }
 .trash-preview svg { position: absolute; top: 4px; right: 4px; color: white; filter: drop-shadow(0 1px 3px #000); }
 .undo-toast {
@@ -109,11 +111,12 @@
   align-items: center;
   gap: 20px;
   padding: 16px 20px;
-  border-radius: 14px;
+  border-radius: var(--radius-12);
   box-shadow: 0 10px 40px rgb(0 0 0 / 0.25);
   color: #fff;
   background: #1a2028;
-  font-size: 14px;
+  font-size: var(--text-14);
+  line-height: var(--leading-14);
 }
 .undo-toast button { color: #9bd6ef; border: none; background: transparent; font: inherit; cursor: pointer; }
 .undo-toast button:disabled { opacity: 0.4; }
@@ -134,13 +137,13 @@
   .wall-sort { max-width: 124px; }
   .album-search { order: 2; width: 100%; }
   .batch-bar { bottom: calc(env(safe-area-inset-bottom, 0px) + 14px); gap: 0; }
-  .batch-bar .picked { font-size: 12px; }
+  .batch-bar .picked { font-size: var(--text-12); line-height: var(--leading-12); }
   .batch-bar .btn { width: 36px; padding: 0; justify-content: center; }
   .batch-bar .btn span, .batch-copy { display: none; }
   .batch-bar .ibtn { width: 30px; }
   .undo-toast { left: 14px; right: 14px; bottom: calc(env(safe-area-inset-bottom, 0px) + 76px); justify-content: space-between; }
   .trash-card { min-height: 150px; }
-  .trash-card span { text-align: center; font-size: 11px; }
+  .trash-card span { text-align: center; font-size: var(--text-12); line-height: var(--leading-12); }
   .trash-page .ph .btn { width: auto; padding: 0 12px; }
   .photo-sort { max-width: 120px; }
 }
