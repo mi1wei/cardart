@@ -54,3 +54,17 @@ test('discovery does not hide filesystem errors by choosing an empty library', a
   await assert.rejects(resolveLibraryChoice({ legacyDir, picturesDir: join(root, 'Pictures') }), { code: 'ENOTDIR' });
   await assert.rejects(resolveLibraryChoice({ legacyDir: join(legacyDir, 'child'), picturesDir: join(root, 'Pictures') }), { code: 'ENOTDIR' });
 });
+
+test('the window place is kept with the settings; an invalid one is dropped without losing the rest', async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), 'folio-settings-window-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const file = join(dir, 'desktop.json');
+  const window = { x: 40, y: 60, width: 1000, height: 700, maximized: false };
+  await saveSettings(file, { version: 1, libraryDir: dir, window });
+  assert.deepEqual((await loadSettings(file)).window, window);
+  await writeFile(file, JSON.stringify({ version: 1, libraryDir: dir, window: { x: 1, y: 2, width: 10, height: 10, maximized: false } }));
+  const loaded = await loadSettings(file);
+  assert.equal(loaded.libraryDir, dir);
+  assert.equal(loaded.window, undefined);
+  await assert.rejects(saveSettings(file, { version: 1, libraryDir: dir, window: { x: 1, y: 2, width: 10, height: 10, maximized: false } }), { code: 'SETTINGS_CORRUPT' });
+});

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, dialog, shell, utilityProcess, session, ipcMain } = require('electron');
+const { app, BrowserWindow, Menu, dialog, shell, utilityProcess, session, ipcMain, screen } = require('electron');
 const { mkdirSync, realpathSync } = require('node:fs');
 const { readFile, writeFile, rename, rm } = require('node:fs/promises');
 const { join, isAbsolute } = require('node:path');
@@ -10,6 +10,7 @@ const { createLifecycle } = require('./lifecycle.cjs');
 const { createTray } = require('./tray.cjs');
 const { createUpdateController } = require('./updater.cjs');
 const { createPdfExporter } = require('./pdf-export.cjs');
+const { DEFAULT, MIN, restoreBounds, validWindow } = require('./window-state.cjs');
 
 const RELEASES = 'https://github.com/mi1wei/cardart/releases';
 
@@ -40,6 +41,13 @@ async function startDesktop({ appRoot = join(__dirname, '..'), licensePublicKeyF
   let language;
   let settings;
   let metadata;
+  // Settings are written one at a time; the window place and the appearance share this queue.
+  let saving = Promise.resolve();
+  let flushWindow = async () => {};
+  function saveSoon() {
+    saving = saving.then(() => saveSettings(settingsFile, settings)).catch((error) => log(`SETTINGS_SAVE ${error.message}`));
+    return saving;
+  }
 
   function revealWindow() {
     if (window?.isDestroyed()) return;
@@ -63,6 +71,7 @@ async function startDesktop({ appRoot = join(__dirname, '..'), licensePublicKeyF
         if (!busy) break;
         await new Promise((resolve) => setTimeout(resolve, 100));
       }
+      await flushWindow();
       await backend?.stop();
       await rm(stateFile, { force: true });
       await log('Folio stopped');
@@ -163,7 +172,7 @@ async function startDesktop({ appRoot = join(__dirname, '..'), licensePublicKeyF
     });
     try { origin = await backend.ready; }
     catch (error) { await backend.stop(); throw error; }
-    settings = { version: 1, libraryDir: dir, preferredPort: Number(new URL(origin).port || 80) };
+    settings = { ...settings, version: 1, libraryDir: dir, preferredPort: Number(new URL(origin).port || 80) };
     await saveSettings(settingsFile, settings);
     await writeFile(`${stateFile}.tmp`, JSON.stringify({
       pid: process.pid, servicePid: backend.child.pid, version: metadata.version,
@@ -216,8 +225,10 @@ async function startDesktop({ appRoot = join(__dirname, '..'), licensePublicKeyF
   const langCookie = await session.defaultSession.cookies.get({ url: origin, name: 'folio_lang' });
   if (isStopping()) return null;
   if (['zh', 'en'].includes(langCookie[0]?.value)) language = langCookie[0].value;
+  const place = restoreBounds(settings.window, screen.getAllDisplays());
   window = new BrowserWindow({
-    width: 1180, height: 800, minWidth: 720, minHeight: 480,
+    ...(place ? { x: place.x, y: place.y, width: place.width, height: place.height } : DEFAULT),
+    minWidth: MIN.width, minHeight: MIN.height,
     title: 'Folio', backgroundColor: '#f7f9fb', show: false,
     webPreferences: { preload: join(__dirname, 'preload.cjs'), nodeIntegration: false, contextIsolation: true, sandbox: true, webSecurity: true, webviewTag: false },
   });
@@ -240,6 +251,21 @@ async function startDesktop({ appRoot = join(__dirname, '..'), licensePublicKeyF
     preview.webContents.on('will-attach-webview', (event) => event.preventDefault());
   });
   window.webContents.on('will-attach-webview', (event) => event.preventDefault());
+  // Size and place are kept for the next launch (polish spec §6.5); full screen is not a place.
+  let rememberTimer;
+  function rememberWindow() {
+    clearTimeout(rememberTimer);
+    if (window.isDestroyed() || window.isFullScreen() || window.isMinimized()) return Promise.resolve();
+    const { x, y, width, height } = window.getNormalBounds();
+    const next = { x: Math.round(x), y: Math.round(y), width: Math.round(width), height: Math.round(height), maximized: window.isMaximized() };
+    if (!validWindow(next) || JSON.stringify(next) === JSON.stringify(settings.window)) return Promise.resolve();
+    settings = { ...settings, window: next };
+    return saveSoon();
+  }
+  const rememberSoon = () => { clearTimeout(rememberTimer); rememberTimer = setTimeout(rememberWindow, 500); };
+  for (const event of ['move', 'resize', 'maximize', 'unmaximize']) window.on(event, rememberSoon);
+  window.on('close', () => { void rememberWindow(); });
+  flushWindow = async () => { await rememberWindow(); await saving; };
   window.on('close', lifecycle.onClose);
   const openPath = (path) => { void shell.openPath(path).then((error) => { if (error) dialog.showErrorBox('Folio', error); }); };
   async function showUpdateDialog({ kind, version, terminal }) {
@@ -395,7 +421,10 @@ async function startDesktop({ appRoot = join(__dirname, '..'), licensePublicKeyF
       language = cookie.value; setMenu();
     }
   });
-  window.once('ready-to-show', showWindow);
+  window.once('ready-to-show', () => {
+    if (place?.maximized) window.maximize();
+    showWindow();
+  });
   try { await window.loadURL(`${origin}/`); }
   catch (error) { if (!isStopping()) throw error; }
   if (isStopping()) return null;
