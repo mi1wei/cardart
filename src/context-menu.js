@@ -71,9 +71,12 @@ export function bindContextMenu(host, selector, itemsFor) {
       if (focus && opener.isConnected) opener.focus({ preventScroll: true });
     }
     function onKey(e) {
-      if (!['ArrowDown', 'ArrowUp', 'Home', 'End', 'Enter', ' ', 'Escape', 'Tab'].includes(e.key)) return;
-      e.preventDefault();
       e.stopImmediatePropagation();
+      if (!['ArrowDown', 'ArrowUp', 'Home', 'End', 'Enter', ' ', 'Escape', 'Tab'].includes(e.key)) {
+        if (['Delete', 'Backspace'].includes(e.key) || ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'a')) e.preventDefault();
+        return;
+      }
+      e.preventDefault();
       if (e.key === 'Escape' || e.key === 'Tab') return close(true);
       const list = buttons();
       if (e.key === 'Enter' || e.key === ' ') return document.activeElement?.click();

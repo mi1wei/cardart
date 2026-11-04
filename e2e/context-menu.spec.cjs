@@ -176,3 +176,27 @@ test('context actions recheck busy state and disappear when a modal changes the 
     await expect(page.locator('dialog.settings')).toHaveCount(0);
   } finally { await fixture.close(); }
 });
+
+test('context keyboard input cannot delete or select photos behind the current target', async () => {
+  const fixture = await desktopFixture();
+  try {
+    const { page } = await fixture.launch();
+    const origin = new URL(page.url()).origin;
+    const album = await seed(page, origin, 'Keyboard target', 3);
+    await page.goto(`${origin}/#/a/${album.id}`);
+    await page.locator('.tile').nth(0).click({ modifiers: [process.platform === 'darwin' ? 'Meta' : 'Control'] });
+    await page.locator('.tile').nth(1).click();
+    await page.locator('.tile').nth(2).click({ button: 'right' });
+    for (const key of ['Delete', 'Backspace', process.platform === 'darwin' ? 'Meta+a' : 'Control+a']) {
+      await page.keyboard.press(key);
+      await expect(page.locator('dialog')).toHaveCount(0);
+      await expect(page.locator('.context-menu')).toBeVisible();
+      await expect(page.locator('.tile.sel')).toHaveCount(2);
+    }
+    await page.keyboard.press('End');
+    await page.keyboard.press('Enter');
+    await expect(page.locator('dialog .dlg-text')).toContainText('1');
+    await page.locator('dialog [data-act=cancel]').click();
+    await expect(page.locator('.tile')).toHaveCount(3);
+  } finally { await fixture.close(); }
+});

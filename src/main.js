@@ -14,11 +14,13 @@ import { api } from './api.js';
 import { theme, setTheme } from './theme.js';
 import { commandAllowed } from '../shared/commands.js';
 import { openShortcuts, initShortcuts } from './shortcuts.js';
+import { c } from './collection-text.js';
 
 lang(); // the cookie tells the server our language before the first request
 const app = document.querySelector('#app');
 let view = null;
 let route = null;
+let creatingAlbum = false;
 
 // A language switch re-opens the current page (spec §10).
 const nav = createNav(() => { show(route, true); void refreshLicense(); });
@@ -35,6 +37,11 @@ if (/MicroMessenger/i.test(navigator.userAgent)) {
 }
 
 function show(next, again = false, previousHash) {
+  if (creatingAlbum) {
+    if (previousHash) swap(previousHash);
+    toast(c('busy'));
+    return;
+  }
   if (next.page === 'license' && document.documentElement.hasAttribute('data-busy')) {
     swap(previousHash || '#/albums');
     toast(t('license-wait-upload'));
@@ -79,7 +86,15 @@ async function command(name) {
       if (view?.canLeave && !view.canLeave(next, false)) return;
       const title = await dialog({ title: t('new-album'), value: t('new-album-name'), ok: t('create') });
       if (!title || !allowWrite() || desktopContext().busy || (view?.canLeave && !view.canLeave(next, false))) return;
-      open(`#/a/${(await api.createAlbum(title)).id}`);
+      let created;
+      creatingAlbum = true;
+      document.documentElement.setAttribute('data-busy', '');
+      try { created = await api.createAlbum(title); }
+      finally {
+        creatingAlbum = false;
+        document.documentElement.removeAttribute('data-busy');
+      }
+      open(`#/a/${created.id}`);
     } else view?.command?.(name);
   } catch (error) { toast(t('failed', { reason: error.message })); }
 }

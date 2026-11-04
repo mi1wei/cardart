@@ -149,3 +149,43 @@ test('New album and License commands cannot discard an unsaved photo note', asyn
     await expect(page.locator('.note-input')).toHaveValue('Keep this draft');
   } finally { await fixture.close(); }
 });
+
+test('a pending native New album command keeps navigation locked until its response settles', async () => {
+  const fixture = await desktopFixture();
+  let release;
+  let posted;
+  const gate = new Promise((resolve) => { release = resolve; });
+  try {
+    const { page, desktop } = await fixture.launch();
+    const origin = new URL(page.url()).origin;
+    const album = await seed(page, origin, 'Stay here', 1);
+    await page.goto(`${origin}/#/a/${album.id}`);
+    await expect(page.locator('.tile')).toHaveCount(1);
+    await page.route('**/api/albums', async (route) => {
+      if (route.request().method() !== 'POST') return route.continue();
+      const response = await route.fetch();
+      await gate;
+      await route.fulfill({ response });
+    });
+    await menuItem(desktop, 'new-album', true);
+    await page.locator('dialog .dlg-input').fill('Created when ready');
+    const request = page.waitForRequest((req) => req.method() === 'POST' && req.url().endsWith('/api/albums'));
+    posted = page.waitForResponse((response) => response.request().method() === 'POST' && response.url().endsWith('/api/albums'));
+    await page.locator('dialog [value=ok]').click();
+    await request;
+    await expect(page.locator('html')).toHaveAttribute('data-busy', '');
+    await expect.poll(() => menuItem(desktop, 'license')).toMatchObject({ enabled: false });
+    await page.evaluate(() => { location.hash = '#/license'; });
+    await expect(page).toHaveURL(new RegExp(`/a/${album.id}$`));
+    await page.evaluate(() => { location.hash = '#/albums'; });
+    await expect(page).toHaveURL(new RegExp(`/a/${album.id}$`));
+    release();
+    await posted;
+    await expect(page.locator('.album-page .title')).toHaveText('Created when ready');
+    await expect(page.locator('html')).not.toHaveAttribute('data-busy', '');
+  } finally {
+    release();
+    await posted;
+    await fixture.close();
+  }
+});

@@ -17,7 +17,7 @@ module.exports = {
   extraMetadata: { version: identity.version, folioBuild: { sourceCommit, dirty, tag: identity.tag } },
   directories: { output: internalTest ? 'release/internal' : 'release' },
   files: [
-    'desktop/**/*', 'server/**/*', 'shared/media.js', 'package.json',
+    'desktop/**/*', 'server/**/*', 'shared/media.js', 'shared/commands.js', 'package.json',
     '!**/*.test.{js,cjs,mjs}', '!**/fixtures/**', '!**/*.private.*',
     '!**/*-private.*', '!**/.env*',
   ],
