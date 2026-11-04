@@ -320,6 +320,27 @@ for (const width of [320, 390]) {
   });
 }
 
+test('a long library path stays readable in narrow Settings in both languages', async () => {
+  const fixture = await desktopFixture();
+  try {
+    const { page, desktop } = await fixture.launch();
+    const session = await desktop.context().newCDPSession(page);
+    await session.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 1 });
+    for (const language of ['zh', 'en']) {
+      await setLang(page, language);
+      for (const width of [320, 390]) {
+        await page.setViewportSize({ width, height: 844 });
+        const settings = await openSettings(page);
+        const path = settings.locator('.set-library-path');
+        await expect(path).toHaveText(fixture.library);
+        expect.soft((await path.boundingBox()).height, `${language} path at ${width}px fits within eight readable lines`).toBeLessThanOrEqual(160);
+        await noOverflow(page, 'dialog.settings');
+        await settings.locator('[data-act=done]').click();
+      }
+    }
+  } finally { await fixture.close(); }
+});
+
 test('accessible names and headings track cover changes, live album rename and language', async () => {
   const fixture = await desktopFixture();
   try {

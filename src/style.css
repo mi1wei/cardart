@@ -2123,6 +2123,10 @@ button, input, select, summary, .back-link, .link, .welcome-trash {
 }
 
 /* A long library path breaks anywhere rather than widening the row. */
+.set-library .set-v {
+  min-width: min(100%, 160px);
+}
+
 .set-library-path {
   overflow-wrap: anywhere;
 }
