@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, dialog, shell, utilityProcess, session, ipcMain, screen } = require('electron');
+const { app, BrowserWindow, Menu, dialog, shell, utilityProcess, session, ipcMain, screen, nativeTheme } = require('electron');
 const { mkdirSync, realpathSync } = require('node:fs');
 const { readFile, writeFile, rename, rm } = require('node:fs/promises');
 const { join, isAbsolute } = require('node:path');
@@ -12,6 +12,7 @@ const { createTray } = require('./tray.cjs');
 const { createUpdateController } = require('./updater.cjs');
 const { createPdfExporter } = require('./pdf-export.cjs');
 const { DEFAULT, MIN, restoreBounds, validWindow } = require('./window-state.cjs');
+const { BAR, OVERLAY, background, themeSource, windowChrome } = require('./window-chrome.cjs');
 
 const RELEASES = 'https://github.com/mi1wei/cardart/releases';
 
@@ -226,11 +227,14 @@ async function startDesktop({ appRoot = join(__dirname, '..'), licensePublicKeyF
   const langCookie = await session.defaultSession.cookies.get({ url: origin, name: 'folio_lang' });
   if (isStopping()) return null;
   if (['zh', 'en'].includes(langCookie[0]?.value)) language = langCookie[0].value;
+  // The saved appearance colours the window before the page paints (polish spec §6.1).
+  nativeTheme.themeSource = themeSource(settings.appearance);
+  const dark = nativeTheme.shouldUseDarkColors;
   const place = restoreBounds(settings.window, screen.getAllDisplays());
   window = new BrowserWindow({
     ...(place ? { x: place.x, y: place.y, width: place.width, height: place.height } : DEFAULT),
     minWidth: MIN.width, minHeight: MIN.height,
-    title: 'Folio', backgroundColor: '#f7f9fb', show: false,
+    title: 'Folio', backgroundColor: background(dark), ...windowChrome(process.platform, dark), show: false,
     webPreferences: { preload: join(__dirname, 'preload.cjs'), nodeIntegration: false, contextIsolation: true, sandbox: true, webSecurity: true, webviewTag: false },
   });
   pdfExporter = createPdfExporter({
@@ -400,6 +404,25 @@ async function startDesktop({ appRoot = join(__dirname, '..'), licensePublicKeyF
   handle('folio:desktop:reveal-library', () => { openPath(settings.libraryDir); });
   handle('folio:desktop:choose-library', () => chooseAnotherLibrary());
   handle('folio:desktop:update', () => runUpdate());
+  // The page's appearance also sets native dialogs and menus, the window colour and the Windows title bar.
+  function applyChrome() {
+    if (window.isDestroyed()) return;
+    const darkNow = nativeTheme.shouldUseDarkColors;
+    window.setBackgroundColor(background(darkNow));
+    if (process.platform === 'win32') window.setTitleBarOverlay({ ...OVERLAY[darkNow ? 'dark' : 'light'], height: BAR });
+  }
+  nativeTheme.on('updated', applyChrome);
+  handle('folio:desktop:appearance', (mode) => {
+    if (!['light', 'dark', 'auto'].includes(mode)) throw new Error('Invalid appearance');
+    nativeTheme.themeSource = themeSource(mode);
+    applyChrome();
+    if (settings.appearance !== mode) {
+      settings = { ...settings, appearance: mode };
+      void saveSoon();
+    }
+  });
+  window.on('enter-full-screen', () => sendState({ fullscreen: true }));
+  window.on('leave-full-screen', () => sendState({ fullscreen: false }));
   function setMenu() {
     const items = [
       { id: 'license', label: text('许可证', 'License'), enabled: !isStopping(), click: () => { showWindow(); void window.loadURL(`${origin}/#/license`); } },

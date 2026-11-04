@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('folioDesktop', Object.freeze({
   revealLibrary: () => ipcRenderer.invoke('folio:desktop:reveal-library'),
   chooseLibrary: () => ipcRenderer.invoke('folio:desktop:choose-library'),
   updateAction: () => ipcRenderer.invoke('folio:desktop:update'),
+  setAppearance: (mode) => ipcRenderer.invoke('folio:desktop:appearance', mode),
   onState(callback) {
     const listener = (event, state) => callback(state);
     ipcRenderer.on('folio:desktop:state', listener);

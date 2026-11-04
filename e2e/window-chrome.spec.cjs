@@ -77,3 +77,54 @@ test('Settings shows the library and the version in the desktop app, and its but
     }
   } finally { await fixture.close(); }
 });
+
+const appRegion = (page, selector) => page.locator(selector).first().evaluate((el) => {
+  const style = getComputedStyle(el);
+  return style.getPropertyValue('-webkit-app-region') || style.getPropertyValue('app-region');
+});
+
+test('the top bar is the title bar in the desktop app, and full screen closes the traffic-light gap', async () => {
+  const platform = { darwin: 'mac', win32: 'win' }[process.platform];
+  test.skip(!platform, 'Linux keeps the system title bar');
+  test.setTimeout(60_000);
+  const fixture = await desktopFixture();
+  try {
+    const { desktop, page } = await fixture.launch();
+    await expect(page.locator('html')).toHaveAttribute('data-desktop', platform);
+    expect(await appRegion(page, '.nav')).toBe('drag');
+    expect(await appRegion(page, '.nav .logo')).toBe('no-drag');
+    expect(await appRegion(page, '.nav [data-act=settings]')).toBe('no-drag');
+    const left = () => page.locator('.nav').evaluate((el) => parseFloat(getComputedStyle(el).paddingLeft));
+    if (platform === 'mac') {
+      expect(await desktop.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].getWindowButtonPosition())).toEqual({ x: 20, y: 20 });
+      expect(await left()).toBeGreaterThanOrEqual(78);
+      await desktop.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setFullScreen(true));
+      await expect(page.locator('html')).toHaveAttribute('data-fullscreen', '', { timeout: 10_000 });
+      expect(await left()).toBeLessThan(78);
+      await desktop.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setFullScreen(false));
+      await expect(page.locator('html')).not.toHaveAttribute('data-fullscreen', '', { timeout: 10_000 });
+    } else {
+      // The system buttons sit over the right end of the bar.
+      expect(await page.locator('.nav').evaluate((el) => parseFloat(getComputedStyle(el).paddingRight))).toBeGreaterThan(100);
+    }
+    // A phone-width view keeps the page as it was: no gap, no sideways scroll.
+    await page.setViewportSize({ width: 390, height: 844 });
+    expect(await left()).toBeLessThan(78);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  } finally { await fixture.close(); }
+});
+
+test('the appearance chosen in Settings sets the native theme and the window colour, also on the next launch', async () => {
+  const fixture = await desktopFixture();
+  try {
+    let { desktop, page } = await fixture.launch();
+    await (await openSettings(page)).locator('[data-theme-mode=dark]').click();
+    await expect.poll(() => desktop.evaluate(({ nativeTheme }) => nativeTheme.themeSource)).toBe('dark');
+    await fixture.stop();
+    ({ desktop, page } = await fixture.launch());
+    expect((await desktop.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].getBackgroundColor())).toLowerCase()).toBe('#121417');
+    expect(await desktop.evaluate(({ nativeTheme }) => nativeTheme.themeSource)).toBe('dark');
+    await (await openSettings(page)).locator('[data-theme-mode=auto]').click();
+    await expect.poll(() => desktop.evaluate(({ nativeTheme }) => nativeTheme.themeSource)).toBe('system');
+  } finally { await fixture.close(); }
+});

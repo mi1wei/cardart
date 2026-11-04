@@ -68,3 +68,16 @@ test('the window place is kept with the settings; an invalid one is dropped with
   assert.equal(loaded.window, undefined);
   await assert.rejects(saveSettings(file, { version: 1, libraryDir: dir, window: { x: 1, y: 2, width: 10, height: 10, maximized: false } }), { code: 'SETTINGS_CORRUPT' });
 });
+
+test('the appearance is kept with the settings; an unknown one is dropped', async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), 'folio-settings-appearance-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const file = join(dir, 'desktop.json');
+  await saveSettings(file, { version: 1, libraryDir: dir, appearance: 'dark' });
+  assert.equal((await loadSettings(file)).appearance, 'dark');
+  await writeFile(file, JSON.stringify({ version: 1, libraryDir: dir, appearance: 'neon' }));
+  const loaded = await loadSettings(file);
+  assert.equal(loaded.appearance, undefined);
+  assert.equal(loaded.libraryDir, dir);
+  await assert.rejects(saveSettings(file, { version: 1, libraryDir: dir, appearance: 'neon' }), { code: 'SETTINGS_CORRUPT' });
+});

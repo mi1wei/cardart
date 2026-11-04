@@ -4,19 +4,23 @@ const { dirname, join, resolve, isAbsolute } = require('node:path');
 const { randomUUID } = require('node:crypto');
 const { validWindow } = require('./window-state.cjs');
 
+const APPEARANCES = ['light', 'dark', 'auto'];
+
 function validate(value) {
   if (!value || value.version !== 1 ||
     (value.libraryDir !== undefined && (typeof value.libraryDir !== 'string' || !isAbsolute(value.libraryDir))) ||
     (value.preferredPort !== undefined && (!Number.isInteger(value.preferredPort) || value.preferredPort < 1 || value.preferredPort > 65535)) ||
-    (value.window !== undefined && !validWindow(value.window))) {
+    (value.window !== undefined && !validWindow(value.window)) ||
+    (value.appearance !== undefined && !APPEARANCES.includes(value.appearance))) {
     throw Object.assign(new Error('Invalid desktop settings'), { code: 'SETTINGS_CORRUPT' });
   }
   return value;
 }
 
-// An invalid window place is dropped, not the whole file: the library choice must survive it.
+// An invalid window place or appearance is dropped, not the whole file: the library choice must survive it.
 function lenient(value) {
   if (value && typeof value === 'object' && value.window !== undefined && !validWindow(value.window)) delete value.window;
+  if (value && typeof value === 'object' && value.appearance !== undefined && !APPEARANCES.includes(value.appearance)) delete value.appearance;
   return value;
 }
 

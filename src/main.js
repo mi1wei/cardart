@@ -4,6 +4,7 @@ import './collection.css';
 import { renderAlbum } from './album.js';
 import { lang, t } from './i18n.js';
 import { createNav } from './nav.js';
+import { initDesktop } from './desktop.js';
 import { start, swap } from './router.js';
 import { fullscreenTip, icon, toast } from './ui.js';
 import { renderWall } from './wall.js';
@@ -11,6 +12,7 @@ import { renderTrash } from './trash.js';
 import { initLicense, renderLicense, refreshLicense } from './license.js';
 
 lang(); // the cookie tells the server our language before the first request
+initDesktop();
 const app = document.querySelector('#app');
 let view = null;
 let route = null;
