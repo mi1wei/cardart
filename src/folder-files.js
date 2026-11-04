@@ -1,10 +1,12 @@
 // Files for an import, gathered from a drop or from <input webkitdirectory> (polish spec §5).
-// Inside a chosen folder, names starting with "." are left out without a count; files that are not
-// photos or videos are counted as `skipped` for the summary; what cannot be read counts as
-// `unreadable`, which the import reports as failed.
+// Inside a chosen folder, names starting with "." and Windows' hidden desktop.ini and Thumbs.db are
+// left out without a count; videos in other formats are counted as `unsupported`, other files that
+// are not photos or videos as `skipped`; what cannot be read counts as `unreadable`, which the import
+// reports as failed.
 
 const VIDEO_TYPES = ['video/mp4', 'video/quicktime', 'video/x-m4v'];
 const BY_NAME = /\.(heic|heif|mp4|mov|m4v)$/i;
+const OTHER_VIDEO = /\.(avi|mkv|webm|wmv|flv|mts|m2ts|3gp|mpe?g|ogv)$/i;
 
 // The album page's file input accepts the same: image/*,.heic,.heif,video/mp4,…,.mov,.m4v.
 export function importable(file) {
@@ -12,18 +14,21 @@ export function importable(file) {
   return type.startsWith('image/') || VIDEO_TYPES.includes(type) || BY_NAME.test(file.name);
 }
 
-const hidden = (name) => name.startsWith('.');
+const hidden = (name) => name.startsWith('.') || /^(desktop\.ini|thumbs\.db)$/i.test(name);
+const otherVideo = (file) => String(file.type ?? '').toLowerCase().startsWith('video/') || OTHER_VIDEO.test(file.name);
 const byPath = (a, b) => a.path.localeCompare(b.path, undefined, { numeric: true });
 
-// Sorted by path, so IMG_2 comes before IMG_10, then split into what to import and a count of the rest.
+// Sorted by path, so IMG_2 comes before IMG_10, then split into what to import and counts of the rest.
 function sortOut(found, unreadable) {
   const files = [];
   let skipped = 0;
+  let unsupported = 0;
   for (const { file } of found.sort(byPath)) {
     if (importable(file)) files.push(file);
+    else if (otherVideo(file)) unsupported++;
     else skipped++;
   }
-  return { files, skipped, unreadable };
+  return { files, skipped, unsupported, unreadable };
 }
 
 // <input webkitdirectory> picks one folder: every path starts with its name.

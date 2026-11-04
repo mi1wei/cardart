@@ -248,12 +248,12 @@ export function renderAlbum(app, id) {
   }
 
   // Files from the file input or a drop join the import queue (import-files.js).
-  function enqueue(files, { notMedia = 0, unreadable = 0 } = {}) {
+  function enqueue(files, { notMedia = 0, unsupported = 0, unreadable = 0 } = {}) {
     if (!allowWrite()) return;
     if (mutating || (document.documentElement.hasAttribute('data-busy') && !importer.active)) { toast(c('busy')); return; }
     const list = [...files];
-    if ((!list.length && !notMedia && !unreadable) || !album) return;
-    importer.add({ album: id, files: list, notMedia, unreadable });
+    if ((!list.length && !notMedia && !unsupported && !unreadable) || !album) return;
+    importer.add({ album: id, files: list, notMedia, unsupported, unreadable });
   }
 
   async function refreshAfterUpload(signal) {
@@ -523,12 +523,14 @@ export function renderAlbum(app, id) {
     if (!alive) return;
     const groups = [loose, ...folders];
     const files = groups.flatMap((group) => group.files);
-    const unreadable = groups.reduce((n, group) => n + group.unreadable, 0);
-    if (!files.length && !unreadable && folders.length) {
+    const count = (key) => groups.reduce((n, group) => n + group[key], 0);
+    const unreadable = count('unreadable');
+    const unsupported = count('unsupported');
+    if (!files.length && !unreadable && !unsupported && folders.length) {
       toast(t('folder-empty', { names: folders.map((group) => group.name) }));
       return;
     }
-    enqueue(files, { notMedia: groups.reduce((n, group) => n + group.skipped, 0), unreadable });
+    enqueue(files, { notMedia: count('skipped'), unsupported, unreadable });
   }
 
   const onFocus = () => {

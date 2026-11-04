@@ -136,6 +136,7 @@
   - 拖放：用 `DataTransferItem.webkitGetAsEntry()` 递归读取，每个顶层文件夹一组。
   - 选择：`<input type=file webkitdirectory>`，按 `webkitRelativePath` 的第一段分组，一次选一个文件夹。
   - 过滤：跳过以 `.` 开头的文件和文件夹；只保留 `image/*` 和 MP4、MOV、M4V（按类型或扩展名判断，与现有 `accept` 一致）。被跳过的文件计数，汇总里写「跳过 N 个不是照片或视频的文件」。
+  - （S3 评审补充）其他格式的视频（如 AVI、MKV、WebM）计入「格式不支持」，不说成「不是照片或视频」；Windows 的 `desktop.ini`、`Thumbs.db` 与以 `.` 开头的文件一样跳过且不计数。
   - 文件夹里没有可导入的文件：不建相册，toast「「文件夹名」里没有照片或视频」。
 - **入口：**
   - 欢迎页面板：加拖放区（「把照片或文件夹拖到这里」）和「从文件夹导入…」按钮，与对比稿第 10 项一致。

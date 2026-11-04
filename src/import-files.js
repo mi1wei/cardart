@@ -135,13 +135,14 @@ export function createImporter(host, { finish = 'box', beforeFile, onPhoto, onDo
 
   return {
     get active() { return active; },
-    // notMedia and unreadable come from collecting a drop or a folder: counted, never uploaded.
-    add({ album, label = '', files, notMedia = 0, unreadable = 0 }) {
+    // notMedia, unsupported and unreadable come from collecting a drop or a folder: counted, never uploaded.
+    add({ album, label = '', files, notMedia = 0, unsupported = 0, unreadable = 0 }) {
       const list = [...files];
       const batch = { album, id: typeof album === 'string' ? album : null, label, count: list.length, error: '' };
       list.forEach((file, index) => queue.push({ batch, file, n: index + 1 }));
       tally.total += list.length;
       tally.other += notMedia;
+      tally.bad += unsupported;
       tally.unreadable += unreadable;
       tally.fail += unreadable;
       if (!active && !dead) void run();

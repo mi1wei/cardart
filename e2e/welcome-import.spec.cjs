@@ -281,3 +281,22 @@ test('a read-only license takes no drop on the wall', async () => {
     expect(await (await page.request.get(`${origin}/api/albums`)).json()).toEqual([]);
   } finally { await fixture.close(); }
 });
+
+test('a dropped folder reports videos in other formats as unsupported and ignores Windows system files', async () => {
+  const fixture = await desktopFixture();
+  try {
+    const { page } = await fixture.launch();
+    const origin = new URL(page.url()).origin;
+    const album = await seed(page, origin, 'Clips', 0);
+    await page.goto(`${origin}/#/a/${album.id}`);
+    await expect(page.locator('.album-page .drop')).toBeVisible();
+    await dropFiles(page, [{ name: 'Camera', children: [
+      { name: 'a.jpg', type: 'image/jpeg', bytes: await jpeg(120) },
+      { name: 'clip.webm', type: 'video/webm', bytes: Buffer.from('webm') },
+      { name: 'desktop.ini', bytes: Buffer.from('[.ShellClassInfo]') },
+      { name: 'Thumbs.db', bytes: Buffer.from('thumbs') },
+    ] }]);
+    await expect(page.locator('.tile')).toHaveCount(1);
+    await expect(page.locator('.upload small')).toHaveText('Imported 1 item, skipped 1 (1 unsupported)');
+  } finally { await fixture.close(); }
+});

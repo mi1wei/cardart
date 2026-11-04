@@ -122,3 +122,17 @@ test('album names are trimmed and cut to 50 characters, as the server counts the
   assert.equal(albumTitle(`${'a'.repeat(49)} b`, 'New album'), 'a'.repeat(49));
   assert.equal(albumTitle('   ', 'New album'), 'New album');
 });
+
+test('other video formats count as unsupported; Windows system files are skipped silently like dot files', async () => {
+  const { transfer } = drop({ entry: folder('Trip', [
+    entry('a.jpg', 'image/jpeg'), entry('desktop.ini'), entry('Thumbs.db'), entry('clip.webm', 'video/webm'), entry('old.AVI'), entry('notes.txt', 'text/plain'),
+  ]) });
+  const { folders } = await collectDrop(transfer);
+  assert.deepEqual(names(folders[0].files), ['a.jpg']);
+  assert.equal(folders[0].unsupported, 2); // clip.webm by type, old.AVI by name
+  assert.equal(folders[0].skipped, 1); // notes.txt only
+  const chosen = pickedFolder([picked('Trip/a.jpg', 'image/jpeg'), picked('Trip/desktop.ini'), picked('Trip/sub/THUMBS.DB'), picked('Trip/clip.mkv')]);
+  assert.equal(chosen.files.length, 1);
+  assert.equal(chosen.unsupported, 1);
+  assert.equal(chosen.skipped, 0);
+});

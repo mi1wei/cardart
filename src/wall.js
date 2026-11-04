@@ -121,20 +121,22 @@ export function renderWall(app) {
   // One album per folder, named after it and created when its turn comes; a folder with nothing to
   // import gets no album.
   function importFolders(groups) {
-    const empty = groups.filter((group) => !group.files.length && !group.unreadable);
+    const counted = (group) => group.files.length || group.unsupported || group.unreadable;
+    const empty = groups.filter((group) => !counted(group));
     if (empty.length) toast(t('folder-empty', { names: empty.map((group) => group.name) }));
     for (const group of groups) {
-      if (group.files.length || group.unreadable) importInto(albumTitle(group.name, t('new-album-name')), group);
+      if (counted(group)) importInto(albumTitle(group.name, t('new-album-name')), group);
     }
   }
 
   // The new cards come with the summary (onDone), not as empty cards while their photos come in.
-  function importInto(title, { files, skipped, unreadable }) {
+  function importInto(title, { files, skipped, unsupported = 0, unreadable }) {
     importer.add({
       album: async () => (await api.createAlbum(title)).id,
       label: title,
       files,
       notMedia: skipped,
+      unsupported,
       unreadable,
     });
   }
