@@ -154,7 +154,7 @@ test('the title page names the album with its date range and count, inside the c
     await page.goto(`${origin}/#/a/${album.id}/3d`);
     await page.evaluate(() => localStorage.setItem('lang', 'en'));
     await page.reload();
-    await expect(page.locator('.ab')).toHaveAccessibleDescription(/^July 2\D+15, 2026 · 3 photos$/);
+    await expect(page.locator('.ab')).toHaveAccessibleDescription('Jul 2 – 15, 2026 · 3 photos');
     // The left page at spread 1 is the inside of the cover: the title page puts dark text there.
     await expect.poll(() => darkPixels(page, { left: 200, top: 300, width: 320, height: 260 }), { timeout: 15000 }).toBeGreaterThan(80);
     await page.locator('.ab [data-act=next]').click();
@@ -176,7 +176,7 @@ test('title page text leaves out a missing date range and cuts a long name to on
       canvas.height = 900;
       const ctx = canvas.getContext('2d');
       const fillText = ctx.fillText.bind(ctx);
-      ctx.fillText = (text, ...rest) => { labels.push({ text, width: ctx.measureText(text).width }); return fillText(text, ...rest); };
+      ctx.fillText = (text, ...rest) => { labels.push({ text, width: ctx.measureText(text).width, font: ctx.font }); return fillText(text, ...rest); };
       drawTitlePage(ctx, { title: 'A very long album name '.repeat(8).trim(), dates: '', count: '2 photos' }, 150, 150);
       return { plain, labels };
     });
@@ -186,6 +186,7 @@ test('title page text leaves out a missing date range and cuts a long name to on
     expect(result.labels[0].text.endsWith('…')).toBe(true);
     expect(result.labels[0].width).toBeLessThanOrEqual(150 - 24);
     expect(result.labels[1].text).toBe('2 photos');
+    expect(result.labels[1].font).toMatch(/^5\.2px /);
   } finally { await fixture.close(); }
 });
 
@@ -199,8 +200,9 @@ test('a photo with a note gets a one-line caption under it; blank notes change n
     const result = await page.evaluate(async ({ image, long }) => {
       const { createPageTexture } = await import('/__folio-caption-test.js');
       const labels = [];
+      const fonts = [];
       const fillText = CanvasRenderingContext2D.prototype.fillText;
-      CanvasRenderingContext2D.prototype.fillText = function (text, ...args) { labels.push(text); return fillText.call(this, text, ...args); };
+      CanvasRenderingContext2D.prototype.fillText = function (text, ...args) { labels.push(text); fonts.push(this.font); return fillText.call(this, text, ...args); };
       const page = { rects: [{ i: 0, x: 0, y: 0, w: 60, h: 40 }, { i: 1, x: 80, y: 0, w: 60, h: 40 }, { i: 2, x: 0, y: 60, w: 60, h: 40 }] };
       const notes = ['Hi', long, ' \n '];
       let loaded;
@@ -215,6 +217,8 @@ test('a photo with a note gets a one-line caption under it; blank notes change n
       // Pocket origin on a front face: x 22 + 5, y 6.4 + 5 mm.
       const out = {
         labels,
+        fonts,
+        captionGap: pixel(27 + 30, 11.4 + 33.6),
         captionedCorner: pixel(27 + 1.5, 11.4 + 40 - 1),
         captionedTop: pixel(27 + 30, 11.4 + 10),
         blankCorner: pixel(27 + 1.5, 11.4 + 60 + 40 - 1),
@@ -227,6 +231,10 @@ test('a photo with a note gets a one-line caption under it; blank notes change n
     expect(cut.endsWith('…')).toBe(true);
     expect(cut).not.toContain('\n');
     expect(result.labels).toHaveLength(2);
+    // Upright and about 12 px on screen at 1180 × 800 (polish spec §4.2).
+    expect(result.fonts).toHaveLength(2);
+    for (const font of result.fonts) expect(font).toMatch(/^5px /);
+    expect(result.captionGap[0]).toBeGreaterThan(180); // the photo leaves 7.4 mm for the caption: film shows
     expect(result.captionedCorner[0]).toBeGreaterThan(180); // the photo moved up and in: film shows
     expect(result.captionedTop[0]).toBeLessThan(80); // the photo is still there
     expect(result.blankCorner[0]).toBeLessThan(80); // a blank note keeps the full photo
@@ -274,5 +282,113 @@ test('a caption never collapses a panoramic photo shorter than the caption line'
     expect(w).toBeGreaterThan(100);
     expect(h).toBeCloseTo(layout.rects[0].h);
     expect(result.captions.find((item) => item.text === 'Panorama').y).toBeGreaterThan(y + h);
+  } finally { await fixture.close(); }
+});
+
+test('the cover title is opaque dark ink with a light edge, legible against the cover', async () => {
+  const fixture = await desktopFixture();
+  try {
+    const { page } = await fixture.launch();
+    await serveModule(page, 'src/book/binder.js', '/__folio-binder-test.js');
+    const result = await page.evaluate(async () => {
+      const { createBinder } = await import('/__folio-binder-test.js');
+      const { group } = createBinder({ sheets: 2, title: 'Summer by the sea' });
+      const label = group.getObjectByName('cover-title');
+      const canvas = label.material.map.image;
+      const { data } = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+      const board = label.parent.material.color.getHexString();
+      const base = [0, 2, 4].map((i) => parseInt(board.slice(i, i + 2), 16));
+      const linear = (c) => ((c /= 255) <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+      const luminance = (rgb) => 0.2126 * linear(rgb[0]) + 0.7152 * linear(rgb[1]) + 0.0722 * linear(rgb[2]);
+      // What the eye sees: each title pixel laid over the board at the label's opacity.
+      let ink = luminance(base);
+      let light = 0;
+      for (let i = 0; i < data.length; i += 4) {
+        const alpha = (data[i + 3] / 255) * label.material.opacity;
+        if (alpha < 0.3) continue;
+        const seen = luminance([0, 1, 2].map((k) => data[i + k] * alpha + base[k] * (1 - alpha)));
+        ink = Math.min(ink, seen);
+        if (seen > luminance(base)) light++;
+      }
+      return { opacity: label.material.opacity, contrast: (luminance(base) + 0.05) / (ink + 0.05), light };
+    });
+    expect(result.opacity).toBe(1);
+    expect(result.contrast, 'title against the cover (WCAG AA: 4.5)').toBeGreaterThanOrEqual(4.5);
+    expect(result.light, 'a light edge under the letters').toBeGreaterThan(0);
+  } finally { await fixture.close(); }
+});
+
+test('the title page reads in both themes: the see-through cover follows the page, the plain board stays light', async () => {
+  const fixture = await desktopFixture();
+  try {
+    const { page } = await fixture.launch();
+    // Each bundle has its own GPU check, so one can be a graphics card and the other a CPU renderer.
+    await serveModule(page, 'src/book/binder.js', '/__folio-title-ink-gpu.js');
+    await serveModule(page, 'src/book/binder.js', '/__folio-title-ink-lite.js');
+    const result = await page.evaluate(async () => {
+      const linear = (c) => ((c /= 255) <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+      const luminance = (css) => {
+        const [r, g, b] = css.startsWith('#') ? [1, 3, 5].map((i) => parseInt(css.slice(i, i + 2), 16)) : css.match(/[\d.]+/g).map(Number);
+        return 0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b);
+      };
+      const contrast = (a, b) => {
+        const [high, low] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+        return (high + 0.05) / (low + 0.05);
+      };
+      const fills = [];
+      let renderer = '';
+      const fillText = CanvasRenderingContext2D.prototype.fillText;
+      const getParameter = WebGL2RenderingContext.prototype.getParameter;
+      CanvasRenderingContext2D.prototype.fillText = function (text, ...args) {
+        fills.push({ canvas: this.canvas, ink: this.fillStyle });
+        return fillText.call(this, text, ...args);
+      };
+      WebGL2RenderingContext.prototype.getParameter = function (parameter) {
+        return parameter === 0x9246 ? renderer : getParameter.call(this, parameter);
+      };
+      const theme = (mode) => {
+        document.documentElement.dataset.theme = mode;
+        document.dispatchEvent(new Event('folio-theme'));
+      };
+      const titlePage = { title: 'Summer by the sea', dates: 'Jul 12 – 15, 2026', count: '8 photos' };
+      const inks = (binder) => {
+        const canvas = binder.group.getObjectByName('title-page').material.map.image;
+        return fills.filter((fill) => fill.canvas === canvas).map((fill) => fill.ink);
+      };
+      // Title, dates and count from the latest drawing, each against what shows behind them.
+      const ratios = (binder, behind) => inks(binder).slice(-3).map((ink) => contrast(ink, behind));
+      const pageColour = () => getComputedStyle(document.body).backgroundColor;
+      try {
+        theme('dark');
+        renderer = 'ANGLE (Apple, ANGLE Metal Renderer: Apple M5, Unspecified Version)';
+        const gpu = (await import('/__folio-title-ink-gpu.js')).createBinder({ sheets: 2, title: 'Summer', titlePage });
+        const map = gpu.group.getObjectByName('title-page').material.map;
+        const darkPage = ratios(gpu, pageColour());
+        const version = map.version;
+        theme('light');
+        const lightPage = ratios(gpu, pageColour());
+        const redrawn = map.version > version;
+        gpu.dispose();
+        const drawn = inks(gpu).length;
+        theme('dark');
+        const afterDispose = inks(gpu).length - drawn;
+        renderer = 'ANGLE (Google, Vulkan SwiftShader Device (Subzero))';
+        const lite = (await import('/__folio-title-ink-lite.js')).createBinder({ sheets: 2, title: 'Summer', titlePage });
+        const board = `#${lite.group.getObjectByName('title-page').parent.material.color.getHexString()}`;
+        const plain = ratios(lite, board);
+        lite.dispose();
+        return { darkPage, lightPage, redrawn, afterDispose, plain };
+      } finally {
+        CanvasRenderingContext2D.prototype.fillText = fillText;
+        WebGL2RenderingContext.prototype.getParameter = getParameter;
+        delete document.documentElement.dataset.theme;
+      }
+    });
+    for (const [name, list] of Object.entries({ darkPage: result.darkPage, lightPage: result.lightPage, plain: result.plain })) {
+      expect(list, name).toHaveLength(3);
+      for (const ratio of list) expect(ratio, `${name} (WCAG AA: 4.5)`).toBeGreaterThanOrEqual(4.5);
+    }
+    expect(result.redrawn, 'a theme change repaints the title page').toBe(true);
+    expect(result.afterDispose, 'a closed book stops following the theme').toBe(0);
   } finally { await fixture.close(); }
 });

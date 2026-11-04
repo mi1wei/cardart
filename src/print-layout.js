@@ -1,4 +1,5 @@
 import { DIM, POCKET, layoutPages, pocketX } from './book/layout.js';
+import { formatRange } from '../shared/dates.js';
 
 export function normalizePdfOptions(album, options = {}) {
   return {
@@ -10,7 +11,7 @@ export function normalizePdfOptions(album, options = {}) {
   };
 }
 
-export function buildPrintModel(album, options = {}) {
+export function buildPrintModel(album, options = {}, language = 'en') {
   options = normalizePdfOptions(album, options);
   const photos = album.photos.map((photo) => ({
     ...photo,
@@ -22,7 +23,7 @@ export function buildPrintModel(album, options = {}) {
     const aspect = photo.w / photo.h;
     return Number.isFinite(aspect) && aspect > 0 ? aspect : 1;
   });
-  const dates = photos.map((photo) => photo.metadata?.takenAt?.local?.slice(0, 10)).filter(Boolean).sort();
+  const dates = photos.map((photo) => photo.metadata?.takenAt?.local).filter((day) => formatRange(day)).sort();
   const range = album.dateRange || (dates.length ? { from: dates[0], to: dates.at(-1) } : null);
   const pages = layoutPages(aspects, options.perPage).map((page, face) => ({
     kind: 'photos', face, rects: page.rects, photos: page.rects.map((rect) => photos[rect.i]),
@@ -30,7 +31,7 @@ export function buildPrintModel(album, options = {}) {
   if (options.cover) pages.unshift({ kind: 'cover', photo: photos.find((photo) => photo.id === album.cover) || photos[0] });
   return {
     title: album.title,
-    dateRange: range ? range.from === range.to ? range.from : `${range.from} – ${range.to}` : '',
+    dateRange: formatRange(range?.from, range?.to, { lang: language }),
     options, pages, paper: options.paper === 'Letter' ? { width: 279.4, height: 215.9 } : { width: 297, height: 210 },
   };
 }

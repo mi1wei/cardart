@@ -1,5 +1,5 @@
 import { api, mediaUrl } from './api.js';
-import { brandLogo, dialog, icon, toast } from './ui.js';
+import { dialog, icon, toast } from './ui.js';
 import { t } from './i18n.js';
 import { allowWrite } from './license.js';
 import { createPhotoDetails } from './photo-details.js';
@@ -7,6 +7,8 @@ import { createPhotoZoom } from './lightbox-zoom.js';
 import { createFilmstrip } from './lightbox-filmstrip.js';
 import { lt } from './lightbox-text.js';
 import { showUndo } from './undo.js';
+import { c } from './collection-text.js';
+import { chooseAlbum } from './collection-actions.js';
 import './photo-view.css';
 
 const KEYS = { ArrowLeft: 'prev', ArrowRight: 'next', Escape: 'close', '+': 'zoom-in', '=': 'zoom-in', '-': 'zoom-out', '−': 'zoom-out', '0': 'fit', i: 'details', I: 'details', ' ': 'play' };
@@ -25,14 +27,12 @@ export function openLightbox({ album, index = 0, onIndex = () => {}, onAlbum = (
   root.innerHTML = `
     <header class="lb-bar">
       <button class="lb-back" type="button" data-act="close" aria-label="${t('close')}">${icon('prev')}<span class="lb-album-name"></span></button>
-      <span class="lb-brand">${brandLogo()} ${t('app')}</span>
       <b class="lb-count" aria-live="polite"></b><span class="sp"></span>
       ${trashActions ? `
         <button class="lb-btn" type="button" data-write data-act="restore" aria-label="${lt('restore')}">${icon('refresh')}<span>${lt('restore')}</span></button>
         <button class="lb-btn" type="button" data-write data-act="purge" aria-label="${lt('purge')}">${icon('trash')}<span>${lt('purge')}</span></button>` : `
         <button class="ibtn lb-desktop-details" type="button" data-act="details" aria-label="${t('details')}" aria-expanded="false" aria-controls="photo-details">${icon('info')}</button>
-        <button class="ibtn lb-desktop-action" type="button" data-write data-act="cover" aria-label="${t('set-cover')}">${icon('star')}</button>
-        <button class="ibtn" type="button" data-act="original" aria-label="${t('original')}">${icon('upload')}<span class="lb-sr">${t('original')}</span></button>
+        <button class="ibtn" type="button" data-act="original" aria-label="${t('original')}">${icon('download')}<span class="lb-sr">${t('original')}</span></button>
         <button class="ibtn lb-desktop-action" type="button" data-write data-act="delete" aria-label="${t('delete-photo')}">${icon('trash')}</button>
         <button class="ibtn lb-overflow" type="button" data-act="menu" aria-label="${t('more')}" aria-haspopup="menu" aria-expanded="false">${icon('more')}</button>`}
     </header>
@@ -44,8 +44,10 @@ export function openLightbox({ album, index = 0, onIndex = () => {}, onAlbum = (
       <button class="ibtn lb-nav r" type="button" data-act="next" aria-label="${t('next-photo')}">${icon('next')}</button>
     </section></div>
     ${trashActions ? '' : `<div class="lb-menu" role="menu" hidden>
-      <button type="button" role="menuitem" data-write data-act="menu-cover">${icon('star')}${t('set-cover')}</button>
-      <button type="button" role="menuitem" data-write data-act="menu-delete">${icon('trash')}${t('delete')}</button>
+      <button type="button" role="menuitem" data-write data-act="menu-cover">${icon('image')}<span>${t('set-album-cover')}</span></button>
+      <button type="button" role="menuitem" data-write data-act="menu-copy">${icon('copy')}<span>${t('copy-to-album')}</span></button>
+      <button type="button" role="menuitem" data-write data-act="menu-move">${icon('move')}<span>${t('move-to-album')}</span></button>
+      <button type="button" role="menuitem" data-write data-act="menu-delete">${icon('trash')}<span>${t('delete')}</span></button>
     </div>`}`;
   const $ = (s) => root.querySelector(s);
   const img = $('.lb-img');
@@ -190,7 +192,9 @@ export function openLightbox({ album, index = 0, onIndex = () => {}, onAlbum = (
     $('[data-act=prev]').setAttribute('aria-label', t(p.kind === 'video' ? 'prev-item' : 'prev-photo'));
     $('[data-act=next]').setAttribute('aria-label', t(p.kind === 'video' ? 'next-item' : 'next-photo'));
     if (!trashActions) {
-      for (const button of root.querySelectorAll('[data-act=cover], [data-act=sheet-cover], [data-act=menu-cover]')) button.disabled = (album.cover ?? album.photos[0].id) === p.id;
+      const isCover = (album.cover ?? album.photos[0].id) === p.id;
+      for (const button of root.querySelectorAll('[data-act=sheet-cover], [data-act=menu-cover]')) button.disabled = isCover;
+      $('[data-act=menu-cover] span').textContent = t(isCover ? 'already-cover' : 'set-album-cover');
       $('[data-act=original]').setAttribute('aria-label', t(p.kind === 'video' ? 'original-video' : 'original'));
       $('[data-act=original] span').textContent = t(p.kind === 'video' ? 'original-video' : 'original');
       $('[data-act=delete]').setAttribute('aria-label', t(p.kind === 'video' ? 'delete-video' : 'delete-photo'));
@@ -225,9 +229,10 @@ export function openLightbox({ album, index = 0, onIndex = () => {}, onAlbum = (
     name = name.replace(/^(sheet|menu)-/, '');
     if (disposed || !album.photos[index]) return;
     if (trashActions && !['prev', 'next', 'close', 'restore', 'purge', 'video-retry', 'play', 'fit', 'actual', 'zoom-in', 'zoom-out'].includes(name)) return;
-    if (['cover', 'delete', 'restore', 'purge'].includes(name) && !allowWrite()) return;
+    const writes = ['cover', 'copy', 'move', 'delete', 'restore', 'purge'];
+    if (writes.includes(name) && !allowWrite()) return;
     const p = album.photos[index];
-    if (busy || (['cover', 'delete', 'restore', 'purge'].includes(name) && details?.saving)) { toast(t(p.kind === 'video' ? 'note-video-wait-save' : 'note-wait-save')); return; }
+    if (busy || (writes.includes(name) && details?.saving)) { toast(t(p.kind === 'video' ? 'note-video-wait-save' : 'note-wait-save')); return; }
     try {
       if (name === 'prev') go(index - 1);
       else if (name === 'next') go(index + 1);
@@ -284,6 +289,34 @@ export function openLightbox({ album, index = 0, onIndex = () => {}, onAlbum = (
           onAlbum(album);
           toast(t('cover-set'));
         } finally { setPending(false); }
+      } else if (name === 'copy' || name === 'move') {
+        if (name === 'move' && !details.canLeave()) return;
+        closeMenu();
+        // Imports and batch changes hold html[data-busy]; a transfer waits for them (polish spec §8).
+        if (document.documentElement.hasAttribute('data-busy')) { toast(c('busy')); return; }
+        const target = await chooseAlbum(album.id, name);
+        if (!target || !root.isConnected || !allowWrite()) return;
+        // The picker can turn a copy into a move, which takes the item and any unsaved note away.
+        if (target.mode === 'move' && !details.canLeave()) return;
+        if (document.documentElement.hasAttribute('data-busy')) { toast(c('busy')); return; }
+        setPending(true);
+        document.documentElement.setAttribute('data-busy', '');
+        let result;
+        try { result = await api.transferPhotos(album.id, [p.id], target.id, target.mode); }
+        finally {
+          // Released before the album changes: a busy viewer would refuse the close below.
+          document.documentElement.removeAttribute('data-busy');
+          setPending(false);
+        }
+        onAlbum(result.album);
+        toast(result.skipped
+          ? c('transferred', { n: result.copied, skipped: result.skipped })
+          : t(target.mode === 'move' ? 'moved-to' : 'copied-to', { album: target.title }));
+        if (!root.isConnected) return;
+        // A moved item leaves: show the next one, the previous one at the end, or close when none is left.
+        if (!result.album.photos.length) return onClose();
+        show(index, result.album);
+        onIndex(album.photos[index].id);
       } else if (name === 'delete') {
         if (!details.canLeave()) return;
         closeMenu();

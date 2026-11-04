@@ -57,7 +57,7 @@ test('photo Details shows original dimensions and EXIF safely without changing t
     await expect(panel.locator('[data-field=file-name]')).toHaveText('photo <one>.jpg');
     await expect(panel.locator('[data-field=dimensions]')).toHaveText('3000 × 2000');
     await expect(panel.locator('[data-field=format]')).toHaveText('JPEG');
-    await expect(panel.locator('[data-field=taken-at]')).toHaveText('2026-08-15 09:30:00.125 +09:00');
+    await expect(panel.locator('[data-field=taken-at]')).toHaveText('Aug 15, 2026 09:30:00.125 +09:00');
     await expect(panel.locator('[data-field=camera]')).toContainText(malicious);
     await expect(panel.locator('[data-field=location]')).toHaveText('0.000000, 0.000000');
     await expect(panel.locator('[data-field=exposure]')).toHaveText('1/200 s');
@@ -100,10 +100,12 @@ test('read-only legacy Details supports mobile scrolling, unknown timezone and m
     const trigger = page.getByRole('button', { name: '详情', exact: true });
     await expect(trigger).toBeVisible();
     const panel = page.locator('.lb-details');
-    await expect(panel.locator('[data-field=taken-at]')).toHaveText('2026-08-15 00:30:00（时区未记录）');
+    await expect(panel.locator('[data-field=taken-at]')).toHaveText('2026年8月15日 00:30:00（时区未记录）');
     await expect(panel.locator('.lb-file-properties')).not.toHaveAttribute('open', '');
     await panel.locator('.lb-file-properties summary').click();
     await expect(panel.locator('[data-field=file-modified-label]')).toHaveText('本地文件修改时间');
+    // Stored in UTC, shown in this computer's time with the zone (polish spec §4.3).
+    await expect(panel.locator('[data-field=file-modified]')).toHaveText(/^\d{4}年\d{1,2}月\d{1,2}日 \d{2}:\d{2}:\d{2} \S+/);
     await expect(page.locator('.lb [data-act=delete]')).toBeDisabled();
     const box = await panel.boundingBox();
     expect(box.width).toBeLessThanOrEqual(390);

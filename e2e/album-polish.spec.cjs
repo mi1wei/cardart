@@ -54,7 +54,7 @@ test('loading shows placeholders instead of the empty drop zone', async () => {
   } finally { await fixture.close(); }
 });
 
-test('cards, back link, select icon and lightbox brand show the polished details', async () => {
+test('cards, back link and select icon show the polished details; the photo viewer has no brand', async () => {
   const fixture = await desktopFixture();
   try {
     const { page } = await fixture.launch();
@@ -78,7 +78,8 @@ test('cards, back link, select icon and lightbox brand show the polished details
     await expect(page.locator('.acts .menu')).toHaveCount(0);
 
     await page.locator('.tile').first().click();
-    await expect(page.locator('.lb-brand')).toContainText('Folio');
+    await expect(page.locator('.lb')).toBeVisible();
+    await expect(page.locator('.lb-brand')).toHaveCount(0); // polish spec §4.4
     await expect(page.locator('.lb-fit')).toHaveCount(0);
     await page.goto(`${origin}/#/a/${full.id}`);
     await expect(page.locator('.lb')).toHaveCount(0);
@@ -169,7 +170,7 @@ test('an import started while the delete-album confirmation is open still blocks
   } finally { await fixture.close(); }
 });
 
-test('in Chinese the app keeps the name Folio in the nav, titles, viewer and phone tips', async () => {
+test('in Chinese the app keeps the name Folio in the nav, titles and phone tips', async () => {
   const fixture = await desktopFixture();
   try {
     const { page } = await fixture.launch();
@@ -184,8 +185,6 @@ test('in Chinese the app keeps the name Folio in the nav, titles, viewer and pho
     await expect(page.locator('meta[name=apple-mobile-web-app-title]')).toHaveAttribute('content', 'Folio');
     await page.goto(`${origin}/#/a/${album.id}`);
     await expect(page).toHaveTitle('旅行 · Folio');
-    await page.locator('.tile').first().click();
-    await expect(page.locator('.lb-brand')).toHaveText('Folio');
     await page.goto(`${origin}/#/`);
     await expect(page).toHaveURL(/#\/albums$/);
     await expect(page).toHaveTitle('相册 · Folio');

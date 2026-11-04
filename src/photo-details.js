@@ -3,6 +3,7 @@ import { lang, t } from './i18n.js';
 import { icon } from './ui.js';
 import { createPhotoNote } from './photo-note.js';
 import { formatDuration } from '../shared/media.js';
+import { formatInstant, formatRange } from '../shared/dates.js';
 
 const locale = () => lang() === 'zh' ? 'zh-CN' : 'en';
 const number = (value, digits = 2) => new Intl.NumberFormat(locale(), { maximumFractionDigits: digits, useGrouping: false }).format(value);
@@ -11,10 +12,14 @@ function bytes(value) {
   const index = value ? Math.min(3, Math.floor(Math.log(value) / Math.log(1024))) : 0;
   return `${number(value / 1024 ** index, 1)} ${['B', 'KiB', 'MiB', 'GiB'][index]}`;
 }
+// The capture time as recorded (polish spec §4.3): the date in the app's writing, then the clock time.
 function capture(value) {
   if (!value) return null;
-  return value.local.replace('T', ' ') + (value.subsecond ? `.${value.subsecond}` : '') +
-    (value.offset ? ` ${value.offset}` : t('details-timezone-unknown'));
+  return {
+    date: formatRange(value.local, value.local, { lang: lang() }) || value.local.slice(0, 10),
+    time: value.local.slice(11) + (value.subsecond ? `.${value.subsecond}` : '') +
+      (value.offset ? ` ${value.offset}` : t('details-timezone-unknown')),
+  };
 }
 function exposure(value) {
   if (!value) return null;
@@ -56,16 +61,15 @@ export function createPhotoDetails(root, onAlbum) {
       term.dataset.field = `${key}-label`;
       description.dataset.field = key;
       term.textContent = t(title);
-      description.textContent = value;
       if (key === 'taken-at') {
         const date = document.createElement('span');
         const time = document.createElement('span');
         date.className = 'lb-capture-date';
         time.className = 'lb-capture-time';
-        date.textContent = value.slice(0, 10);
-        time.textContent = value.slice(11);
+        date.textContent = value.date;
+        time.textContent = value.time;
         description.replaceChildren(date, document.createTextNode(' '), time);
-      }
+      } else description.textContent = value;
       row.append(term, description);
       list.append(row);
     }
@@ -109,8 +113,7 @@ export function createPhotoDetails(root, onAlbum) {
     status.hidden = !status.textContent;
     content.replaceChildren();
     if (!metadata) return;
-    const modified = metadata.fileModifiedAt && Number.isFinite(Date.parse(metadata.fileModifiedAt))
-      ? new Intl.DateTimeFormat(locale(), { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', timeZoneName: 'short' }).format(new Date(metadata.fileModifiedAt)) : null;
+    const modified = formatInstant(metadata.fileModifiedAt, { lang: lang() }) || null;
     if (video) {
       const rows = [];
       const duration = formatDuration(photo.duration);

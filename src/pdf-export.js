@@ -57,7 +57,7 @@ export function openPdfExport(album) {
     });
   }
   function updatePreview() {
-    const model = buildPrintModel(album, options());
+    const model = buildPrintModel(album, options(), language);
     const cover = document.createElement('div');
     cover.className = 'pdf-preview-cover';
     const spread = document.createElement('div');
@@ -137,7 +137,7 @@ export function openPdfExport(album) {
   form.onsubmit = (event) => {
     event.preventDefault();
     if (busy || !allowWrite() || document.documentElement.hasAttribute('data-busy')) return;
-    if (!buildPrintModel(album, options()).pages.length) return toast(text('empty'));
+    if (!buildPrintModel(album, options(), language).pages.length) return toast(text('empty'));
     requestId = crypto.randomUUID();
     const config = { albumId: album.id, options: options(), language };
     setBusy(true);

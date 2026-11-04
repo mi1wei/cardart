@@ -13,10 +13,11 @@ import {
   TorusGeometry,
 } from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { onThemeChange } from '../theme.js';
 import { DIM } from './layout.js';
 import { softwareWebGL } from './gpu.js';
 import { arc, restEdgeX } from './sheet.js';
-import { createTitleTexture } from './title-page.js';
+import { createTitlePage, titleInk } from './title-page.js';
 
 const { H, T, CT, HB, h, drop } = DIM;
 const clamp01 = (v) => Math.min(1, Math.max(0, v));
@@ -69,6 +70,8 @@ function boardGeometry(length) {
     .rotateX(Math.PI / 2);
 }
 
+// The cover title is pressed into the frosted board (polish spec §4.1): dark ink with a light edge
+// under it, drawn opaque so it reads whatever page shows through the cover.
 function titleTexture(title, width) {
   const canvas = document.createElement('canvas');
   canvas.width = Math.round(width * 8);
@@ -76,10 +79,10 @@ function titleTexture(title, width) {
   const ctx = canvas.getContext('2d');
   ctx.scale(8, 8);
   ctx.font = '600 7.2px system-ui, sans-serif';
-  for (const [color, d] of [['rgba(20,30,40,0.35)', 0.2], ['#fff', 0]]) {
+  for (const [color, d] of [['rgba(255,255,255,0.75)', 0.25], ['#1f2c37', 0]]) {
     ctx.fillStyle = color;
-    ctx.fillRect(d, 15 + d, 9, 0.7);
-    ctx.fillText(title, d, 25 + d);
+    ctx.fillRect(0, 15 + d, 9, 0.7);
+    ctx.fillText(title, 0, 25 + d);
   }
   const texture = new CanvasTexture(canvas);
   texture.colorSpace = SRGBColorSpace;
@@ -151,20 +154,27 @@ export function createBinder({ sheets, title, titlePage = null }) {
   const tw = Math.min(B - 44, 150);
   const label = new Mesh(
     new PlaneGeometry(tw, 30).rotateX(-Math.PI / 2),
-    new MeshBasicMaterial({ map: titleTexture(title, tw), transparent: true, opacity: 0.7, depthWrite: false }),
+    new MeshBasicMaterial({ map: titleTexture(title, tw), transparent: true, depthWrite: false }),
   );
+  label.name = 'cover-title';
   label.position.set(24 + tw / 2, CT / 2 + 0.05, HB / 2 - 37);
   cover.add(label);
 
   // The title page sits on the inside of the cover, which faces up once the book is open. Turned
   // half a turn in its own plane, it reads the right way round from the front (v2 spec §8).
+  let stopTheme = () => {};
   if (titlePage) {
     const pw = B - 28;
     const ph = H - 40;
+    const { texture, paint } = createTitlePage(titlePage, pw, ph);
+    paint(titleInk(!lite));
+    // The see-through board shows the page colour, so its ink follows the theme (polish spec §4.2).
+    if (!lite) stopTheme = onThemeChange(() => paint(titleInk(true)));
     const inside = new Mesh(
       new PlaneGeometry(pw, ph).rotateZ(Math.PI).rotateX(Math.PI / 2),
-      new MeshBasicMaterial({ map: createTitleTexture(titlePage, pw, ph), transparent: true, depthWrite: false }),
+      new MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false }),
     );
+    inside.name = 'title-page';
     inside.position.set(16 + pw / 2, -CT / 2 - 0.05, 0);
     cover.add(inside);
   }
@@ -211,6 +221,7 @@ export function createBinder({ sheets, title, titlePage = null }) {
       return { C: p.C };
     },
     dispose() {
+      stopTheme();
       const items = new Set();
       group.traverse((o) => {
         if (o.isMesh) items.add(o.geometry).add(o.material);

@@ -102,7 +102,7 @@ test('an upright phone stays on the page it shows when the album changes under t
     await expect(count).toHaveText('Page 3 of 5'); // the left page: photo 2
     await page.evaluate((hash) => { location.hash = hash; }, `#/a/${album.id}/3d/p/${album.photos[1].id}`);
     await expect(page.locator('.lb')).toBeVisible();
-    await page.locator('.lb [data-act=cover]').evaluate((el) => el.click());
+    await page.locator('.lb [data-act=menu-cover]').evaluate((el) => el.click());
     await expect.poll(async () => (await (await page.request.get(`${origin}/api/albums/${album.id}`)).json()).cover).toBe(album.photos[1].id);
     await page.locator('.lb [data-act=close]').evaluate((el) => el.click());
     await expect(page.locator('.lb')).toHaveCount(0);

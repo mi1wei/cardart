@@ -25,7 +25,7 @@ test('fullscreen fit viewer has floating persistent details and a navigable mixe
     await expect(page.locator('.lb')).toHaveCSS('background-color', 'rgb(13, 15, 17)');
     await expect(page.locator('.lb-details')).toBeHidden();
     await expect(page.locator('.lb-back')).toContainText(album.title);
-    for (const action of ['details', 'cover', 'original', 'delete']) await expect(page.locator(`.lb-bar [data-act=${action}]`)).toBeVisible();
+    for (const action of ['details', 'original', 'delete', 'menu']) await expect(page.locator(`.lb-bar [data-act=${action}]`)).toBeVisible();
     await expect(page.locator('.lb-filmstrip button')).toHaveCount(2);
     await expect(page.locator('.lb-filmstrip [aria-current=true]')).toHaveAccessibleName(/photo.jpg/);
     await expect(page.locator('.lb-filmstrip [data-kind=video] .lb-film-play')).toBeVisible();
@@ -149,6 +149,7 @@ test('phone swipes navigate, open the bottom sheet or close, while a two-finger 
     await expect(page.locator('.lb-bar [data-act=menu]')).toBeVisible();
     await page.locator('.lb-bar [data-act=menu]').click();
     await expect(page.locator('.lb-menu [data-act=menu-cover]')).toBeVisible();
+    await expect(page.locator('.lb-menu [data-act=menu-delete]')).toBeVisible(); // phones have no Delete in the bar
     await page.keyboard.press('Escape');
     await swipe(page, 0, 100);
     await expect(page.locator('.lb')).toHaveCount(0);
@@ -168,8 +169,11 @@ test('video Space toggles outside native controls without replacing a paused vid
       await sought;
       window.sameS2Video = video;
     });
-    await page.locator('.lb-bar [data-act=cover]').click();
-    await expect(page.locator('.lb-bar [data-act=cover]')).toBeDisabled();
+    await page.locator('.lb-bar [data-act=menu]').click();
+    await page.locator('.lb-menu [data-act=menu-cover]').click();
+    await page.locator('.lb-bar [data-act=menu]').click();
+    await expect(page.locator('.lb-menu [data-act=menu-cover]')).toBeDisabled();
+    await page.keyboard.press('Escape');
     expect(await page.locator('.lb-video').evaluate((video) => video === window.sameS2Video && video.paused && Math.abs(video.currentTime - 0.75) < 0.02)).toBe(true);
     await page.locator('.lb').focus();
     await page.keyboard.press('Space');
@@ -320,5 +324,139 @@ test('trash preview resolves its own media and only invokes restore or confirmed
     expect(await page.evaluate(() => window.restoredS2)).toBe(true);
     const unchanged = await (await page.request.get(`${origin}/api/albums/${album.id}`)).json();
     expect(unchanged.photos.map((photo) => photo.id)).toEqual(album.photos.map((photo) => photo.id));
+  } finally { await fixture.close(); }
+});
+
+test('the top bar keeps details, download, delete and More; More sets the album cover', async () => {
+  const fixture = await desktopFixture();
+  try {
+    const { page, origin, album } = await open(fixture);
+    await expect(page.locator('.lb-brand')).toHaveCount(0);
+    const shown = await page.locator('.lb-bar').evaluate((bar) =>
+      [...bar.querySelectorAll('button')].filter((button) => button.getClientRects().length).map((button) => button.dataset.act));
+    expect(shown).toEqual(['close', 'details', 'original', 'delete', 'menu']);
+    await expect(page.locator('.lb-bar [data-act=original]')).toHaveAccessibleName('Download original');
+    await page.locator('.lb-bar [data-act=menu]').click();
+    const cover = page.locator('.lb-menu [data-act=menu-cover]');
+    await expect(cover).toBeDisabled();
+    await expect(cover).toHaveText('Already the cover');
+    await expect(page.locator('.lb-menu [data-act=menu-delete]')).toBeHidden(); // the bar has Delete on a computer
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('ArrowRight');
+    await expect(page.locator('.lb-bar [data-act=original]')).toHaveAccessibleName('Download original video');
+    await page.locator('.lb-bar [data-act=menu]').click();
+    await expect(cover).toBeEnabled();
+    await expect(cover).toHaveText('Set as album cover');
+    await cover.click();
+    await expect.poll(async () => (await (await page.request.get(`${origin}/api/albums/${album.id}`)).json()).cover).toBe(album.photos[1].id);
+    await page.locator('.lb-bar [data-act=menu]').click();
+    await expect(cover).toBeDisabled();
+  } finally { await fixture.close(); }
+});
+
+test('More copies or moves the current item to another album, then shows the next one', async () => {
+  test.setTimeout(60_000);
+  const fixture = await desktopFixture();
+  try {
+    const { page, origin, album } = await open(fixture);
+    const kyoto = await (await page.request.post(`${origin}/api/albums`, { data: { title: 'Kyoto' } })).json();
+    const count = async (id) => (await (await page.request.get(`${origin}/api/albums/${id}`)).json()).photos.length;
+    const pick = async (act) => {
+      await page.locator('.lb-bar [data-act=menu]').click();
+      await page.locator(`.lb-menu [data-act=menu-${act}]`).click();
+      await expect(page.locator('.album-picker .transfer-mode')).toHaveValue(act);
+    };
+    await pick('copy');
+    await page.locator(`.album-picker [data-target="${kyoto.id}"]`).click();
+    await expect(page.locator('.toast')).toHaveText('Copied to "Kyoto"');
+    await expect(page.locator('.lb-count')).toHaveText('1 / 2');
+    expect(await count(kyoto.id)).toBe(1);
+    // The same photo again is skipped as a duplicate, reported as batch transfers report it.
+    await pick('copy');
+    await page.locator(`.album-picker [data-target="${kyoto.id}"]`).click();
+    await expect(page.locator('.toast')).toHaveText('0 items transferred · 1 duplicates skipped');
+    // Moving into a new album: the viewer goes on to the next item.
+    await pick('move');
+    await page.locator('.album-picker [data-action=new]').click();
+    await page.locator('dialog.dlg input').fill('Nara');
+    await page.locator('dialog.dlg [value=ok]').click();
+    await expect(page.locator('.toast')).toHaveText('Moved to "Nara"');
+    await expect(page.locator('.lb-count')).toHaveText('1 / 1');
+    await expect(page.locator('.lb-filmstrip [aria-current=true]')).toHaveAccessibleName(/clip.mp4/);
+    expect(await count(album.id)).toBe(1);
+    // Moving the last item from the viewer over the 3D book closes both and leaves an empty album.
+    await page.goto(`${origin}/#/a/${album.id}/3d/p/${album.photos[1].id}`);
+    await expect(page.locator('.ab canvas')).toBeVisible();
+    await expect(page.locator('.lb')).toBeVisible();
+    await pick('move');
+    await page.locator(`.album-picker [data-target="${kyoto.id}"]`).click();
+    await expect(page.locator('.lb')).toHaveCount(0);
+    await expect(page.locator('.ab')).toHaveCount(0);
+    await expect(page).toHaveURL(new RegExp(`#/a/${album.id}$`));
+    await expect(page.locator('.album-page .drop')).toBeVisible();
+    expect(await count(kyoto.id)).toBe(2);
+  } finally { await fixture.close(); }
+});
+
+test('switching the album picker from Copy to Move still asks before an unsaved note is lost', async () => {
+  const fixture = await desktopFixture();
+  try {
+    const { page, origin, album } = await open(fixture);
+    const kyoto = await (await page.request.post(`${origin}/api/albums`, { data: { title: 'Kyoto' } })).json();
+    const count = async (id) => (await (await page.request.get(`${origin}/api/albums/${id}`)).json()).photos.length;
+    await page.locator('.lb-bar [data-act=details]').click();
+    await page.locator('[data-note-edit]').click();
+    const input = page.getByLabel('Note text', { exact: true });
+    await input.fill('Unsaved draft');
+    const asked = [];
+    const moveFromCopy = async (answer) => {
+      await page.locator('.lb-bar [data-act=menu]').click();
+      await page.locator('.lb-menu [data-act=menu-copy]').click();
+      await page.locator('.album-picker .transfer-mode').selectOption('move');
+      page.once('dialog', (dialog) => { asked.push(dialog.message()); return dialog[answer](); });
+      await page.locator(`.album-picker [data-target="${kyoto.id}"]`).click();
+      await expect(page.locator('.album-picker')).toHaveCount(0);
+    };
+    // Keep the draft: nothing moves.
+    await moveFromCopy('dismiss');
+    await expect.poll(() => asked.length).toBe(1);
+    await expect(input).toHaveValue('Unsaved draft');
+    await expect(page.locator('.lb-count')).toHaveText('1 / 2');
+    expect(await count(kyoto.id)).toBe(0);
+    // Discard it: the move goes ahead.
+    await moveFromCopy('accept');
+    await expect(page.locator('.toast')).toHaveText('Moved to "Kyoto"');
+    expect(asked).toHaveLength(2);
+    await expect(page.locator('.lb-count')).toHaveText('1 / 1');
+    expect(await count(kyoto.id)).toBe(1);
+    expect(await count(album.id)).toBe(1);
+  } finally { await fixture.close(); }
+});
+
+test('copy and move wait for an import to finish', async () => {
+  const fixture = await desktopFixture();
+  try {
+    const { page } = await open(fixture);
+    await page.evaluate(() => document.documentElement.setAttribute('data-busy', ''));
+    try {
+      await page.locator('.lb-bar [data-act=menu]').click();
+      await page.locator('.lb-menu [data-act=menu-move]').click();
+      await expect(page.locator('.toast')).toHaveText('Please wait for the current operation to finish.');
+      await expect(page.locator('.album-picker')).toHaveCount(0);
+    } finally {
+      // Quitting waits for imports to finish, so end the pretend one.
+      await page.evaluate(() => document.documentElement.removeAttribute('data-busy'));
+    }
+  } finally { await fixture.close(); }
+});
+
+test('a read-only license disables setting the cover, copying and moving in More', async () => {
+  const fixture = await desktopFixture({ license: 'expired' });
+  try {
+    const { page } = await open(fixture);
+    await page.locator('.lb-bar [data-act=menu]').click();
+    for (const act of ['cover', 'copy', 'move']) await expect(page.locator(`.lb-menu [data-act=menu-${act}]`)).toHaveAttribute('aria-disabled', 'true');
+    await page.locator('.lb-menu [data-act=menu-copy]').dispatchEvent('click');
+    await expect(page.locator('.album-picker')).toHaveCount(0);
   } finally { await fixture.close(); }
 });

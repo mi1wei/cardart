@@ -74,8 +74,9 @@ test('video notes and cover updates preserve paused media identity/time and note
     await page.getByLabel('Note text', { exact: true }).fill('Morning video\nSaved with the album.');
     await page.locator('[data-note-save]').click();
     await expect(page.locator('.note-text')).toHaveText('Morning video\nSaved with the album.');
-    await page.locator('.lb [data-act=cover]').click();
-    await expect(page.locator('.lb [data-act=cover]')).toBeDisabled();
+    await page.locator('.lb-bar [data-act=menu]').click();
+    await page.locator('.lb-menu [data-act=menu-cover]').click();
+    await expect(page.locator('.lb-menu [data-act=menu-cover]')).toBeDisabled();
     expect(await page.locator('.lb-video').evaluate((video) => video === window.sameVideo)).toBe(true);
     expect(await page.locator('.lb-video').evaluate((video) => video.currentTime)).toBeCloseTo(0.75, 2);
     expect(await page.locator('.lb-video').evaluate((video) => video.paused)).toBe(true);
@@ -148,7 +149,7 @@ test('a missing poster does not hide readable video and compact read-only Detail
     await playFrame(page);
     await expect(page.locator('.note-text')).toHaveText('Visible video note');
     await expect(page.locator('[data-note-edit]')).toBeHidden();
-    await expect(page.locator('.lb [data-act=original]')).toHaveText('Original file');
+    await expect(page.locator('.lb [data-act=original]')).toHaveText('Download original video');
     expect((await page.request.get(`${origin}/media/${album.id}/p002/original`)).ok()).toBe(true);
     await expect(page.locator('.lb-details')).not.toContainText('EXIF');
     for (const [width, height] of [[320, 740], [390, 844], [760, 600], [1440, 900]]) {
@@ -157,7 +158,7 @@ test('a missing poster does not hide readable video and compact read-only Detail
     }
     await page.evaluate(() => localStorage.setItem('lang', 'zh'));
     await page.reload();
-    await expect(page.locator('.lb [data-act=original]')).toHaveText('原文件');
+    await expect(page.locator('.lb [data-act=original]')).toHaveText('下载原视频');
     await expect(page.locator('[data-field=duration-label]')).toHaveText('时长');
     await expect(page.locator('[data-field=camera]')).toHaveCount(0);
     await page.screenshot({ path: test.info().outputPath('video-player-readonly-zh.png'), fullPage: true, scale: 'css' });
