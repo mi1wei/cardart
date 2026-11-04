@@ -53,8 +53,6 @@
 .lb-back { max-width: min(40vw, 360px); padding-left: 0; }
 .lb-back svg { flex: 0 0 20px; }
 .lb-album-name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.lb-brand { display: flex; align-items: center; gap: 6px; color: #7d8792; font-size: 12px; }
-.lb-brand .brand-logo { width: 21px; height: 21px; }
 .lb-count { color: #a7b0ba; font-size: 12px; font-weight: 400; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .lb-bar .sp { flex: 1; }
 .lb .ibtn, .lb-zoom button {
@@ -72,8 +70,6 @@
 }
 .lb button:not(:disabled):hover { background-color: #2a2f35; }
 .lb .ibtn[aria-expanded=true] { color: #111; background: #e9ecef; }
-.lb [data-act=original] > svg { transform: rotate(180deg); }
-.lb-overflow { display: none !important; }
 .lb-workspace, .lb-preview { position: absolute; inset: 0; min-width: 0; }
 .lb-stage {
   position: absolute;
@@ -255,14 +251,17 @@
 .lb-menu { position: absolute; z-index: 7; top: calc(57px + env(safe-area-inset-top, 0px)); right: 12px; min-width: 170px; padding: 5px; border: 1px solid #2a2f35; border-radius: 10px; background: #16191c; }
 .lb-menu button { display: flex; align-items: center; gap: 9px; width: 100%; min-height: 44px; padding: 8px 12px; border: 0; border-radius: 6px; background: transparent; color: #e9ecef; text-align: left; }
 .lb-menu [data-act=menu-delete] { color: #f2a59a; }
+/* A computer has Delete in the bar; phones find it in ⋯ (polish spec §4.4). */
+@media (min-width: 861px) {
+  .lb-menu [data-act=menu-delete] { display: none; }
+}
 @media (max-width: 860px) {
   .lb-bar { gap: 4px; min-height: calc(56px + env(safe-area-inset-top, 0px)); padding-right: max(10px, env(safe-area-inset-right, 0px)); padding-left: max(10px, env(safe-area-inset-left, 0px)); }
   .lb-back { max-width: calc(100vw - 210px); font-size: 12px; }
-  .lb-brand, .lb .lb-desktop-action, .lb .lb-nav { display: none; }
+  .lb .lb-desktop-action, .lb .lb-nav { display: none; }
   .lb-bar .sp { display: none; }
   .lb-count { margin-left: auto; margin-right: 4px; font-size: 10px; }
   .lb .ibtn { width: 40px; height: 40px; border: 0; background: transparent; }
-  .lb-overflow { display: inline-flex !important; }
   .lb-stage { inset: calc(56px + env(safe-area-inset-top, 0px)) 0 calc(82px + env(safe-area-inset-bottom, 0px)); }
   .lb-zoom { bottom: calc(82px + env(safe-area-inset-bottom, 0px)); }
   .lb-zoom button { min-width: 36px; height: 32px; }

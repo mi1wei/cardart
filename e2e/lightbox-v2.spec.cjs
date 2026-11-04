@@ -25,7 +25,7 @@ test('fullscreen fit viewer has floating persistent details and a navigable mixe
     await expect(page.locator('.lb')).toHaveCSS('background-color', 'rgb(13, 15, 17)');
     await expect(page.locator('.lb-details')).toBeHidden();
     await expect(page.locator('.lb-back')).toContainText(album.title);
-    for (const action of ['details', 'cover', 'original', 'delete']) await expect(page.locator(`.lb-bar [data-act=${action}]`)).toBeVisible();
+    for (const action of ['details', 'original', 'delete', 'menu']) await expect(page.locator(`.lb-bar [data-act=${action}]`)).toBeVisible();
     await expect(page.locator('.lb-filmstrip button')).toHaveCount(2);
     await expect(page.locator('.lb-filmstrip [aria-current=true]')).toHaveAccessibleName(/photo.jpg/);
     await expect(page.locator('.lb-filmstrip [data-kind=video] .lb-film-play')).toBeVisible();
@@ -149,6 +149,7 @@ test('phone swipes navigate, open the bottom sheet or close, while a two-finger 
     await expect(page.locator('.lb-bar [data-act=menu]')).toBeVisible();
     await page.locator('.lb-bar [data-act=menu]').click();
     await expect(page.locator('.lb-menu [data-act=menu-cover]')).toBeVisible();
+    await expect(page.locator('.lb-menu [data-act=menu-delete]')).toBeVisible(); // phones have no Delete in the bar
     await page.keyboard.press('Escape');
     await swipe(page, 0, 100);
     await expect(page.locator('.lb')).toHaveCount(0);
@@ -168,8 +169,11 @@ test('video Space toggles outside native controls without replacing a paused vid
       await sought;
       window.sameS2Video = video;
     });
-    await page.locator('.lb-bar [data-act=cover]').click();
-    await expect(page.locator('.lb-bar [data-act=cover]')).toBeDisabled();
+    await page.locator('.lb-bar [data-act=menu]').click();
+    await page.locator('.lb-menu [data-act=menu-cover]').click();
+    await page.locator('.lb-bar [data-act=menu]').click();
+    await expect(page.locator('.lb-menu [data-act=menu-cover]')).toBeDisabled();
+    await page.keyboard.press('Escape');
     expect(await page.locator('.lb-video').evaluate((video) => video === window.sameS2Video && video.paused && Math.abs(video.currentTime - 0.75) < 0.02)).toBe(true);
     await page.locator('.lb').focus();
     await page.keyboard.press('Space');
@@ -320,5 +324,32 @@ test('trash preview resolves its own media and only invokes restore or confirmed
     expect(await page.evaluate(() => window.restoredS2)).toBe(true);
     const unchanged = await (await page.request.get(`${origin}/api/albums/${album.id}`)).json();
     expect(unchanged.photos.map((photo) => photo.id)).toEqual(album.photos.map((photo) => photo.id));
+  } finally { await fixture.close(); }
+});
+
+test('the top bar keeps details, download, delete and More; More sets the album cover', async () => {
+  const fixture = await desktopFixture();
+  try {
+    const { page, origin, album } = await open(fixture);
+    await expect(page.locator('.lb-brand')).toHaveCount(0);
+    const shown = await page.locator('.lb-bar').evaluate((bar) =>
+      [...bar.querySelectorAll('button')].filter((button) => button.getClientRects().length).map((button) => button.dataset.act));
+    expect(shown).toEqual(['close', 'details', 'original', 'delete', 'menu']);
+    await expect(page.locator('.lb-bar [data-act=original]')).toHaveAccessibleName('Download original');
+    await page.locator('.lb-bar [data-act=menu]').click();
+    const cover = page.locator('.lb-menu [data-act=menu-cover]');
+    await expect(cover).toBeDisabled();
+    await expect(cover).toHaveText('Already the cover');
+    await expect(page.locator('.lb-menu [data-act=menu-delete]')).toBeHidden(); // the bar has Delete on a computer
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('ArrowRight');
+    await expect(page.locator('.lb-bar [data-act=original]')).toHaveAccessibleName('Download original video');
+    await page.locator('.lb-bar [data-act=menu]').click();
+    await expect(cover).toBeEnabled();
+    await expect(cover).toHaveText('Set as album cover');
+    await cover.click();
+    await expect.poll(async () => (await (await page.request.get(`${origin}/api/albums/${album.id}`)).json()).cover).toBe(album.photos[1].id);
+    await page.locator('.lb-bar [data-act=menu]').click();
+    await expect(cover).toBeDisabled();
   } finally { await fixture.close(); }
 });

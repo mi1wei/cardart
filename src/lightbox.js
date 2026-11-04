@@ -1,5 +1,5 @@
 import { api, mediaUrl } from './api.js';
-import { brandLogo, dialog, icon, toast } from './ui.js';
+import { dialog, icon, toast } from './ui.js';
 import { t } from './i18n.js';
 import { allowWrite } from './license.js';
 import { createPhotoDetails } from './photo-details.js';
@@ -25,14 +25,12 @@ export function openLightbox({ album, index = 0, onIndex = () => {}, onAlbum = (
   root.innerHTML = `
     <header class="lb-bar">
       <button class="lb-back" type="button" data-act="close" aria-label="${t('close')}">${icon('prev')}<span class="lb-album-name"></span></button>
-      <span class="lb-brand">${brandLogo()} ${t('app')}</span>
       <b class="lb-count" aria-live="polite"></b><span class="sp"></span>
       ${trashActions ? `
         <button class="lb-btn" type="button" data-write data-act="restore" aria-label="${lt('restore')}">${icon('refresh')}<span>${lt('restore')}</span></button>
         <button class="lb-btn" type="button" data-write data-act="purge" aria-label="${lt('purge')}">${icon('trash')}<span>${lt('purge')}</span></button>` : `
         <button class="ibtn lb-desktop-details" type="button" data-act="details" aria-label="${t('details')}" aria-expanded="false" aria-controls="photo-details">${icon('info')}</button>
-        <button class="ibtn lb-desktop-action" type="button" data-write data-act="cover" aria-label="${t('set-cover')}">${icon('star')}</button>
-        <button class="ibtn" type="button" data-act="original" aria-label="${t('original')}">${icon('upload')}<span class="lb-sr">${t('original')}</span></button>
+        <button class="ibtn" type="button" data-act="original" aria-label="${t('original')}">${icon('download')}<span class="lb-sr">${t('original')}</span></button>
         <button class="ibtn lb-desktop-action" type="button" data-write data-act="delete" aria-label="${t('delete-photo')}">${icon('trash')}</button>
         <button class="ibtn lb-overflow" type="button" data-act="menu" aria-label="${t('more')}" aria-haspopup="menu" aria-expanded="false">${icon('more')}</button>`}
     </header>
@@ -44,8 +42,8 @@ export function openLightbox({ album, index = 0, onIndex = () => {}, onAlbum = (
       <button class="ibtn lb-nav r" type="button" data-act="next" aria-label="${t('next-photo')}">${icon('next')}</button>
     </section></div>
     ${trashActions ? '' : `<div class="lb-menu" role="menu" hidden>
-      <button type="button" role="menuitem" data-write data-act="menu-cover">${icon('star')}${t('set-cover')}</button>
-      <button type="button" role="menuitem" data-write data-act="menu-delete">${icon('trash')}${t('delete')}</button>
+      <button type="button" role="menuitem" data-write data-act="menu-cover">${icon('image')}<span>${t('set-album-cover')}</span></button>
+      <button type="button" role="menuitem" data-write data-act="menu-delete">${icon('trash')}<span>${t('delete')}</span></button>
     </div>`}`;
   const $ = (s) => root.querySelector(s);
   const img = $('.lb-img');
@@ -190,7 +188,9 @@ export function openLightbox({ album, index = 0, onIndex = () => {}, onAlbum = (
     $('[data-act=prev]').setAttribute('aria-label', t(p.kind === 'video' ? 'prev-item' : 'prev-photo'));
     $('[data-act=next]').setAttribute('aria-label', t(p.kind === 'video' ? 'next-item' : 'next-photo'));
     if (!trashActions) {
-      for (const button of root.querySelectorAll('[data-act=cover], [data-act=sheet-cover], [data-act=menu-cover]')) button.disabled = (album.cover ?? album.photos[0].id) === p.id;
+      const isCover = (album.cover ?? album.photos[0].id) === p.id;
+      for (const button of root.querySelectorAll('[data-act=sheet-cover], [data-act=menu-cover]')) button.disabled = isCover;
+      $('[data-act=menu-cover] span').textContent = t(isCover ? 'already-cover' : 'set-album-cover');
       $('[data-act=original]').setAttribute('aria-label', t(p.kind === 'video' ? 'original-video' : 'original'));
       $('[data-act=original] span').textContent = t(p.kind === 'video' ? 'original-video' : 'original');
       $('[data-act=delete]').setAttribute('aria-label', t(p.kind === 'video' ? 'delete-video' : 'delete-photo'));
