@@ -290,6 +290,13 @@ button {
   height: 26px;
 }
 
+.welcome-acts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
 .welcome-formats {
   margin: 0;
   color: var(--ink-3);

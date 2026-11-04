@@ -2,6 +2,8 @@ const { test, expect } = require('@playwright/test');
 const { desktopFixture } = require('./fixtures.cjs');
 const { seed } = require('./ui-helpers.cjs');
 const { dropFiles, jpeg } = require('./drop-helpers.cjs');
+const { join } = require('node:path');
+const { mkdir, writeFile } = require('node:fs/promises');
 
 test('the app opens on the album wall, and old or unknown addresses lead there too', async () => {
   const fixture = await desktopFixture();
@@ -95,5 +97,85 @@ test('a folder dropped on an album adds what is inside at any depth; hidden file
     ] }]);
     await expect(page.locator('.toast')).toHaveText('"Receipts" has no photos or videos');
     expect((await (await page.request.get(`${origin}/api/albums/${album.id}`)).json()).photos).toHaveLength(4);
+  } finally { await fixture.close(); }
+});
+
+// A folder on disk: { 'a.jpg': Buffer, 'more/b.jpg': Buffer, ... } under fixture.root/name.
+async function folderOnDisk(fixture, name, files) {
+  const dir = join(fixture.root, name);
+  for (const [path, bytes] of Object.entries(files)) {
+    await mkdir(join(dir, path, '..'), { recursive: true });
+    await writeFile(join(dir, path), bytes);
+  }
+  return dir;
+}
+
+test('Import from folder on the welcome page makes an album named after the folder', async () => {
+  const fixture = await desktopFixture();
+  try {
+    const dir = await folderOnDisk(fixture, 'Summer by the sea', {
+      'a.jpg': await jpeg(50), 'more/b.jpg': await jpeg(51), '.thumbnails/t.jpg': await jpeg(52), '.DS_Store': 'junk', 'list.txt': 'notes',
+    });
+    const { page } = await fixture.launch();
+    const button = page.locator('.welcome [data-act=import-folder]');
+    await expect(button).toHaveText('Import from folder…');
+    const chooser = page.waitForEvent('filechooser');
+    await button.click();
+    await (await chooser).setFiles(dir);
+    await expect(page.locator('.folder h3')).toHaveText('Summer by the sea');
+    await expect(page.locator('.folder .n')).toHaveText('2 photos');
+    await expect(page.locator('.toast')).toHaveText("Imported 2 items, skipped 1 file that isn't a photo or video");
+    await expect(page.locator('.upload')).toBeHidden();
+    await expect(page.locator('html')).not.toHaveAttribute('data-busy', '');
+  } finally { await fixture.close(); }
+});
+
+test('while a folder imports, the wall stays open, other changes wait and another folder joins the run', async () => {
+  const fixture = await desktopFixture();
+  let release = () => {};
+  try {
+    const kyoto = await folderOnDisk(fixture, 'Kyoto', { 'k0.jpg': await jpeg(60), 'k1.jpg': await jpeg(61) });
+    const nara = await folderOnDisk(fixture, 'Nara', { 'n0.jpg': await jpeg(62) });
+    const { page } = await fixture.launch();
+    const origin = new URL(page.url()).origin;
+    const held = new Promise((resolve) => { release = resolve; });
+    let entered;
+    const started = new Promise((resolve) => { entered = resolve; });
+    await page.route(/\/api\/albums\/[^/]+\/photos\?/, async (route) => {
+      if (route.request().method() === 'POST') { entered(); await held; }
+      await route.continue();
+    });
+    await page.locator('.folder-input').setInputFiles(kyoto);
+    await started;
+    await expect(page.locator('.upload b')).toHaveText('Importing "Kyoto" · 1/2');
+    await page.evaluate(() => { location.hash = '#/trash'; });
+    await expect(page.locator('.toast')).toHaveText('Please wait for the current operation to finish.');
+    await expect(page).toHaveURL(`${origin}/#/albums`);
+    await page.locator('.page > .ph [data-act=new]').click();
+    await expect(page.locator('dialog.dlg')).toHaveCount(0);
+    await page.locator('.folder-input').setInputFiles(nara);
+    release();
+    await expect(page.locator('.toast')).toHaveText('Imported 3 items');
+    expect((await page.locator('.folder h3').allTextContents()).sort()).toEqual(['Kyoto', 'Nara']);
+    await expect(page.locator('html')).not.toHaveAttribute('data-busy', '');
+    await page.evaluate(() => { location.hash = '#/trash'; });
+    await expect(page).toHaveURL(`${origin}/#/trash`);
+  } finally {
+    release(); // quitting waits for the import, so never leave the upload held
+    await fixture.close();
+  }
+});
+
+test('a read-only license imports no folder', async () => {
+  const fixture = await desktopFixture({ license: 'expired' });
+  try {
+    const dir = await folderOnDisk(fixture, 'Locked', { 'a.jpg': await jpeg(70) });
+    const { page } = await fixture.launch();
+    const origin = new URL(page.url()).origin;
+    await expect(page.locator('.welcome [data-act=import-folder]')).toHaveAttribute('aria-disabled', 'true');
+    // As if the license ran out while the folder dialog was open.
+    await page.locator('.folder-input').setInputFiles(dir);
+    await expect(page.locator('.toast')).toHaveText(/^Read-only mode/);
+    expect(await (await page.request.get(`${origin}/api/albums`)).json()).toEqual([]);
   } finally { await fixture.close(); }
 });

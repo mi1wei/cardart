@@ -2,6 +2,7 @@ import { api } from './api.js';
 import { t } from './i18n.js';
 import { allowWrite } from './license.js';
 import { onComputer } from './phone.js';
+import { toast } from './ui.js';
 import { probeVideo } from './video-probe.js';
 
 const SKIP = { duplicate: 'dup', unsupported: 'bad', 'too-large': 'big' };
@@ -13,8 +14,11 @@ const fresh = () => ({ total: 0, done: 0, dup: 0, bad: 0, big: 0, other: 0, unre
 // Files go up one at a time (v1 spec §7) and files added during a run join it; html[data-busy] holds
 // other changes and quitting until the run ends. beforeFile() runs before each upload and its result
 // reaches onPhoto(photo, { signal, before }), which may return a note for the summary; onDone() runs
-// once the queue is empty, before the summary.
-export function createImporter(host, { beforeFile, onPhoto, onDone } = {}) {
+// once the queue is empty, before the summary. finish 'box' leaves the summary in the box (album page);
+// 'toast' closes the box and shows it as a toast (album wall). A batch's album is an id, or an async
+// function that creates the album when the batch's turn comes (one album per folder); its label names
+// the album in the box.
+export function createImporter(host, { finish = 'box', beforeFile, onPhoto, onDone } = {}) {
   host.insertAdjacentHTML('beforeend', '<div class="upload" role="status" aria-live="polite" hidden><div class="r"><b></b><span></span></div><div class="prog"><i></i></div><small></small></div>');
   const box = host.lastElementChild;
   const heading = box.querySelector('b');
@@ -47,23 +51,40 @@ export function createImporter(host, { beforeFile, onPhoto, onDone } = {}) {
     try {
       while (queue.length && !dead) {
         if (!allowWrite()) { queue.length = 0; break; }
-        const { album, file } = queue.shift();
+        const { batch, file, n } = queue.shift();
         const i = tally.total - queue.length;
+        // A folder's album counts its own files; the album page counts the whole run.
+        const at = batch.label ? `${n}/${batch.count}` : `${i}/${tally.total}`;
+        if (batch.error) { tally.fail++; continue; }
+        if (!batch.id) {
+          try { batch.id = await batch.album(); }
+          catch (error) {
+            if (dead) break;
+            // Spec §8: this folder stops, the next one still goes.
+            batch.error = t('album-create-failed', { name: batch.label, reason: error.message });
+            lastFailure = batch.error;
+            toast(batch.error);
+            tally.fail++;
+            continue;
+          }
+          if (dead) break;
+        }
+        const album = batch.id;
         const before = beforeFile?.();
         controller = new AbortController();
         const { signal } = controller;
-        heading.textContent = t('importing', { i, n: tally.total });
+        heading.textContent = batch.label ? t('importing-into', { album: batch.label, i: n, n: batch.count }) : t('importing', { i, n: tally.total });
         current.textContent = file.name;
         bar.style.width = `${((i - 1) / tally.total) * 100}%`;
         try {
           let res;
           if (isVideo(file)) {
-            heading.textContent = `${t('video-preparing')} · ${i}/${tally.total}`;
+            heading.textContent = `${t('video-preparing')} · ${at}`;
             const prepared = await probeVideo(file, { signal });
             if (dead || !allowWrite()) { queue.length = 0; break; }
             res = await api.uploadVideo(album, file, prepared, ({ stage, loaded, total }) => {
               if (dead) return;
-              heading.textContent = `${t(stage === 'saving' ? 'upload-saving' : onComputer ? 'upload-sending' : 'upload-sending-phone')} · ${i}/${tally.total}`;
+              heading.textContent = `${t(stage === 'saving' ? 'upload-saving' : onComputer ? 'upload-sending' : 'upload-sending-phone')} · ${at}`;
               const fraction = total > 0 ? Math.min(1, Math.max(0, loaded / total)) : 0;
               bar.style.width = `${((i - 1 + fraction) / tally.total) * 100}%`;
             }, { signal });
@@ -97,21 +118,28 @@ export function createImporter(host, { beforeFile, onPhoto, onDone } = {}) {
     // Files added meanwhile started another run; it carries these counts on to its own summary.
     if (dead || active) return;
     const failed = Boolean(lastFailure || tally.unreadable);
+    const text = summary();
+    Object.assign(tally, fresh());
+    lastFailure = '';
+    if (finish === 'toast') {
+      box.hidden = true;
+      toast(text, failed ? 8000 : 5000);
+      return;
+    }
     heading.textContent = t('import-done');
     current.textContent = '';
     bar.style.width = '100%';
-    result.textContent = summary();
-    Object.assign(tally, fresh());
-    lastFailure = '';
+    result.textContent = text;
     if (!failed) box.timer = setTimeout(() => (box.hidden = true), 4000);
   }
 
   return {
     get active() { return active; },
     // notMedia and unreadable come from collecting a drop or a folder: counted, never uploaded.
-    add({ album, files, notMedia = 0, unreadable = 0 }) {
+    add({ album, label = '', files, notMedia = 0, unreadable = 0 }) {
       const list = [...files];
-      for (const file of list) queue.push({ album, file });
+      const batch = { album, id: typeof album === 'string' ? album : null, label, count: list.length, error: '' };
+      list.forEach((file, index) => queue.push({ batch, file, n: index + 1 }));
       tally.total += list.length;
       tally.other += notMedia;
       tally.unreadable += unreadable;

@@ -1,6 +1,8 @@
 import { api } from './api.js';
 import { folder, folderClick } from './folder.js';
+import { albumTitle, pickedFolder } from './folder-files.js';
 import { t } from './i18n.js';
+import { createImporter } from './import-files.js';
 import { onComputer } from './phone.js';
 import { open } from './router.js';
 import { dialog, icon, toast } from './ui.js';
@@ -36,14 +38,20 @@ export function renderWall(app) {
         <p class="welcome-lead">${t(onComputer ? 'welcome-lead' : 'welcome-lead-phone')}</p>
         <div class="welcome-panel">
           <span class="welcome-icon">${icon('bookOpen')}</span>
-          <button class="btn pri" type="button" data-write data-act="new">${icon('plus')}<span>${t('new-album')}</span></button>
+          <div class="welcome-acts">
+            <button class="btn pri" type="button" data-write data-act="new">${icon('plus')}<span>${t('new-album')}</span></button>
+            ${onComputer ? `<button class="btn" type="button" data-write data-act="import-folder">${icon('folder')}<span>${t('import-folder')}</span></button>` : ''}
+          </div>
           <p class="welcome-formats">${t('formats')}</p>
         </div>
         <a class="welcome-trash" href="#/trash" hidden></a>
       </section>
+      ${onComputer ? '<input class="folder-input" type="file" webkitdirectory hidden>' : ''}
     </main>`;
   const wall = app.querySelector('.folders');
   const sub = app.querySelector('.sub');
+  const importer = createImporter(app.querySelector('.page'), { finish: 'toast', onDone: load });
+  const folderInput = app.querySelector('.folder-input');
   app.querySelector('.wall-sort').value = sort;
   app.querySelector('.wall-sort').addEventListener('change', (event) => {
     sort = event.target.value;
@@ -102,6 +110,37 @@ export function renderWall(app) {
     trashLink.textContent = `${c('trash')} · ${c('trashCount', { n: entries.length })}`;
   }
 
+  // Imports wait for other changes; one already running takes more files (polish spec §5).
+  function canImport() {
+    if (!allowWrite()) return false;
+    if (mutating || (document.documentElement.hasAttribute('data-busy') && !importer.active)) { toast(c('busy')); return false; }
+    return true;
+  }
+
+  // One album per folder, named after it and created when its turn comes; a folder with nothing to
+  // import gets no album.
+  function importFolders(groups) {
+    const empty = groups.filter((group) => !group.files.length && !group.unreadable);
+    if (empty.length) toast(t('folder-empty', { names: empty.map((group) => group.name) }));
+    for (const group of groups) {
+      if (group.files.length || group.unreadable) importInto(albumTitle(group.name, t('new-album-name')), group);
+    }
+  }
+
+  function importInto(title, { files, skipped, unreadable }) {
+    importer.add({
+      album: async () => {
+        const created = await api.createAlbum(title);
+        void load(); // the new card shows while its photos come in
+        return created.id;
+      },
+      label: title,
+      files,
+      notMedia: skipped,
+      unreadable,
+    });
+  }
+
   const closeMenu = () => app.querySelector('.menu')?.remove();
 
   async function onClick(e) {
@@ -111,6 +150,10 @@ export function renderWall(app) {
       query = '';
       app.querySelector('.wall-search').value = '';
       render();
+      return;
+    }
+    if (act === 'import-folder') {
+      if (canImport()) folderInput.click();
       return;
     }
     if (['new', 'rename', 'delete'].includes(act) && !allowWrite()) return;
@@ -151,14 +194,28 @@ export function renderWall(app) {
 
   const onFocus = () => load();
   const onKey = (event) => { if (event.key === 'Escape') closeMenu(); };
+  folderInput?.addEventListener('change', () => {
+    const group = pickedFolder(folderInput.files);
+    folderInput.value = '';
+    if (!canImport()) return;
+    if (group) importFolders([group]);
+    else toast(t('folder-picked-empty'));
+  });
   app.addEventListener('click', onClick);
   window.addEventListener('focus', onFocus);
   window.addEventListener('keydown', onKey);
   window.addEventListener('folio-library-changed', onFocus);
   load();
   return {
+    // An import keeps the wall open (polish spec §5).
+    canLeave() {
+      if (!importer.active) return true;
+      toast(c('busy'));
+      return false;
+    },
     destroy() {
       alive = false;
+      importer.destroy();
       app.removeEventListener('click', onClick);
       window.removeEventListener('focus', onFocus);
       window.removeEventListener('keydown', onKey);
