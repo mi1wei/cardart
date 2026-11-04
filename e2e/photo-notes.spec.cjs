@@ -196,7 +196,8 @@ test('a pending note save cannot be abandoned or race another photo mutation', a
     await page.locator('[data-note-save]').click();
     await started;
     await expect(page.locator('.note-form')).toHaveAttribute('aria-busy', 'true');
-    await page.locator('.lb [data-act=cover]').click();
+    await page.locator('.lb-bar [data-act=menu]').click();
+    await page.locator('.lb-menu [data-act=menu-cover]').click();
     expect((await (await page.request.get(`${origin}/api/albums/${album.id}`)).json()).cover).toBe(null);
     await page.locator('.lb-nav.l').click();
     await expect(page.locator('.lb-count')).toHaveText('2 / 2');
@@ -230,7 +231,8 @@ test('an earlier cover save blocks note submission until its response cannot rev
       await held;
       await route.fulfill({ response });
     });
-    await page.locator('.lb [data-act=cover]').click();
+    await page.locator('.lb-bar [data-act=menu]').click();
+    await page.locator('.lb-menu [data-act=menu-cover]').click();
     await started;
     await expect(page.locator('[data-note-save]')).toBeDisabled();
     release();
@@ -264,7 +266,7 @@ test('incompatible metadata reaches validated Details fallback and a failed read
     const origin = new URL(page.url()).origin;
     await page.goto(`${origin}/#/a/${album.id}/p/p001`);
     await expect(page.locator('[data-field=camera]')).toHaveText('Folio Test Synthetic Camera');
-    await expect(page.locator('[data-field=taken-at]')).toHaveText('2026-08-15 09:30:00.125 +09:00');
+    await expect(page.locator('[data-field=taken-at]')).toHaveText('Aug 15, 2026 09:30:00.125 +09:00');
     await page.route(`${origin}/api/albums/${album.id}/photos/p001/details`, (route) =>
       route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'Owned read failure' }) }));
     await page.reload();
