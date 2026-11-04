@@ -34,11 +34,19 @@ test('photo Details shows original dimensions and EXIF safely without changing t
     const origin = new URL(page.url()).origin;
     const album = await (await page.request.post(`${origin}/api/albums`, { data: { title: 'Details upload' } })).json();
     await page.goto(`${origin}/#/a/${album.id}`);
+    await expect(page.locator('.album-page .title')).toHaveText('Details upload');
+    await expect(page.locator('html')).toHaveAttribute('data-readonly', 'false');
     const malicious = '<img src=x onerror="window.exifExecuted=true">';
-    await page.locator('.album-page input[type=file]').setInputFiles({
+    const file = {
       name: 'photo <one>.jpg', mimeType: 'image/jpeg',
       buffer: await photoBytes({ width: 2000, height: 3000, exif: { IFD0: { Make: malicious, Model: 'Owned Camera' } } }),
-    });
+    };
+    const [saved] = await Promise.all([
+      page.waitForResponse((response) => response.request().method() === 'POST' &&
+        new URL(response.url()).pathname === `/api/albums/${album.id}/photos`),
+      page.locator('.album-page input[type=file]').setInputFiles(file),
+    ]);
+    expect(saved.ok()).toBe(true);
     await expect(page.locator('.tile')).toHaveCount(1);
     await page.locator('.tile').click();
     const trigger = page.getByRole('button', { name: 'Details', exact: true });
