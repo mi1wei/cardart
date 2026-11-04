@@ -13,10 +13,13 @@ const { createUpdateController } = require('./updater.cjs');
 const { createPdfExporter } = require('./pdf-export.cjs');
 const { DEFAULT, MIN, restoreBounds, validWindow } = require('./window-state.cjs');
 const { background, overlay, themeSource, windowChrome } = require('./window-chrome.cjs');
+const { appMenu, textMenu } = require('./app-menu.cjs');
 
 const RELEASES = 'https://github.com/mi1wei/cardart/releases';
 
 async function startDesktop({ appRoot = join(__dirname, '..'), licensePublicKeyFile = join(__dirname, 'license-public.pem') } = {}) {
+  const { COMMANDS, commandAllowed, normalizeContext } = await import('../shared/commands.js');
+  let pageContext = { page: 'albums', busy: false, appearance: 'auto', density: 'm' };
   app.setName('Folio');
   if (process.platform === 'win32') app.setAppUserModelId('io.github.mi1wei.folio');
   const selectedProfile = app.commandLine.getSwitchValue('user-data-dir');
@@ -256,6 +259,10 @@ async function startDesktop({ appRoot = join(__dirname, '..'), licensePublicKeyF
     preview.webContents.on('will-attach-webview', (event) => event.preventDefault());
   });
   window.webContents.on('will-attach-webview', (event) => event.preventDefault());
+  window.webContents.on('context-menu', (event, params) => {
+    const template = textMenu(params);
+    if (template) Menu.buildFromTemplate(template).popup({ window });
+  });
   // Size and place are kept for the next launch (polish spec §6.5); full screen is not a place.
   // The size under a maximized window is the last one seen unmaximized: on macOS getNormalBounds()
   // turns into the zoomed frame after a minimize or a zoom from the window itself.
@@ -409,6 +416,25 @@ async function startDesktop({ appRoot = join(__dirname, '..'), licensePublicKeyF
   handle('folio:desktop:reveal-library', () => { openPath(settings.libraryDir); });
   handle('folio:desktop:choose-library', () => chooseAnotherLibrary());
   handle('folio:desktop:update', () => runUpdate());
+  handle('folio:context', (value) => {
+    const next = normalizeContext(value);
+    if (!next) { void log('COMMAND_CONTEXT_INVALID'); throw new Error('Invalid menu context'); }
+    if (JSON.stringify(pageContext) === JSON.stringify(next)) return;
+    pageContext = next;
+    setMenu();
+  });
+  async function sendCommand(name) {
+    if (!COMMANDS.includes(name) || isStopping() || choosingLibrary ||
+        !commandAllowed(name, pageContext, licenseStatus.canWrite)) {
+      void log('COMMAND_IGNORED');
+      return;
+    }
+    showWindow();
+    try {
+      if (['add-photos', 'import-folder'].includes(name)) await window.webContents.executeJavaScript('void 0', true);
+      window.webContents.send('folio:command', name);
+    } catch (error) { void log(`COMMAND_FAILED ${error.message}`); }
+  }
   // The page's appearance also sets native dialogs and menus, the window colour and the Windows title bar.
   let surface = 'page';
   function applyChrome() {

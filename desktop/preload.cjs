@@ -16,6 +16,12 @@ contextBridge.exposeInMainWorld('folioDesktop', Object.freeze({
   updateAction: () => ipcRenderer.invoke('folio:desktop:update'),
   setAppearance: (mode) => ipcRenderer.invoke('folio:desktop:appearance', mode),
   setSurface: (surface) => ipcRenderer.invoke('folio:desktop:surface', surface),
+  setContext: (context) => ipcRenderer.invoke('folio:context', context),
+  onCommand(callback) {
+    const listener = (event, name) => { if (typeof name === 'string') callback(name); };
+    ipcRenderer.on('folio:command', listener);
+    return () => ipcRenderer.removeListener('folio:command', listener);
+  },
   onState(callback) {
     const listener = (event, state) => callback(state);
     ipcRenderer.on('folio:desktop:state', listener);
