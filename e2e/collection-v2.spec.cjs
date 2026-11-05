@@ -274,3 +274,34 @@ test('on a phone the Recently Deleted card takes a whole row and its text fits o
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   } finally { await fixture.close(); }
 });
+
+test('a refresh waits while an album card menu is open and runs once it closes', async () => {
+  const fixture = await desktopFixture();
+  try {
+    const { page } = await fixture.launch();
+    const origin = new URL(page.url()).origin;
+    await seed(page, origin, 'First', 0);
+    await seed(page, origin, 'Second', 0);
+    await openWall(page, origin);
+    const cards = page.locator('.folder');
+    await expect(cards).toHaveCount(2);
+    await cards.nth(0).locator('[data-act=menu]').click();
+    await expect(page.locator('.folder .menu')).toBeVisible();
+    await seed(page, origin, 'Third', 0); // added elsewhere, as from a phone
+    const refreshed = () => page.waitForResponse((response) => new URL(response.url()).pathname === '/api/trash');
+    // Coming back to the window refreshes the wall.
+    await Promise.all([refreshed(), page.evaluate(() => window.dispatchEvent(new Event('focus')))]);
+    await page.waitForTimeout(300);
+    await expect(page.locator('.folder .menu')).toBeVisible();
+    await expect(cards).toHaveCount(2);
+    // Moving to another card's menu: the refresh runs, and waits again for the new menu.
+    await Promise.all([refreshed(), cards.nth(1).locator('[data-act=menu]').click()]);
+    await page.waitForTimeout(300);
+    await expect(page.locator('.folder .menu')).toHaveCount(1);
+    await expect(cards.nth(1).locator('.menu')).toBeVisible();
+    await expect(cards).toHaveCount(2);
+    await page.keyboard.press('Escape');
+    await expect(page.locator('.folder .menu')).toHaveCount(0);
+    await expect(cards).toHaveCount(3);
+  } finally { await fixture.close(); }
+});

@@ -18,6 +18,7 @@ export function renderWall(app) {
   let entries = [];
   let request = 0;
   let mutating = false;
+  let stale = false; // a refresh waiting for an open card menu to close
   let query = '';
   let sort = preference('album-sort', ['updated', 'created', 'name'], 'updated');
   document.title = `${t('albums')} · ${t('app')}`;
@@ -70,6 +71,9 @@ export function renderWall(app) {
     try {
       const [list, trash] = await Promise.all([api.albums(), api.trash()]);
       if (!alive || request !== revision) return;
+      // Drawing the cards again would close an open card menu: refresh once it closes instead.
+      stale = Boolean(app.querySelector('.folder .menu'));
+      if (stale) return;
       albums = list;
       entries = trash;
       loaded = true;
@@ -142,7 +146,13 @@ export function renderWall(app) {
     });
   }
 
-  const closeMenu = () => app.querySelector('.menu')?.remove();
+  const closeMenu = () => {
+    app.querySelector('.menu')?.remove();
+    if (stale) {
+      stale = false;
+      void load();
+    }
+  };
 
   async function runAction(action, a) {
     if (action === 'open' || action === '3d') return open(`#/a/${a.id}${action === '3d' ? '/3d' : ''}`);
