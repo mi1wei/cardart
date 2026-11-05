@@ -39,6 +39,13 @@ test('sort pickers say what they sort and the thumbnail slider shows its range',
       await expect(page.locator('.sort-label').first()).toBeVisible();
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     }
+    // A 390px phone in English shows the whole sort choice.
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`${origin}/#/albums`);
+    const sort = page.locator('.wall-sort');
+    await expect(sort.locator('option:checked')).toHaveText('Last updated');
+    const { width, max } = await sort.evaluate((el) => ({ width: el.getBoundingClientRect().width, max: parseFloat(getComputedStyle(el).maxWidth) }));
+    expect(width, 'narrower than its cap, so nothing is cut off').toBeLessThan(max);
   } finally { await fixture.close(); }
 });
 

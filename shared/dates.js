@@ -14,8 +14,14 @@ function parse(value) {
 // Intl puts thin spaces around the range dash; the rest of the interface uses plain spaces.
 const plain = (text) => text.replace(/[\u2009\u202f]/g, ' ');
 
+// Made once: a new formatter for every photo is slow in albums with thousands of them.
+const ENGLISH = {
+  day: new Intl.DateTimeFormat('en', { timeZone: 'UTC', year: 'numeric', month: 'short', day: 'numeric' }),
+  month: new Intl.DateTimeFormat('en', { timeZone: 'UTC', year: 'numeric', month: 'short' }),
+};
+
 function english(a, b, month) {
-  const format = new Intl.DateTimeFormat('en', { timeZone: 'UTC', year: 'numeric', month: 'short', ...(month ? {} : { day: 'numeric' }) });
+  const format = month ? ENGLISH.month : ENGLISH.day;
   return plain(b ? format.formatRange(a.date, b.date) : format.format(a.date));
 }
 

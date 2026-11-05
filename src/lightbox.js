@@ -195,7 +195,7 @@ export function openLightbox({ album, index = 0, onIndex = () => {}, onAlbum = (
     if (!trashActions) {
       const isCover = (album.cover ?? album.photos[0].id) === p.id;
       for (const button of root.querySelectorAll('[data-act=sheet-cover], [data-act=menu-cover]')) button.disabled = isCover;
-      $('[data-act=menu-cover] span').textContent = t(isCover ? 'already-cover' : 'set-album-cover');
+      for (const label of root.querySelectorAll('[data-act=sheet-cover] span, [data-act=menu-cover] span')) label.textContent = t(isCover ? 'already-cover' : 'set-album-cover');
       $('[data-act=original]').setAttribute('aria-label', t(p.kind === 'video' ? 'original-video' : 'original'));
       $('[data-act=original] span').textContent = t(p.kind === 'video' ? 'original-video' : 'original');
       $('[data-act=delete]').setAttribute('aria-label', t(p.kind === 'video' ? 'delete-video' : 'delete-photo'));

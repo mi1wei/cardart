@@ -1,4 +1,5 @@
 import { api } from './api.js';
+import { collectDrop } from './folder-files.js';
 import { t } from './i18n.js';
 import { allowWrite } from './license.js';
 import { onComputer } from './phone.js';
@@ -9,6 +10,34 @@ const SKIP = { duplicate: 'dup', unsupported: 'bad', 'too-large': 'big' };
 const FAILURE = { timeout: 'video-timeout', blocked: 'video-blocked', unreadable: 'video-unreadable', network: 'upload-network', 'bad-response': 'upload-bad-response' };
 const isVideo = (file) => /\.(mp4|mov|m4v)$/i.test(file.name) || /^(video\/mp4|video\/quicktime|video\/x-m4v)$/i.test(file.type);
 const fresh = () => ({ total: 0, done: 0, dup: 0, bad: 0, big: 0, other: 0, unreadable: 0, fail: 0 });
+
+// Reading a drop can take a while for a big folder: a panel says so and counts the files found until
+// the import takes over, and a drop meanwhile is turned away. read() takes the drop's items before
+// its first await; it gives null for a drop it turns away.
+export function createDropReader(host) {
+  host.insertAdjacentHTML('beforeend', `<div class="drop-reading" role="status" hidden><span><i class="spinner" aria-hidden="true"></i><b>${t('drop-reading')}</b><small aria-hidden="true"></small></span></div>`);
+  const panel = host.lastElementChild;
+  const found = panel.querySelector('small');
+  let reading = false;
+  return {
+    get reading() { return reading; },
+    async read(transfer) {
+      if (reading) {
+        toast(t('drop-wait'));
+        return null;
+      }
+      reading = true;
+      found.textContent = '';
+      panel.hidden = false;
+      try {
+        return await collectDrop(transfer, (n) => { found.textContent = t('drop-found', { n }); });
+      } finally {
+        reading = false;
+        panel.hidden = true;
+      }
+    },
+  };
+}
 
 // The import queue and its progress box, shared by the album page and the album wall (polish spec §5).
 // Files go up one at a time (v1 spec §7) and files added during a run join it; html[data-busy] holds

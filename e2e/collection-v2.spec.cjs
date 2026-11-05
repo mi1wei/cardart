@@ -113,7 +113,8 @@ test('trash preview has only restore and purge, and permanent deletion asks for 
     await expect(page.locator('.trash-preview')).toHaveCount(1);
     await page.locator('.trash-preview').click();
     await expect(page.locator('.lb')).toBeVisible();
-    await expect(page.locator('.lb [data-act=cover], .lb [data-act=delete]')).toHaveCount(0);
+    // No ⋯ and nothing from it: no cover, copy, move or delete in a trash preview.
+    await expect(page.locator('.lb [data-act=menu], .lb [data-act^=menu-], .lb [data-act^=sheet-], .lb [data-act=delete]')).toHaveCount(0);
     await page.locator('.lb [data-act=close]').click();
     await page.locator('.trash-item input').check();
     await page.locator('[data-act=purge]').click();
@@ -252,5 +253,85 @@ test('batch download streams a ZIP through the native download flow', async () =
     expect(bytes.subarray(0, 2).toString()).toBe('PK');
     expect(bytes.includes(Buffer.from('p0.jpg'))).toBe(true);
     expect(bytes.includes(Buffer.from('p1.jpg'))).toBe(true);
+  } finally { await fixture.close(); }
+});
+
+test('on a phone the Recently Deleted card takes a whole row and its text fits on one line', async () => {
+  const fixture = await desktopFixture();
+  try {
+    const { page } = await fixture.launch();
+    const origin = new URL(page.url()).origin;
+    await seed(page, origin, 'Kept', 1);
+    const gone = await seed(page, origin, 'Gone', 1);
+    await page.request.delete(`${origin}/api/albums/${gone.id}`);
+    await page.setViewportSize({ width: 320, height: 700 });
+    await openWall(page, origin);
+    const card = page.locator('.trash-card');
+    await expect(card).toBeVisible();
+    const row = await page.locator('.folders').evaluate((el) => el.getBoundingClientRect().width);
+    expect((await card.boundingBox()).width).toBeCloseTo(row, 0);
+    const lines = await card.locator('span').evaluate((el) => Math.round(el.getBoundingClientRect().height / parseFloat(getComputedStyle(el).lineHeight)));
+    expect(lines).toBe(1);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  } finally { await fixture.close(); }
+});
+
+test('a refresh waits while an album card menu is open and runs once it closes', async () => {
+  const fixture = await desktopFixture();
+  try {
+    const { page } = await fixture.launch();
+    const origin = new URL(page.url()).origin;
+    await seed(page, origin, 'First', 0);
+    await seed(page, origin, 'Second', 0);
+    await openWall(page, origin);
+    const cards = page.locator('.folder');
+    await expect(cards).toHaveCount(2);
+    await cards.nth(0).locator('[data-act=menu]').click();
+    await expect(page.locator('.folder .menu')).toBeVisible();
+    await seed(page, origin, 'Third', 0); // added elsewhere, as from a phone
+    const refreshed = () => page.waitForResponse((response) => new URL(response.url()).pathname === '/api/trash');
+    // Coming back to the window refreshes the wall.
+    await Promise.all([refreshed(), page.evaluate(() => window.dispatchEvent(new Event('focus')))]);
+    await page.waitForTimeout(300);
+    await expect(page.locator('.folder .menu')).toBeVisible();
+    await expect(cards).toHaveCount(2);
+    // Moving to another card's menu: the refresh runs, and waits again for the new menu.
+    await Promise.all([refreshed(), cards.nth(1).locator('[data-act=menu]').click()]);
+    await page.waitForTimeout(300);
+    await expect(page.locator('.folder .menu')).toHaveCount(1);
+    await expect(cards.nth(1).locator('.menu')).toBeVisible();
+    await expect(cards).toHaveCount(2);
+    await page.keyboard.press('Escape');
+    await expect(page.locator('.folder .menu')).toHaveCount(0);
+    await expect(cards).toHaveCount(3);
+  } finally { await fixture.close(); }
+});
+
+test('a right-click rename or delete and its Undo show at once, even while another card menu is open', async () => {
+  const fixture = await desktopFixture();
+  try {
+    const { page } = await fixture.launch();
+    const origin = new URL(page.url()).origin;
+    await seed(page, origin, 'First', 0);
+    await seed(page, origin, 'Second', 0);
+    await openWall(page, origin);
+    const cards = page.locator('.folder');
+    const card = (name) => cards.filter({ has: page.getByRole('heading', { name, exact: true }) });
+    await expect(cards).toHaveCount(2);
+    await card('First').locator('[data-act=menu]').click();
+    await expect(page.locator('.folder .menu')).toBeVisible();
+    await card('Second').click({ button: 'right' });
+    await page.locator('.context-menu [data-context=rename]').click();
+    await page.locator('dialog .dlg-input').fill('Renamed');
+    await page.locator('dialog [value=ok]').click();
+    await expect(page.locator('.folder h2')).toHaveText(['Renamed', 'First']);
+    await card('First').locator('[data-act=menu]').click();
+    await card('Renamed').click({ button: 'right' });
+    await page.locator('.context-menu [data-context=delete]').click();
+    await page.locator('dialog [value=ok]').click();
+    await expect(page.locator('.folder h2')).toHaveText(['First']);
+    await card('First').locator('[data-act=menu]').click();
+    await page.locator('.undo-toast button').click();
+    await expect(page.locator('.folder h2')).toHaveText(['Renamed', 'First']);
   } finally { await fixture.close(); }
 });

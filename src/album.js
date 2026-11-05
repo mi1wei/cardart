@@ -4,8 +4,7 @@ import { close, open, swap } from './router.js';
 import { backLink, dialog, icon, toast } from './ui.js';
 import { lang, mediaCountText, t } from './i18n.js';
 import { allowWrite, canWrite } from './license.js';
-import { createImporter } from './import-files.js';
-import { collectDrop } from './folder-files.js';
+import { createDropReader, createImporter } from './import-files.js';
 import { formatDuration, mediaCounts } from '../shared/media.js';
 import { c } from './collection-text.js';
 import { formatRange } from '../shared/dates.js';
@@ -93,6 +92,7 @@ export function renderAlbum(app, id) {
   const input = $('input[type=file]');
   const density = $('.density input');
   const importer = createImporter(main, { beforeFile: () => album, onPhoto: addedPhoto, onDone: load });
+  const reader = createDropReader(main);
   main.dataset.density = savedDensity();
   density.value = String(DENSITY.indexOf(main.dataset.density));
   density.addEventListener('input', () => {
@@ -551,6 +551,7 @@ export function renderAlbum(app, id) {
   function onDragOver(e) {
     if (!hasFiles(e) || !album) return;
     e.preventDefault();
+    if (reader.reading) return;
     main.classList.add('dropping');
     clearTimeout(main.dropTimer);
     main.dropTimer = setTimeout(() => main.classList.remove('dropping'), 150);
@@ -561,8 +562,9 @@ export function renderAlbum(app, id) {
     e.preventDefault();
     main.classList.remove('dropping');
     if (!allowWrite()) return;
-    const { folders, loose } = await collectDrop(e.dataTransfer); // takes the items before it awaits
-    if (!alive) return;
+    const dropped = await reader.read(e.dataTransfer); // takes the items before it awaits
+    if (!dropped || !alive) return;
+    const { folders, loose } = dropped;
     const groups = [loose, ...folders];
     const files = groups.flatMap((group) => group.files);
     const count = (key) => groups.reduce((n, group) => n + group[key], 0);

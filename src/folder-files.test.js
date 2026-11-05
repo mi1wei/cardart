@@ -109,6 +109,19 @@ test('the items are taken while the drop event runs; the browser empties them ri
   assert.deepEqual(names(loose.files), ['b.jpg']);
 });
 
+test('the number of files found so far is reported while a drop is read', async () => {
+  const { transfer } = drop(
+    { entry: folder('Trip', [
+      entry('a.jpg', 'image/jpeg'), entry('.DS_Store'),
+      folder('more', [entry('b.jpg', 'image/jpeg'), entry('moved.jpg', 'image/jpeg', { broken: true })]),
+    ]) },
+    { file: file('c.jpg', 'image/jpeg') },
+  );
+  const counts = [];
+  await collectDrop(transfer, (n) => counts.push(n));
+  assert.deepEqual(counts, [1, 2, 3]); // hidden and unreadable files are not counted
+});
+
 test('without an item list the dropped files are used as they are', async () => {
   const { folders, loose } = await collectDrop({ types: ['Files'], files: [file('a.jpg', 'image/jpeg')] });
   assert.deepEqual(folders, []);

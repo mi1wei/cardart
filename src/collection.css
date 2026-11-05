@@ -142,8 +142,11 @@
   .batch-bar .btn span, .batch-copy { display: none; }
   .batch-bar .ibtn { width: 30px; }
   .undo-toast { left: 14px; right: 14px; bottom: calc(env(safe-area-inset-bottom, 0px) + 76px); justify-content: space-between; }
-  .trash-card { min-height: 150px; }
-  .trash-card span { text-align: center; font-size: var(--text-12); line-height: var(--leading-12); }
+  /* A whole row, the icon beside the text. */
+  .trash-card { grid-column: 1 / -1; min-height: 0; display: grid; grid-template-columns: auto 1fr; column-gap: 14px; row-gap: 2px; align-items: center; justify-items: start; padding: 14px 16px; }
+  .trash-card svg { grid-row: 1 / 3; width: 28px; height: 28px; }
+  .trash-card strong { align-self: end; }
+  .trash-card span { align-self: start; text-align: left; font-size: var(--text-12); line-height: var(--leading-12); }
   .trash-page .ph .btn { width: auto; padding: 0 12px; }
   .photo-sort { max-width: 120px; }
 }

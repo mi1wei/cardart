@@ -57,46 +57,53 @@ async function children(folder) {
   }
 }
 
-// Adds the folder's files, at any depth, to `found`; returns how many could not be read.
-async function walk(folder, prefix, found) {
+// Adds the folder's files, at any depth, to `found` and calls onFile() for each; returns how many
+// could not be read.
+async function walk(folder, prefix, found, onFile) {
   let list;
   try { list = await children(folder); } catch { return 1; }
   let unreadable = 0;
   for (const entry of list) {
     if (hidden(entry.name)) continue;
     const path = `${prefix}${entry.name}`;
-    if (entry.isDirectory) unreadable += await walk(entry, `${path}/`, found);
+    if (entry.isDirectory) unreadable += await walk(entry, `${path}/`, found, onFile);
     else {
-      try { found.push({ path, file: await fileOf(entry) }); }
-      catch { unreadable++; }
+      try { found.push({ path, file: await fileOf(entry) }); } catch { unreadable++; continue; }
+      onFile();
     }
   }
   return unreadable;
 }
 
-async function read(taken) {
+async function read(taken, onFound) {
   const folders = [];
   const loose = [];
   let unreadable = 0;
+  let n = 0;
+  const onFile = () => onFound(++n);
   for (const { entry, file } of taken) {
     if (entry?.isDirectory) {
       const found = [];
-      const failed = await walk(entry, '', found);
+      const failed = await walk(entry, '', found, onFile);
       folders.push({ name: entry.name, ...sortOut(found, failed) });
-    } else if (file) loose.push({ path: file.name, file });
-    else if (entry?.isFile) {
+    } else if (file) {
+      loose.push({ path: file.name, file });
+      onFile();
+    } else if (entry?.isFile) {
       try {
         const loaded = await fileOf(entry);
         loose.push({ path: loaded.name, file: loaded });
-      } catch { unreadable++; }
+      } catch { unreadable++; continue; }
+      onFile();
     } else unreadable++;
   }
   return { folders, loose: sortOut(loose, unreadable) };
 }
 
-// A drop: each top-level folder is one group, everything else is `loose`. The browser empties the
-// item list once the drop event is over, so every item is taken here, before the first await.
-export function collectDrop(transfer) {
+// A drop: each top-level folder is one group, everything else is `loose`; onFound(n) hears how many
+// files have been found so far. The browser empties the item list once the drop event is over, so
+// every item is taken here, before the first await.
+export function collectDrop(transfer, onFound = () => {}) {
   const taken = [];
   const items = transfer.items;
   if (items) {
@@ -105,7 +112,7 @@ export function collectDrop(transfer) {
       if (item.kind === 'file') taken.push({ entry: item.webkitGetAsEntry?.() ?? null, file: item.getAsFile() });
     }
   } else for (const file of transfer.files ?? []) taken.push({ entry: null, file });
-  return read(taken);
+  return read(taken, onFound);
 }
 
 // Album names follow the server's rule: trimmed, at most 50 characters counted as code points.

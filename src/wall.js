@@ -1,8 +1,8 @@
 import { api } from './api.js';
 import { folder, folderClick } from './folder.js';
-import { albumTitle, collectDrop, pickedFolder } from './folder-files.js';
+import { albumTitle, pickedFolder } from './folder-files.js';
 import { t } from './i18n.js';
-import { createImporter } from './import-files.js';
+import { createDropReader, createImporter } from './import-files.js';
 import { onComputer } from './phone.js';
 import { open } from './router.js';
 import { dialog, icon, toast } from './ui.js';
@@ -18,6 +18,7 @@ export function renderWall(app) {
   let entries = [];
   let request = 0;
   let mutating = false;
+  let stale = false; // a refresh waiting for an open card menu to close
   let query = '';
   let sort = preference('album-sort', ['updated', 'created', 'name'], 'updated');
   document.title = `${t('albums')} · ${t('app')}`;
@@ -52,7 +53,7 @@ export function renderWall(app) {
     </main>`;
   const wall = app.querySelector('.folders');
   const sub = app.querySelector('.sub');
-  const importer = createImporter(app.querySelector('.page'), { finish: 'toast', onDone: load });
+  const importer = createImporter(app.querySelector('.page'), { finish: 'toast', onDone: () => load(true) });
   const folderInput = app.querySelector('.folder-input');
   app.querySelector('.wall-sort').value = sort;
   app.querySelector('.wall-sort').addEventListener('change', (event) => {
@@ -65,11 +66,15 @@ export function renderWall(app) {
     render();
   });
 
-  async function load() {
+  async function load(background = false) {
     const revision = ++request;
     try {
       const [list, trash] = await Promise.all([api.albums(), api.trash()]);
       if (!alive || request !== revision) return;
+      // Drawing the cards again would close an open card menu: a refresh the user did not ask for
+      // waits until it closes.
+      stale = background && Boolean(app.querySelector('.folder .menu'));
+      if (stale) return;
       albums = list;
       entries = trash;
       loaded = true;
@@ -119,10 +124,11 @@ export function renderWall(app) {
     return true;
   }
 
-  // One album per folder, named after it and created when its turn comes; a folder with nothing to
-  // import gets no album.
+  // A folder with something to import or to report gets an album, named after it and created when
+  // its turn comes.
+  const counted = (group) => group.files.length || group.unsupported || group.unreadable;
+
   function importFolders(groups) {
-    const counted = (group) => group.files.length || group.unsupported || group.unreadable;
     const empty = groups.filter((group) => !counted(group));
     if (empty.length) toast(t('folder-empty', { names: empty.map((group) => group.name) }));
     for (const group of groups) {
@@ -142,7 +148,13 @@ export function renderWall(app) {
     });
   }
 
-  const closeMenu = () => app.querySelector('.menu')?.remove();
+  const closeMenu = () => {
+    app.querySelector('.menu')?.remove();
+    if (stale) {
+      stale = false;
+      void load(true);
+    }
+  };
 
   async function runAction(action, a) {
     if (action === 'open' || action === '3d') return open(`#/a/${a.id}${action === '3d' ? '/3d' : ''}`);
@@ -228,7 +240,7 @@ export function renderWall(app) {
     ];
   });
 
-  const onFocus = () => load();
+  const onFocus = () => load(true);
   const onKey = (event) => { if (event.key === 'Escape') closeMenu(); };
   folderInput?.addEventListener('change', () => {
     const group = pickedFolder(folderInput.files);
@@ -241,11 +253,12 @@ export function renderWall(app) {
   // Files dragged in from the computer (polish spec §5): each folder becomes an album, loose photos
   // get one album, named before anything is imported.
   const hint = app.querySelector('.drop-hint');
+  const reader = onComputer ? createDropReader(app.querySelector('.page')) : null;
   const hasFiles = (e) => [...(e.dataTransfer?.types ?? [])].includes('Files');
   function onDragOver(e) {
     if (!hasFiles(e)) return;
     e.preventDefault();
-    if (document.querySelector('dialog[open]')) return;
+    if (reader.reading || document.querySelector('dialog[open]')) return; // the reading panel stays in front
     hint.hidden = false;
     clearTimeout(hint.timer);
     hint.timer = setTimeout(() => (hint.hidden = true), 150);
@@ -256,8 +269,9 @@ export function renderWall(app) {
     clearTimeout(hint.timer);
     hint.hidden = true;
     if (document.querySelector('dialog[open]') || !canImport()) return;
-    const { folders, loose } = await collectDrop(e.dataTransfer); // takes the items before it awaits
-    if (!alive) return;
+    const dropped = await reader.read(e.dataTransfer); // takes the items before it awaits
+    if (!dropped || !alive) return;
+    const { folders, loose } = dropped;
     if (loose.files.length || loose.unreadable) {
       const n = loose.files.length + loose.unreadable;
       const title = await dialog({ title: t('new-album'), text: t('loose-new-album', { n }), value: t('new-album-name'), ok: t('create') });
@@ -267,6 +281,13 @@ export function renderWall(app) {
     } else if (!folders.length) {
       toast(t('nothing-to-import'));
       return;
+    } else {
+      // Other loose files are reported in the summary, with the first folder that is imported.
+      const first = folders.find(counted);
+      if (first) {
+        first.skipped += loose.skipped;
+        first.unsupported += loose.unsupported;
+      }
     }
     importFolders(folders);
   }

@@ -285,7 +285,8 @@
   .lb-parameters dl > div { display: flex; justify-content: space-between; align-items: baseline; gap: 4px; }
   .lb-parameters dd { margin: 0; font-size: var(--text-13); line-height: var(--leading-13); }
   .lb-photo-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
-  .lb-photo-actions .btn { justify-content: center; min-height: 44px; font-size: var(--text-12); line-height: var(--leading-12); }
+  .lb-photo-actions .btn { justify-content: center; min-height: 44px; font-size: var(--text-12); line-height: var(--leading-12); white-space: normal; text-align: center; }
+  .lb-photo-actions .btn svg { flex: none; }
   .note-edit, .note-expand, .note-clear, .note-form-actions .btn { min-width: 44px; min-height: 44px; }
   .note-input { min-height: 120px; font-size: var(--text-16); line-height: var(--leading-16); }
   .lb[data-preview=true] .lb-back { max-width: calc(100vw - 190px); }

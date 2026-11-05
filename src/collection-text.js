@@ -4,7 +4,7 @@ const words = {
   en: {
     searchAlbums: 'Search albums', searchPhotos: 'Search filenames and notes', clear: 'Clear search',
     noResults: 'No matching items', sortBy: 'Sort',
-    updated: 'Recently updated', created: 'Created', name: 'Name', taken: 'Capture time',
+    updated: 'Last updated', created: 'Created', name: 'Name', taken: 'Capture time',
     added: 'Date added', manual: 'Manual', manualPrompt: 'Switch to manual order?',
     manualHint: 'Drag again after switching to manual order.', all: 'Select all', done: 'Done',
     move: 'Move to', copy: 'Copy to', download: 'Download', pickAlbum: 'Choose an album',

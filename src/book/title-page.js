@@ -8,7 +8,7 @@ const PX = 6; // canvas pixels per mm
 
 // Dark ink on a light board; light ink (the dark theme's text colours) when the board shows a dark page.
 const INK = {
-  dark: { title: '#26323d', rule: 'rgba(38, 50, 61, 0.35)', small: '#56636f' },
+  dark: { title: '#26323d', rule: 'rgba(38, 50, 61, 0.35)', small: '#4a5662' },
   light: { title: '#e9ecef', rule: 'rgba(233, 236, 239, 0.35)', small: '#a7b0ba' },
 };
 

@@ -10,9 +10,9 @@ test('the library path shows the home folder as ~, except on Windows where ~ is 
   assert.equal(displayPath('C:\\Users\\mi\\Pictures\\相册库', 'C:\\Users\\mi', 'win32'), 'C:\\Users\\mi\\Pictures\\相册库');
 });
 
-test('the settings info carries the version, the library as shown and the update state', () => {
+test('the desktop info carries the version, the library as shown, the update state and full screen', () => {
   assert.deepEqual(
-    desktopInfo({ version: '0.1.0', libraryDir: '/home/mi/相册库', home: '/home/mi', platform: 'linux', update: { phase: 'idle' } }),
-    { version: '0.1.0', library: '~/相册库', update: { phase: 'idle' } },
+    desktopInfo({ version: '0.1.0', libraryDir: '/home/mi/相册库', home: '/home/mi', platform: 'linux', update: { phase: 'idle' }, fullscreen: false }),
+    { version: '0.1.0', library: '~/相册库', update: { phase: 'idle' }, fullscreen: false },
   );
 });

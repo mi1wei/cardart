@@ -347,8 +347,9 @@ button, input, select, summary, .back-link, .link, .welcome-trash,
   line-height: var(--leading-14);
 }
 
-/* The whole wall takes a drop (polish spec §5). */
-.drop-hint {
+/* The whole wall takes a drop (polish spec §5); reading a drop shows the same frame. */
+.drop-hint,
+.drop-reading {
   position: fixed;
   inset: 12px;
   z-index: 80;
@@ -361,7 +362,8 @@ button, input, select, summary, .back-link, .link, .welcome-trash,
   pointer-events: none;
 }
 
-.drop-hint span {
+.drop-hint span,
+.drop-reading span {
   display: grid;
   justify-items: center;
   gap: 10px;
@@ -375,6 +377,44 @@ button, input, select, summary, .back-link, .link, .welcome-trash,
   width: 40px;
   height: 40px;
   color: var(--accent);
+}
+
+/* Clicks wait while a drop is read. */
+.drop-reading {
+  pointer-events: auto;
+  cursor: progress;
+}
+
+.drop-reading .spinner {
+  width: 40px;
+  height: 40px;
+  box-sizing: border-box;
+  border: 3.5px solid color-mix(in srgb, var(--accent) 20%, transparent);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+}
+
+.drop-reading small {
+  color: var(--ink-3);
+  font-size: var(--text-14);
+  line-height: var(--leading-14);
+  font-weight: 400;
+}
+
+.drop-reading small:empty {
+  display: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .drop-reading .spinner {
+    animation: spin 0.9s linear infinite;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(1turn);
+  }
 }
 
 .welcome-formats {
@@ -1369,6 +1409,11 @@ button, input, select, summary, .back-link, .link, .welcome-trash,
   /* The minimize, maximize and close buttons sit over the right end. */
   [data-desktop='win'] :is(.nav, .lb-bar, .ab-bar) {
     padding-right: calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw) + 24px);
+  }
+
+  /* The viewer's ⋯ menu lines up with its button, not with the window buttons. */
+  [data-desktop='win'] .lb-menu {
+    right: calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw) + 24px);
   }
 }
 

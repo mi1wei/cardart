@@ -4,9 +4,12 @@ import { onThemeChange, theme } from './theme.js';
 // closes; the appearance chosen here also colours the window, its title bar and native dialogs.
 export function initDesktop({ onCommand, getContext } = {}, desktop = window.folioDesktop) {
   if (!desktop) return;
-  desktop.onState((state) => {
+  // Changes come as state; a page loaded in full screen (another library, a reload) asks.
+  const setFullscreen = (state) => {
     if (typeof state?.fullscreen === 'boolean') document.documentElement.toggleAttribute('data-fullscreen', state.fullscreen);
-  });
+  };
+  desktop.onState(setFullscreen);
+  desktop.info().then(setFullscreen).catch(() => {});
   const send = () => { desktop.setAppearance(theme()).catch(() => {}); };
   send();
   onThemeChange(send);

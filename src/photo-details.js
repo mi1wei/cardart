@@ -38,7 +38,7 @@ export function createPhotoDetails(root, onAlbum) {
     <div class="lb-facts"><span data-field="format"></span><span data-field="dimensions"></span><span data-field="bytes"></span></div>
     <div class="lb-note-host"></div>
     <div class="lb-details-body" id="photo-details-body"><p class="lb-details-status" role="status"></p><div class="lb-details-content"></div></div>
-    <div class="lb-photo-actions"><button class="btn" type="button" data-write data-act="sheet-cover">${icon('star')}<span>${t('set-cover')}</span></button><button class="btn danger" type="button" data-write data-act="sheet-delete">${icon('trash')}<span>${t('delete-photo')}</span></button></div>`;
+    <div class="lb-photo-actions"><button class="btn" type="button" data-write data-act="sheet-cover">${icon('image')}<span>${t('set-album-cover')}</span></button><button class="btn danger" type="button" data-write data-act="sheet-delete">${icon('trash')}<span>${t('delete-photo')}</span></button></div>`;
   root.querySelector('.lb-workspace').append(panel);
   const $ = (selector) => panel.querySelector(selector);
   const note = createPhotoNote($('.lb-note-host'), onAlbum);

@@ -133,6 +133,11 @@ test('phone swipes navigate, open the bottom sheet or close, while a two-finger 
     expect(sheet.y + sheet.height).toBeCloseTo(844, 0);
     await expect(page.locator('.lb-details [data-act=sheet-cover]')).toBeVisible();
     await expect(page.locator('.lb-details [data-act=sheet-delete]')).toBeVisible();
+    // The sheet's cover button reads like the ⋯ menu's, and says why it is greyed out.
+    const cover = page.locator('.lb-details [data-act=sheet-cover]');
+    await expect(cover).toHaveText('Already the cover');
+    await expect(cover).toBeDisabled();
+    expect(await cover.locator('svg').innerHTML()).toBe(await page.locator('.lb-menu [data-act=menu-cover] svg').innerHTML());
     await page.keyboard.press('Escape');
     const session = await desktop.context().newCDPSession(page);
     await session.send('Emulation.setTouchEmulationEnabled', { enabled: true });
@@ -146,6 +151,7 @@ test('phone swipes navigate, open the bottom sheet or close, while a two-finger 
     await page.keyboard.press('0');
     await swipe(page, -100);
     await expect(page.locator('.lb-count')).toHaveText('2 / 2');
+    await expect(page.locator('.lb-details [data-act=sheet-cover]')).toHaveText('Set as album cover');
     await expect(page.locator('.lb-bar [data-act=menu]')).toBeVisible();
     await page.locator('.lb-bar [data-act=menu]').click();
     await expect(page.locator('.lb-menu [data-act=menu-cover]')).toBeVisible();
@@ -153,6 +159,50 @@ test('phone swipes navigate, open the bottom sheet or close, while a two-finger 
     await page.keyboard.press('Escape');
     await swipe(page, 0, 100);
     await expect(page.locator('.lb')).toHaveCount(0);
+  } finally { await fixture.close(); }
+});
+
+test('on a 320px phone the sheet cover button keeps its icon and its label inside', async () => {
+  const fixture = await desktopFixture();
+  try {
+    const { page } = await open(fixture);
+    await page.setViewportSize({ width: 320, height: 640 });
+    const cover = page.locator('.lb-details [data-act=sheet-cover]');
+    const fits = () => cover.evaluate((button) => {
+      const box = button.getBoundingClientRect();
+      const style = getComputedStyle(button);
+      const label = button.querySelector('span').getBoundingClientRect();
+      return {
+        icon: button.querySelector('svg').getBoundingClientRect().width,
+        inside: label.left >= box.left + parseFloat(style.paddingLeft) - 0.5 && label.right <= box.right - parseFloat(style.paddingRight) + 0.5,
+      };
+    });
+    await swipe(page, 0, -100);
+    await expect(cover).toHaveText('Already the cover');
+    expect(await fits()).toEqual({ icon: 17, inside: true });
+    await page.keyboard.press('Escape');
+    await swipe(page, -100);
+    await expect(page.locator('.lb-count')).toHaveText('2 / 2');
+    await swipe(page, 0, -100);
+    await expect(cover).toHaveText('Set as album cover');
+    expect(await fits()).toEqual({ icon: 17, inside: true });
+  } finally { await fixture.close(); }
+});
+
+test('the ⋯ menu opens under its button when the Windows window buttons push the bar in', async () => {
+  const fixture = await desktopFixture();
+  try {
+    const { page } = await open(fixture);
+    // A Mac runs the Windows rules too: without window-controls-overlay values they fall back to 24px.
+    await page.evaluate(() => { document.documentElement.dataset.desktop = 'win'; });
+    const button = page.locator('.lb-bar [data-act=menu]');
+    await button.click();
+    const menu = page.locator('.lb-menu');
+    await expect(menu).toBeVisible();
+    const [b, m] = [await button.boundingBox(), await menu.boundingBox()];
+    expect(Math.abs(b.x + b.width - (m.x + m.width))).toBeLessThanOrEqual(1);
+    const titleBarEnd = await page.evaluate(() => (navigator.windowControlsOverlay?.visible ? navigator.windowControlsOverlay.getTitlebarAreaRect().right : null));
+    if (titleBarEnd !== null) expect(m.x + m.width).toBeLessThanOrEqual(titleBarEnd);
   } finally { await fixture.close(); }
 });
 
@@ -171,8 +221,10 @@ test('video Space toggles outside native controls without replacing a paused vid
     });
     await page.locator('.lb-bar [data-act=menu]').click();
     await page.locator('.lb-menu [data-act=menu-cover]').click();
-    await page.locator('.lb-bar [data-act=menu]').click();
+    // More stays shut while the cover saves, so reopen it only after the update has landed.
     await expect(page.locator('.lb-menu [data-act=menu-cover]')).toBeDisabled();
+    await page.locator('.lb-bar [data-act=menu]').click();
+    await expect(page.locator('.lb-menu')).toBeVisible();
     await page.keyboard.press('Escape');
     expect(await page.locator('.lb-video').evaluate((video) => video === window.sameS2Video && video.paused && Math.abs(video.currentTime - 0.75) < 0.02)).toBe(true);
     await page.locator('.lb').focus();

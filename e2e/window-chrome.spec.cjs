@@ -101,6 +101,10 @@ test('the top bar is the title bar in the desktop app, and full screen closes th
       await desktop.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setFullScreen(true));
       await expect(page.locator('html')).toHaveAttribute('data-fullscreen', '', { timeout: 10_000 });
       expect(await left()).toBeLessThan(78);
+      // A page loaded in full screen (choosing another library loads it again) closes the gap too.
+      await page.reload();
+      await expect(page.locator('html')).toHaveAttribute('data-fullscreen', '', { timeout: 10_000 });
+      expect(await left()).toBeLessThan(78);
       await desktop.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setFullScreen(false));
       await expect(page.locator('html')).not.toHaveAttribute('data-fullscreen', '', { timeout: 10_000 });
     } else {
@@ -118,14 +122,23 @@ test('the appearance chosen in Settings sets the native theme and the window col
   const fixture = await desktopFixture();
   try {
     let { desktop, page } = await fixture.launch();
-    await (await openSettings(page)).locator('[data-theme-mode=dark]').click();
-    await expect.poll(() => desktop.evaluate(({ nativeTheme }) => nativeTheme.themeSource)).toBe('dark');
+    const source = () => desktop.evaluate(({ nativeTheme }) => nativeTheme.themeSource);
+    const settings = await openSettings(page);
+    await settings.locator('[data-theme-mode=dark]').click();
+    await expect.poll(source).toBe('dark');
+    await settings.locator('[data-theme-mode=auto]').click();
+    await expect.poll(source).toBe('system');
+    await settings.locator('[data-theme-mode=dark]').click();
+    await expect.poll(source).toBe('dark');
     await fixture.stop();
-    ({ desktop, page } = await fixture.launch());
+    // The page also reports the appearance once it loads: hold it, so only the app's start-up counts.
+    ({ desktop } = await fixture.launch({ args: ['--fixture-hold-initial-load'], waitForReady: false }));
+    await expect.poll(() => desktop.evaluate(() => typeof global.folioTestInitialLoadReject)).toBe('function');
     expect((await desktop.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].getBackgroundColor())).toLowerCase()).toBe('#121417');
-    expect(await desktop.evaluate(({ nativeTheme }) => nativeTheme.themeSource)).toBe('dark');
-    await (await openSettings(page)).locator('[data-theme-mode=auto]').click();
-    await expect.poll(() => desktop.evaluate(({ nativeTheme }) => nativeTheme.themeSource)).toBe('system');
+    expect(await source()).toBe('dark');
+    const closed = desktop.waitForEvent('close', { timeout: 5000 });
+    await desktop.evaluate(({ app }) => { app.quit(); global.folioTestInitialLoadReject(); });
+    await closed;
   } finally { await fixture.close(); }
 });
 
