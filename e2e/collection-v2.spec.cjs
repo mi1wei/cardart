@@ -254,3 +254,23 @@ test('batch download streams a ZIP through the native download flow', async () =
     expect(bytes.includes(Buffer.from('p1.jpg'))).toBe(true);
   } finally { await fixture.close(); }
 });
+
+test('on a phone the Recently Deleted card takes a whole row and its text fits on one line', async () => {
+  const fixture = await desktopFixture();
+  try {
+    const { page } = await fixture.launch();
+    const origin = new URL(page.url()).origin;
+    await seed(page, origin, 'Kept', 1);
+    const gone = await seed(page, origin, 'Gone', 1);
+    await page.request.delete(`${origin}/api/albums/${gone.id}`);
+    await page.setViewportSize({ width: 320, height: 700 });
+    await openWall(page, origin);
+    const card = page.locator('.trash-card');
+    await expect(card).toBeVisible();
+    const row = await page.locator('.folders').evaluate((el) => el.getBoundingClientRect().width);
+    expect((await card.boundingBox()).width).toBeCloseTo(row, 0);
+    const lines = await card.locator('span').evaluate((el) => Math.round(el.getBoundingClientRect().height / parseFloat(getComputedStyle(el).lineHeight)));
+    expect(lines).toBe(1);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  } finally { await fixture.close(); }
+});
