@@ -296,14 +296,21 @@ test('a drop says it is being read and turns away another drop meanwhile, on the
 
     // The album page reads the same way.
     const albums = await (await page.request.get(`${origin}/api/albums`)).json();
-    await page.goto(`${origin}/#/a/${albums.find((album) => album.title === 'Trip').id}`);
+    const tripId = albums.find((album) => album.title === 'Trip').id;
+    await page.goto(`${origin}/#/a/${tripId}`);
     await expect(page.locator('.tile')).toHaveCount(3);
+    expect((await dropFiles(page, more, { drop: false })).outline).toBe(true);
     await dropFiles(page, more, { delay: 500 });
     await expect(reading).toBeVisible();
+    expect((await dropFiles(page, loose, { drop: false })).outline).toBe(false);
     await dropFiles(page, loose);
     await expect(page.locator('.toast')).toHaveText(wait);
     await expect(page.locator('.tile')).toHaveCount(4, { timeout: 15_000 });
     await expect(reading).toBeHidden();
+    // Only the first drop was imported, not the one turned away.
+    await expect(page.locator('html')).not.toHaveAttribute('data-busy');
+    const { photos } = await (await page.request.get(`${origin}/api/albums/${tripId}`)).json();
+    expect(photos.map((photo) => photo.name).sort()).toEqual(['a.jpg', 'b.jpg', 'c.jpg', 'f.jpg']);
   } finally { await fixture.close(); }
 });
 

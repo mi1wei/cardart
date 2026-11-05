@@ -11,7 +11,8 @@ const encode = (nodes) => nodes.map((node) => (node.children
 // entries hand out at most `batch` children per readEntries() call (Chromium: 100), and the items stop
 // answering once the drop event is over. A DataTransfer built in the page cannot do this:
 // webkitGetAsEntry() returns null for its items. With `drop: false` the files only hover. `delay` (ms)
-// slows every read down, like a big folder.
+// slows every read down, like a big folder. Returns whether the wall's drop hint or the album page's
+// drop outline shows.
 async function dropFiles(page, nodes, { target = 'body', batch = 2, drop = true, delay = 0 } = {}) {
   return page.evaluate(({ nodes, target, batch, drop, delay }) => {
     const toFile = (node) => new File([Uint8Array.from(atob(node.data), (c) => c.charCodeAt(0))], node.name, { type: node.type });
@@ -51,7 +52,7 @@ async function dropFiles(page, nodes, { target = 'body', batch = 2, drop = true,
     }
     live = false;
     const hint = document.querySelector('.drop-hint');
-    return { hint: Boolean(hint && !hint.hidden) };
+    return { hint: Boolean(hint && !hint.hidden), outline: Boolean(document.querySelector('.dropping')) };
   }, { nodes: encode(nodes), target, batch, drop, delay });
 }
 
