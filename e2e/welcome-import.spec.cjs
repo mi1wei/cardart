@@ -244,6 +244,25 @@ test('an album that cannot be created stops only its own folder', async () => {
   } finally { await fixture.close(); }
 });
 
+test('files that are not photos, dropped with folders, are counted in the summary', async () => {
+  const fixture = await desktopFixture();
+  try {
+    const { page } = await fixture.launch();
+    await expect(page.locator('.welcome')).toBeVisible();
+    await dropFiles(page, [
+      { name: 'Empty', children: [{ name: '.DS_Store', bytes: Buffer.from('junk') }] },
+      { name: 'Trip', children: [
+        { name: 'a.jpg', type: 'image/jpeg', bytes: await jpeg(130) },
+        { name: 'b.jpg', type: 'image/jpeg', bytes: await jpeg(131) },
+        { name: 'c.jpg', type: 'image/jpeg', bytes: await jpeg(132) },
+      ] },
+      { name: 'notes.txt', type: 'text/plain', bytes: Buffer.from('packing list') },
+    ]);
+    await expect(page.locator('.toast')).toHaveText("Imported 3 items, skipped 1 file that isn't a photo or video", { timeout: 15_000 });
+    await expect(page.locator('.folder h2')).toHaveText(['Trip']);
+  } finally { await fixture.close(); }
+});
+
 test('loose photos dropped on the wall get a new album named first; cancelling imports nothing', async () => {
   const fixture = await desktopFixture();
   try {

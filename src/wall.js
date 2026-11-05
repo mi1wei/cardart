@@ -123,10 +123,11 @@ export function renderWall(app) {
     return true;
   }
 
-  // One album per folder, named after it and created when its turn comes; a folder with nothing to
-  // import gets no album.
+  // A folder with something to import or to report gets an album, named after it and created when
+  // its turn comes.
+  const counted = (group) => group.files.length || group.unsupported || group.unreadable;
+
   function importFolders(groups) {
-    const counted = (group) => group.files.length || group.unsupported || group.unreadable;
     const empty = groups.filter((group) => !counted(group));
     if (empty.length) toast(t('folder-empty', { names: empty.map((group) => group.name) }));
     for (const group of groups) {
@@ -277,6 +278,13 @@ export function renderWall(app) {
     } else if (!folders.length) {
       toast(t('nothing-to-import'));
       return;
+    } else {
+      // Other loose files are reported in the summary, with the first folder that is imported.
+      const first = folders.find(counted);
+      if (first) {
+        first.skipped += loose.skipped;
+        first.unsupported += loose.unsupported;
+      }
     }
     importFolders(folders);
   }
