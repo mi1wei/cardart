@@ -49,3 +49,16 @@ test('a moment stored in UTC is written in local time with its zone', () => {
   assert.equal(formatInstant('2026-07-12T19:02:11Z', { lang: 'en', timeZone: 'UTC' }), 'Jul 12, 2026, 19:02:11 UTC');
   for (const value of ['soon', null, 42]) assert.equal(formatInstant(value, { lang: 'en', timeZone: 'UTC' }), '');
 });
+
+test('English dates reuse their formatters instead of making one each time', () => {
+  const Original = Intl.DateTimeFormat;
+  let made = 0;
+  Intl.DateTimeFormat = function (...args) { made++; return new Original(...args); };
+  try {
+    for (let i = 0; i < 100; i++) {
+      formatRange('2026-07-12', '2026-07-15');
+      formatRange('2026-07-02', '2026-07-15', { month: true });
+    }
+  } finally { Intl.DateTimeFormat = Original; }
+  assert.ok(made <= 2, `${made} formatters made`);
+});
