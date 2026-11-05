@@ -53,7 +53,7 @@ export function renderWall(app) {
     </main>`;
   const wall = app.querySelector('.folders');
   const sub = app.querySelector('.sub');
-  const importer = createImporter(app.querySelector('.page'), { finish: 'toast', onDone: load });
+  const importer = createImporter(app.querySelector('.page'), { finish: 'toast', onDone: () => load(true) });
   const folderInput = app.querySelector('.folder-input');
   app.querySelector('.wall-sort').value = sort;
   app.querySelector('.wall-sort').addEventListener('change', (event) => {
@@ -66,13 +66,14 @@ export function renderWall(app) {
     render();
   });
 
-  async function load() {
+  async function load(background = false) {
     const revision = ++request;
     try {
       const [list, trash] = await Promise.all([api.albums(), api.trash()]);
       if (!alive || request !== revision) return;
-      // Drawing the cards again would close an open card menu: refresh once it closes instead.
-      stale = Boolean(app.querySelector('.folder .menu'));
+      // Drawing the cards again would close an open card menu: a refresh the user did not ask for
+      // waits until it closes.
+      stale = background && Boolean(app.querySelector('.folder .menu'));
       if (stale) return;
       albums = list;
       entries = trash;
@@ -151,7 +152,7 @@ export function renderWall(app) {
     app.querySelector('.menu')?.remove();
     if (stale) {
       stale = false;
-      void load();
+      void load(true);
     }
   };
 
@@ -239,7 +240,7 @@ export function renderWall(app) {
     ];
   });
 
-  const onFocus = () => load();
+  const onFocus = () => load(true);
   const onKey = (event) => { if (event.key === 'Escape') closeMenu(); };
   folderInput?.addEventListener('change', () => {
     const group = pickedFolder(folderInput.files);

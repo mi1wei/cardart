@@ -306,3 +306,32 @@ test('a refresh waits while an album card menu is open and runs once it closes',
     await expect(cards).toHaveCount(3);
   } finally { await fixture.close(); }
 });
+
+test('a right-click rename or delete and its Undo show at once, even while another card menu is open', async () => {
+  const fixture = await desktopFixture();
+  try {
+    const { page } = await fixture.launch();
+    const origin = new URL(page.url()).origin;
+    await seed(page, origin, 'First', 0);
+    await seed(page, origin, 'Second', 0);
+    await openWall(page, origin);
+    const cards = page.locator('.folder');
+    const card = (name) => cards.filter({ has: page.getByRole('heading', { name, exact: true }) });
+    await expect(cards).toHaveCount(2);
+    await card('First').locator('[data-act=menu]').click();
+    await expect(page.locator('.folder .menu')).toBeVisible();
+    await card('Second').click({ button: 'right' });
+    await page.locator('.context-menu [data-context=rename]').click();
+    await page.locator('dialog .dlg-input').fill('Renamed');
+    await page.locator('dialog [value=ok]').click();
+    await expect(page.locator('.folder h2')).toHaveText(['Renamed', 'First']);
+    await card('First').locator('[data-act=menu]').click();
+    await card('Renamed').click({ button: 'right' });
+    await page.locator('.context-menu [data-context=delete]').click();
+    await page.locator('dialog [value=ok]').click();
+    await expect(page.locator('.folder h2')).toHaveText(['First']);
+    await card('First').locator('[data-act=menu]').click();
+    await page.locator('.undo-toast button').click();
+    await expect(page.locator('.folder h2')).toHaveText(['Renamed', 'First']);
+  } finally { await fixture.close(); }
+});
