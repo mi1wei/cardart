@@ -133,6 +133,11 @@ test('phone swipes navigate, open the bottom sheet or close, while a two-finger 
     expect(sheet.y + sheet.height).toBeCloseTo(844, 0);
     await expect(page.locator('.lb-details [data-act=sheet-cover]')).toBeVisible();
     await expect(page.locator('.lb-details [data-act=sheet-delete]')).toBeVisible();
+    // The sheet's cover button reads like the ⋯ menu's, and says why it is greyed out.
+    const cover = page.locator('.lb-details [data-act=sheet-cover]');
+    await expect(cover).toHaveText('Already the cover');
+    await expect(cover).toBeDisabled();
+    expect(await cover.locator('svg').innerHTML()).toBe(await page.locator('.lb-menu [data-act=menu-cover] svg').innerHTML());
     await page.keyboard.press('Escape');
     const session = await desktop.context().newCDPSession(page);
     await session.send('Emulation.setTouchEmulationEnabled', { enabled: true });
@@ -146,6 +151,7 @@ test('phone swipes navigate, open the bottom sheet or close, while a two-finger 
     await page.keyboard.press('0');
     await swipe(page, -100);
     await expect(page.locator('.lb-count')).toHaveText('2 / 2');
+    await expect(page.locator('.lb-details [data-act=sheet-cover]')).toHaveText('Set as album cover');
     await expect(page.locator('.lb-bar [data-act=menu]')).toBeVisible();
     await page.locator('.lb-bar [data-act=menu]').click();
     await expect(page.locator('.lb-menu [data-act=menu-cover]')).toBeVisible();
