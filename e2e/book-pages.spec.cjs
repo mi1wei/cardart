@@ -388,6 +388,8 @@ test('the title page reads in both themes: the see-through cover follows the pag
       expect(list, name).toHaveLength(3);
       for (const ratio of list) expect(ratio, `${name} (WCAG AA: 4.5)`).toBeGreaterThanOrEqual(4.5);
     }
+    // A CPU renderer softens thin strokes: drawn at 5.3:1 the small print measured 4.2–4.4:1.
+    for (const ratio of result.plain.slice(1)) expect(ratio, 'plain board small print, with room for a CPU renderer').toBeGreaterThanOrEqual(6);
     expect(result.redrawn, 'a theme change repaints the title page').toBe(true);
     expect(result.afterDispose, 'a closed book stops following the theme').toBe(0);
   } finally { await fixture.close(); }
