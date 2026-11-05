@@ -20,8 +20,9 @@ export function createNav(onLang) {
 
   el.addEventListener('click', (e) => {
     if (e.target.closest('[data-act=phone]')) openPhoneDialog();
-    else if (e.target.closest('[data-act=settings]')) openSettings({ onLang: () => { render(); onLang(); } });
+    else if (e.target.closest('[data-act=settings]')) settings();
   });
+  const settings = () => openSettings({ onLang: () => { render(); onLang(); } });
   render();
-  return { el };
+  return { el, settings };
 }

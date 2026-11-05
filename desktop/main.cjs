@@ -13,10 +13,13 @@ const { createUpdateController } = require('./updater.cjs');
 const { createPdfExporter } = require('./pdf-export.cjs');
 const { DEFAULT, MIN, restoreBounds, validWindow } = require('./window-state.cjs');
 const { background, overlay, themeSource, windowChrome } = require('./window-chrome.cjs');
+const { appMenu, textMenu } = require('./app-menu.cjs');
 
 const RELEASES = 'https://github.com/mi1wei/cardart/releases';
 
 async function startDesktop({ appRoot = join(__dirname, '..'), licensePublicKeyFile = join(__dirname, 'license-public.pem') } = {}) {
+  const { COMMANDS, commandAllowed, normalizeContext } = await import('../shared/commands.js');
+  let pageContext = { page: 'albums', busy: false, appearance: 'auto', density: 'm' };
   app.setName('Folio');
   if (process.platform === 'win32') app.setAppUserModelId('io.github.mi1wei.folio');
   const selectedProfile = app.commandLine.getSwitchValue('user-data-dir');
@@ -256,6 +259,10 @@ async function startDesktop({ appRoot = join(__dirname, '..'), licensePublicKeyF
     preview.webContents.on('will-attach-webview', (event) => event.preventDefault());
   });
   window.webContents.on('will-attach-webview', (event) => event.preventDefault());
+  window.webContents.on('context-menu', (event, params) => {
+    const template = textMenu(params);
+    if (template) Menu.buildFromTemplate(template).popup({ window });
+  });
   // Size and place are kept for the next launch (polish spec §6.5); full screen is not a place.
   // The size under a maximized window is the last one seen unmaximized: on macOS getNormalBounds()
   // turns into the zoomed frame after a minimize or a zoom from the window itself.
@@ -409,6 +416,25 @@ async function startDesktop({ appRoot = join(__dirname, '..'), licensePublicKeyF
   handle('folio:desktop:reveal-library', () => { openPath(settings.libraryDir); });
   handle('folio:desktop:choose-library', () => chooseAnotherLibrary());
   handle('folio:desktop:update', () => runUpdate());
+  handle('folio:context', (value) => {
+    const next = normalizeContext(value);
+    if (!next) { void log('COMMAND_CONTEXT_INVALID'); throw new Error('Invalid menu context'); }
+    if (JSON.stringify(pageContext) === JSON.stringify(next)) return;
+    pageContext = next;
+    setMenu();
+  });
+  async function sendCommand(name) {
+    if (!COMMANDS.includes(name) || isStopping() || choosingLibrary ||
+        !commandAllowed(name, pageContext, licenseStatus.canWrite)) {
+      void log('COMMAND_IGNORED');
+      return;
+    }
+    showWindow();
+    try {
+      if (['add-photos', 'import-folder'].includes(name)) await window.webContents.executeJavaScript('void 0', true);
+      window.webContents.send('folio:command', name);
+    } catch (error) { void log(`COMMAND_FAILED ${error.message}`); }
+  }
   // The page's appearance also sets native dialogs and menus, the window colour and the Windows title bar.
   let surface = 'page';
   function applyChrome() {
@@ -447,11 +473,17 @@ async function startDesktop({ appRoot = join(__dirname, '..'), licensePublicKeyF
       { role: 'about', label: text('关于 Folio', 'About Folio') },
       { role: 'quit', id: 'quit', label: text('退出', 'Quit') },
     ];
-    Menu.setApplicationMenu(Menu.buildFromTemplate([
-      { label: 'Folio', submenu: items },
-      { label: text('编辑', 'Edit'), submenu: [{ role: 'undo' }, { role: 'redo' }, { type: 'separator' }, { role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { role: 'selectAll' }] },
-      { label: text('窗口', 'Window'), submenu: [{ role: 'minimize' }, { role: 'zoom' }, { label: text('显示 Folio', 'Show Folio'), click: showWindow }] },
-    ]));
+    Menu.setApplicationMenu(Menu.buildFromTemplate(appMenu({
+      platform: process.platform, text, context: pageContext,
+      writable: licenseStatus.canWrite && (!licenseStatus.expiresAt || Date.now() < Date.parse(licenseStatus.expiresAt)),
+      enabled: !isStopping() && !choosingLibrary, updates: updateMenu(), send: sendCommand,
+      actions: {
+        reveal: () => openPath(settings.libraryDir), choose: chooseAnotherLibrary, show: showWindow,
+        logs: () => openPath(join(profile, 'logs')),
+        notices: () => openPath(app.isPackaged ? join(process.resourcesPath, 'legal/THIRD_PARTY_NOTICES.txt') : join(appRoot, 'licenses/THIRD_PARTY_NOTICES.txt')),
+      },
+    })));
+    if (process.platform === 'win32') window.setMenuBarVisibility(false);
     if (tray && !tray.isDestroyed()) {
       const expired = licenseStatus.expiresAt && Date.now() >= Date.parse(licenseStatus.expiresAt);
       const writable = licenseStatus.state === 'active' && licenseStatus.canWrite && !expired;

@@ -3,8 +3,9 @@ import { lang, setLang, t } from './i18n.js';
 import { licenseExpiry, licenseKind } from './license.js';
 import { onComputer } from './phone.js';
 import { open } from './router.js';
-import { setTheme, theme, themeSupported } from './theme.js';
+import { onThemeChange, setTheme, theme, themeSupported } from './theme.js';
 import { icon, toast } from './ui.js';
+import { openShortcuts } from './shortcuts.js';
 
 const THEMES = [['light', 'sun'], ['dark', 'moon'], ['auto', null]];
 const busy = () => document.documentElement.hasAttribute('data-busy');
@@ -37,7 +38,7 @@ export function openSettings({ onLang }) {
         ${desktop ? `
         <div class="set-row set-version"><span class="set-k">${t('version')}</span><span class="set-v"><b class="set-version-name"></b><small class="set-update"></small></span>
           <button class="btn" type="button" data-act="update" hidden></button></div>` : ''}
-        <div class="dlg-acts"><button class="btn pri" value="done" data-act="done">${t('settings-done')}</button></div>
+        <div class="dlg-acts">${onComputer ? `<button class="btn" type="button" data-act="shortcuts">${t('shortcuts')}</button>` : ''}<button class="btn pri" value="done" data-act="done">${t('settings-done')}</button></div>
       </form>`;
     sync();
     desktopRows();
@@ -114,6 +115,7 @@ export function openSettings({ onLang }) {
       return;
     }
     const act = e.target.closest('[data-act]')?.dataset.act;
+    if (act === 'shortcuts') { d.close(); openShortcuts(); return; }
     if (act === 'reveal-library') { void desktop.revealLibrary(); return; }
     if (act === 'choose-library') { void desktop.chooseLibrary(); return; }
     if (act === 'update') { void desktop.updateAction(); return; }
@@ -132,7 +134,9 @@ export function openSettings({ onLang }) {
   const watch = new MutationObserver(sync);
   watch.observe(document.documentElement, { attributes: true, attributeFilter: ['data-busy'] });
   window.addEventListener('folio-license-state', sync);
+  const stopTheme = onThemeChange(sync);
   d.addEventListener('close', () => {
+    stopTheme();
     stopState?.();
     watch.disconnect();
     window.removeEventListener('folio-license-state', sync);

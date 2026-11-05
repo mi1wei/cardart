@@ -429,6 +429,11 @@ export function openLightbox({ album, index = 0, onIndex = () => {}, onAlbum = (
 
   return {
     show,
+    editNote() {
+      if (disposed || busy || !details || !allowWrite()) return;
+      details.open();
+      root.querySelector('[data-note-edit]')?.click();
+    },
     canLeave: () => !busy && (!details || details.canLeave()),
     close() {
       if (disposed) return;

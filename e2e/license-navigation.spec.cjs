@@ -24,7 +24,9 @@ test('opening license management does not discard an active upload queue', async
     const png = await sharp({ create: { width: 8, height: 6, channels: 3, background: '#1d5f80' } }).png().toBuffer();
     await page.locator('.album-page input[type=file]').setInputFiles({ name: 'upload.png', mimeType: 'image/png', buffer: png });
     await started;
+    await expect.poll(() => desktop.evaluate(({ Menu }) => Menu.getApplicationMenu().getMenuItemById('license').enabled)).toBe(false);
     await desktop.evaluate(({ Menu }) => Menu.getApplicationMenu().getMenuItemById('license').click());
+    await page.evaluate(() => { location.hash = '#/license'; });
     await page.waitForFunction(() => location.hash === '#/license' || !!document.querySelector('.toast:not([hidden])'));
     await expect(page.locator('.album-page')).toBeVisible();
     expect(new URL(page.url()).hash).toBe(`#/a/${album.id}`);

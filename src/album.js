@@ -12,6 +12,7 @@ import { formatRange } from '../shared/dates.js';
 import { chooseAlbum, downloadPhotos } from './collection-actions.js';
 import { showUndo } from './undo.js';
 import { onComputer } from './phone.js';
+import { bindContextMenu } from './context-menu.js';
 
 const fine = matchMedia('(pointer: fine)');
 const DENSITY = ['s', 'm', 'l'];
@@ -42,6 +43,8 @@ export function renderAlbum(app, id) {
   let lightbox = null;
   let viewer = null;
   let viewerLoading = false;
+  let startPhoto = null;
+  let notePhoto = null;
 
   app.innerHTML = `
     <main class="page album-page">
@@ -155,6 +158,7 @@ export function renderAlbum(app, id) {
         if (!alive || !route.three || viewer) return;
         viewer = openViewer({
           album,
+          startIndex: Math.max(0, album.photos.findIndex((photo) => photo.id === startPhoto)),
           onOpenPhoto: (i) => open(`#/a/${id}/3d/p/${album.photos[i].id}`),
           onClose: () => close(`#/a/${id}`),
           onPerPage: (perPage) =>
@@ -163,6 +167,7 @@ export function renderAlbum(app, id) {
               (err) => toast(t('save-failed', { reason: err.message })),
             ),
         });
+        startPhoto = null;
       });
     } else if (!route.three && viewer) {
       viewer.close();
@@ -186,6 +191,7 @@ export function renderAlbum(app, id) {
       lightbox = null;
       if (route.photo) swap(base()); // a photo that no longer exists
     }
+    if (lightbox && notePhoto === route.photo) { notePhoto = null; lightbox.editNote(); }
   }
 
   function tile(p, isCover) {
@@ -291,16 +297,16 @@ export function renderAlbum(app, id) {
     return note;
   }
 
-  async function removeSelected() {
+  async function removeSelected(ids = [...selected]) {
     if (!allowWrite()) return;
     if (importer.active || mutating) { toast(c('busy')); return; }
-    const text = t('delete-photos-text', { n: selected.size });
+    const text = t('delete-photos-text', { n: ids.length });
     if (!(await dialog({ title: t('delete-photos'), text, ok: t('delete'), danger: true }))) return;
     if (!alive || !allowWrite() || importer.active || mutating) return;
     mutating = true;
     renderPicking();
     try {
-      album = await api.deletePhotos(id, [...selected]);
+      album = await api.deletePhotos(id, ids);
       if (!alive) return;
       selecting = false;
       selected.clear();
@@ -368,8 +374,8 @@ export function renderAlbum(app, id) {
     renderPicking();
   }
 
-  async function transfer(mode) {
-    if (!allowWrite() || importer.active || mutating || !selected.size) { if (importer.active || mutating) toast(c('busy')); return; }
+  async function transfer(mode, ids = [...selected]) {
+    if (!allowWrite() || importer.active || mutating || !ids.length) { if (importer.active || mutating) toast(c('busy')); return; }
     try {
       const target = await chooseAlbum(id, mode);
       if (!target || !alive || !allowWrite()) return;
@@ -377,7 +383,7 @@ export function renderAlbum(app, id) {
       mutating = true;
       document.documentElement.setAttribute('data-busy', '');
       renderPicking();
-      const result = await api.transferPhotos(id, [...selected], target.id, target.mode);
+      const result = await api.transferPhotos(id, ids, target.id, target.mode);
       if (!alive) return;
       album = result.album;
       selected.clear();
@@ -398,6 +404,39 @@ export function renderAlbum(app, id) {
     render();
   }
 
+  const exportPdf = () => import('./pdf-export.js').then(({ openPdfExport }) => openPdfExport(album))
+    .catch((error) => toast(t('failed', { reason: error.message })));
+
+  const closeContext = bindContextMenu(grid, '.tile', (element) => {
+    const pid = element.dataset.id;
+    if (!album?.photos.some((photo) => photo.id === pid)) return [];
+    const ids = selecting && selected.has(pid) ? [...selected] : [pid];
+    const batch = selecting && selected.has(pid);
+    const locked = importer.active || mutating;
+    const mutations = [
+      { id: 'copy', label: t('copy-to-album'), write: true, disabled: locked, run: () => transfer('copy', ids) },
+      { id: 'move', label: t('move-to-album'), write: true, disabled: locked, run: () => transfer('move', ids) },
+      { id: 'download', label: batch ? t('context-download', { n: ids.length }) : t('original'), run: () => downloadPhotos(album, ids) },
+      null,
+      { id: 'delete', label: batch ? t('context-delete', { n: ids.length }) : t('delete'), write: true, disabled: locked, danger: true, run: () => removeSelected(ids) },
+    ];
+    if (batch) return mutations;
+    return [
+      { id: 'open', label: t('context-open'), run: () => open(`#/a/${id}/p/${pid}`) },
+      { id: '3d', label: t('context-3d'), run: () => { startPhoto = pid; open(`#/a/${id}/3d`); } },
+      null,
+      { id: 'cover', label: t('set-album-cover'), write: true, disabled: locked || (album.cover ?? album.photos[0]?.id) === pid, run: async () => {
+        if (!allowWrite() || importer.active || mutating) return;
+        mutating = true;
+        document.documentElement.setAttribute('data-busy', '');
+        try { changed(await api.updateAlbum(id, { cover: pid })); toast(t('cover-set')); }
+        finally { mutating = false; document.documentElement.removeAttribute('data-busy'); }
+      } },
+      { id: 'note', label: t('context-note'), write: true, disabled: locked, run: () => { notePhoto = pid; open(`#/a/${id}/p/${pid}`); } },
+      null, ...mutations,
+    ];
+  });
+
   function onClick(e) {
     const act = e.target.closest('[data-act]')?.dataset.act;
     if (act !== 'menu') app.querySelector('.acts .menu')?.remove();
@@ -416,7 +455,7 @@ export function renderAlbum(app, id) {
     else if (act === 'download') downloadPhotos(album, [...selected]).catch((error) => toast(t('failed', { reason: error.message })));
     else if (act === 'search') { $('.album-search').hidden = !$('.album-search').hidden; if (!$('.album-search').hidden) $('.album-search').focus(); }
     else if (act === 'clear-search') { query = ''; $('.album-search').value = ''; render(); }
-    else if (act === 'pdf') import('./pdf-export.js').then(({ openPdfExport }) => openPdfExport(album)).catch((error) => toast(t('failed', { reason: error.message })));
+    else if (act === 'pdf') exportPdf();
     else if (act === 'rename') rename();
     else if (act === 'menu') toggleMenu(e.target.closest('[data-act=menu]'));
     else if (act === 'delete-album') removeAlbum();
@@ -571,6 +610,16 @@ export function renderAlbum(app, id) {
   load();
 
   return {
+    desktopContext: () => ({ density: main.dataset.density }),
+    command(name) {
+      if (!album) return;
+      if (name === 'add-photos' && allowWrite() && !mutating) input.click();
+      else if (name === 'export-pdf') exportPdf();
+      else if (name.startsWith('density-')) {
+        density.value = String(DENSITY.indexOf(name.slice('density-'.length)));
+        density.dispatchEvent(new Event('input'));
+      }
+    },
     canLeave(next, again) {
       if ((importer.active || mutating) && (again || next.album !== id)) { toast(c('busy')); return false; }
       if (!again && next.album === id && next.photo === route.photo) return true;
@@ -581,6 +630,7 @@ export function renderAlbum(app, id) {
       if (album) sync();
     },
     destroy() {
+      closeContext();
       alive = false;
       importer.destroy();
       clearInterval(refreshTimer);
