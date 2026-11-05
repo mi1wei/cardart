@@ -1,8 +1,8 @@
 import { api } from './api.js';
 import { folder, folderClick } from './folder.js';
-import { albumTitle, collectDrop, pickedFolder } from './folder-files.js';
+import { albumTitle, pickedFolder } from './folder-files.js';
 import { t } from './i18n.js';
-import { createImporter } from './import-files.js';
+import { createDropReader, createImporter } from './import-files.js';
 import { onComputer } from './phone.js';
 import { open } from './router.js';
 import { dialog, icon, toast } from './ui.js';
@@ -252,11 +252,12 @@ export function renderWall(app) {
   // Files dragged in from the computer (polish spec §5): each folder becomes an album, loose photos
   // get one album, named before anything is imported.
   const hint = app.querySelector('.drop-hint');
+  const reader = onComputer ? createDropReader(app.querySelector('.page')) : null;
   const hasFiles = (e) => [...(e.dataTransfer?.types ?? [])].includes('Files');
   function onDragOver(e) {
     if (!hasFiles(e)) return;
     e.preventDefault();
-    if (document.querySelector('dialog[open]')) return;
+    if (reader.reading || document.querySelector('dialog[open]')) return; // the reading panel stays in front
     hint.hidden = false;
     clearTimeout(hint.timer);
     hint.timer = setTimeout(() => (hint.hidden = true), 150);
@@ -267,8 +268,9 @@ export function renderWall(app) {
     clearTimeout(hint.timer);
     hint.hidden = true;
     if (document.querySelector('dialog[open]') || !canImport()) return;
-    const { folders, loose } = await collectDrop(e.dataTransfer); // takes the items before it awaits
-    if (!alive) return;
+    const dropped = await reader.read(e.dataTransfer); // takes the items before it awaits
+    if (!dropped || !alive) return;
+    const { folders, loose } = dropped;
     if (loose.files.length || loose.unreadable) {
       const n = loose.files.length + loose.unreadable;
       const title = await dialog({ title: t('new-album'), text: t('loose-new-album', { n }), value: t('new-album-name'), ok: t('create') });

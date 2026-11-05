@@ -10,11 +10,12 @@ const encode = (nodes) => nodes.map((node) => (node.children
 // Drops files and folders on the page the way the system file manager does in Chromium: folder
 // entries hand out at most `batch` children per readEntries() call (Chromium: 100), and the items stop
 // answering once the drop event is over. A DataTransfer built in the page cannot do this:
-// webkitGetAsEntry() returns null for its items. With `drop: false` the files only hover.
-async function dropFiles(page, nodes, { target = 'body', batch = 2, drop = true } = {}) {
-  return page.evaluate(({ nodes, target, batch, drop }) => {
+// webkitGetAsEntry() returns null for its items. With `drop: false` the files only hover. `delay` (ms)
+// slows every read down, like a big folder.
+async function dropFiles(page, nodes, { target = 'body', batch = 2, drop = true, delay = 0 } = {}) {
+  return page.evaluate(({ nodes, target, batch, drop, delay }) => {
     const toFile = (node) => new File([Uint8Array.from(atob(node.data), (c) => c.charCodeAt(0))], node.name, { type: node.type });
-    const later = (fn) => setTimeout(fn);
+    const later = (fn) => setTimeout(fn, delay);
     const entry = (node) => (node.children ? {
       isFile: false,
       isDirectory: true,
@@ -51,7 +52,7 @@ async function dropFiles(page, nodes, { target = 'body', batch = 2, drop = true 
     live = false;
     const hint = document.querySelector('.drop-hint');
     return { hint: Boolean(hint && !hint.hidden) };
-  }, { nodes: encode(nodes), target, batch, drop });
+  }, { nodes: encode(nodes), target, batch, drop, delay });
 }
 
 module.exports = { jpeg, dropFiles };

@@ -263,6 +263,50 @@ test('files that are not photos, dropped with folders, are counted in the summar
   } finally { await fixture.close(); }
 });
 
+test('a drop says it is being read and turns away another drop meanwhile, on the wall and in an album', async () => {
+  test.setTimeout(60_000);
+  const fixture = await desktopFixture();
+  try {
+    const { page } = await fixture.launch();
+    const origin = new URL(page.url()).origin;
+    const photo = async (name, width) => ({ name, type: 'image/jpeg', bytes: await jpeg(width) });
+    const trip = [{ name: 'Trip', children: [await photo('a.jpg', 140), await photo('b.jpg', 141), await photo('c.jpg', 142)] }];
+    const again = [{ name: 'Again', children: [await photo('d.jpg', 143)] }];
+    const later = [{ name: 'Later', children: [await photo('e.jpg', 144)] }];
+    const more = [{ name: 'More', children: [await photo('f.jpg', 145)] }];
+    const loose = [await photo('g.jpg', 146)];
+    const reading = page.locator('.drop-reading');
+    const wait = 'Please wait until the earlier drop has been read';
+
+    await dropFiles(page, trip, { delay: 500 });
+    await expect(reading).toBeVisible();
+    await expect(reading.locator('b')).toHaveText('Reading the dropped files…');
+    // Dragging over the reading panel shows no drop hint, and a drop is turned away.
+    expect((await dropFiles(page, again, { drop: false })).hint).toBe(false);
+    await dropFiles(page, again);
+    await expect(page.locator('.toast')).toHaveText(wait);
+    await expect(reading.locator('small')).toContainText('found');
+    await expect(page.locator('.toast')).toHaveText('Imported 3 items', { timeout: 15_000 });
+    await expect(page.locator('.folder h2')).toHaveText(['Trip']);
+    await expect(reading).toBeHidden();
+    // Once reading is done, the next drop is imported as usual.
+    await dropFiles(page, later);
+    await expect(page.locator('.toast')).toHaveText('Imported 1 item', { timeout: 15_000 });
+    await expect(page.locator('.folder')).toHaveCount(2);
+
+    // The album page reads the same way.
+    const albums = await (await page.request.get(`${origin}/api/albums`)).json();
+    await page.goto(`${origin}/#/a/${albums.find((album) => album.title === 'Trip').id}`);
+    await expect(page.locator('.tile')).toHaveCount(3);
+    await dropFiles(page, more, { delay: 500 });
+    await expect(reading).toBeVisible();
+    await dropFiles(page, loose);
+    await expect(page.locator('.toast')).toHaveText(wait);
+    await expect(page.locator('.tile')).toHaveCount(4, { timeout: 15_000 });
+    await expect(reading).toBeHidden();
+  } finally { await fixture.close(); }
+});
+
 test('loose photos dropped on the wall get a new album named first; cancelling imports nothing', async () => {
   const fixture = await desktopFixture();
   try {
