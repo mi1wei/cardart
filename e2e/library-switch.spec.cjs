@@ -17,7 +17,7 @@ async function chooseLibrary(desktop, dir) {
       return showMessageBox(...args);
     };
     dialog.showErrorBox = (title, message) => { global.folioTestSwitchError = message; finish('error'); };
-    const item = Menu.getApplicationMenu().items[0].submenu.items.find((item) => /选择相册库|Choose Library/.test(item.label));
+    const item = Menu.getApplicationMenu().getMenuItemById('choose-library');
     item.click();
   }), dir);
 }

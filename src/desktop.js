@@ -2,7 +2,7 @@ import { onThemeChange, theme } from './theme.js';
 
 // The desktop app's window (polish spec §6.1): full screen hides the traffic lights, so their gap
 // closes; the appearance chosen here also colours the window, its title bar and native dialogs.
-export function initDesktop(desktop = window.folioDesktop) {
+export function initDesktop({ onCommand, getContext } = {}, desktop = window.folioDesktop) {
   if (!desktop) return;
   desktop.onState((state) => {
     if (typeof state?.fullscreen === 'boolean') document.documentElement.toggleAttribute('data-fullscreen', state.fullscreen);
@@ -20,4 +20,20 @@ export function initDesktop(desktop = window.folioDesktop) {
   };
   new MutationObserver(report).observe(document.body, { childList: true });
   report();
+  desktop.onCommand((name) => { void onCommand?.(name); });
+  let context;
+  const reportContext = () => {
+    const next = getContext?.();
+    if (!next || JSON.stringify(next) === context) return;
+    context = JSON.stringify(next);
+    desktop.setContext(next).catch(() => {});
+  };
+  new MutationObserver(reportContext).observe(document.body, {
+    childList: true, subtree: true, attributes: true, attributeFilter: ['data-density'],
+  });
+  new MutationObserver(reportContext).observe(document.documentElement, {
+    attributes: true, attributeFilter: ['data-busy', 'data-theme'],
+  });
+  onThemeChange(reportContext);
+  reportContext();
 }

@@ -2,9 +2,10 @@ import assert from 'node:assert/strict';
 import { generateKeyPairSync } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { mkdtemp, mkdir, writeFile, readFile, rm, rename, symlink } from 'node:fs/promises';
+import { cp, mkdtemp, mkdir, writeFile, readFile, rm, rename, stat, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import asar from '@electron/asar';
 import { flipFuses, FuseVersion, FuseV1Options } from '@electron/fuses';
@@ -59,7 +60,7 @@ async function fixture(t, { platform = 'darwin', arch = 'arm64', extra = {}, add
   await file(join(source, 'package.json'), metadata);
   await file(join(root, 'desktop/license-public.pem'), pem);
   await file(join(source, 'desktop/license-public.pem'), pem);
-  for (const path of ['desktop/main.cjs', 'desktop/service.cjs', 'desktop/pdf-export.cjs', 'desktop/preload.cjs', 'desktop/print-preload.cjs', 'server/app.js', 'server/download.js', 'server/library-transactions.js', 'server/heic-worker.cjs', 'server/license.js', 'server/license-store.js', 'server/video-container.js', 'server/video-importer.js', 'server/video-metadata.js', 'shared/media.js', 'node_modules/sharp/dist/index.cjs', 'node_modules/sharp/dist/index.mjs', 'node_modules/libheif-js/wasm-bundle.js', 'node_modules/libheif-js/libheif-wasm/libheif-bundle.js']) {
+  for (const path of ['desktop/main.cjs', 'desktop/service.cjs', 'desktop/pdf-export.cjs', 'desktop/preload.cjs', 'desktop/print-preload.cjs', 'server/app.js', 'server/download.js', 'server/library-transactions.js', 'server/heic-worker.cjs', 'server/license.js', 'server/license-store.js', 'server/video-container.js', 'server/video-importer.js', 'server/video-metadata.js', 'shared/media.js', 'shared/commands.js', 'node_modules/sharp/dist/index.cjs', 'node_modules/sharp/dist/index.mjs', 'node_modules/libheif-js/wasm-bundle.js', 'node_modules/libheif-js/libheif-wasm/libheif-bundle.js']) {
     await file(join(source, path), '/* structural fixture */');
   }
   for (const pkg of packages) {
@@ -158,6 +159,32 @@ test('package requires its shared media contract but rejects unrelated shared co
   });
 
   await assert.rejects(verifyPackage(missing), /missing app payload: shared\/media\.js/i);
+});
+
+test('the builder filtered payload can load the shared desktop command contract', async (t) => {
+  untaggedEnvironment(t);
+  const project = fileURLToPath(new URL('../', import.meta.url));
+  const payload = await mkdtemp(join(tmpdir(), 'folio-command-payload-'));
+  t.after(() => rm(payload, { recursive: true, force: true }));
+  const { FileMatcher } = require('app-builder-lib/out/fileMatcher');
+  const config = require('../electron-builder.cjs');
+  const included = new FileMatcher(project, payload, (path) => path, config.files).createFilter();
+  await cp(join(project, 'shared'), join(payload, 'shared'), {
+    recursive: true, filter: async (path) => included(path, await stat(path)),
+  });
+  await cp(join(project, 'package.json'), join(payload, 'package.json'));
+  const { commandAllowed } = await import(pathToFileURL(join(payload, 'shared/commands.js')));
+  assert.equal(commandAllowed('run-shell', { page: 'albums', busy: false }, true), false);
+});
+
+test('package accepts and requires its shared desktop command contract', async (t) => {
+  const f = await fixture(t, { extra: { 'shared/commands.js': 'export const COMMANDS = [];' } });
+  await verifyPackage(f);
+  await rm(join(f.source, 'shared/commands.js'));
+  await asar.createPackageWithOptions(f.source, join(f.resources, 'app.asar'), {
+    dot: true, unpackDir: '{node_modules/sharp,node_modules/@img,node_modules/libheif-js}',
+  });
+  await assert.rejects(verifyPackage(f), /missing app payload: shared\/commands\.js/i);
 });
 
 for (const module of ['server/video-importer.js', 'server/video-metadata.js', 'server/download.js', 'server/library-transactions.js']) {

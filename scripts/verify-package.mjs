@@ -152,7 +152,7 @@ export async function verifyPackage({ appDir, root = project, platform = process
     const nodeModule = name.startsWith('node_modules/');
     const dependency = packaged.get(ownerOf(name));
     if (nodeModule ? !dependency : !(
-      name === 'package.json' || name === 'desktop/license-public.pem' || name === 'shared/media.js' ||
+      name === 'package.json' || name === 'desktop/license-public.pem' || name === 'shared/media.js' || name === 'shared/commands.js' ||
       /^desktop\/[A-Za-z0-9-]+\.cjs$/.test(name) || /^server\/[A-Za-z0-9-]+\.(js|cjs)$/.test(name)
     )) throw new Error(`Unexpected/unlisted app payload: ${name}`);
     const nativeModule = dependency && (['sharp', 'libheif-js'].includes(dependency.name) || dependency.name.startsWith('@img/'));
@@ -161,7 +161,7 @@ export async function verifyPackage({ appDir, root = project, platform = process
   const metadata = JSON.parse(content('package.json'));
   if (metadata.version !== expected.version || metadata.main !== 'desktop/main.cjs' || metadata.type !== 'module') throw new Error('Packaged entry point/version is invalid');
   if (expected.tag && (metadata.folioBuild?.tag !== expected.tag || metadata.folioBuild.sourceCommit !== expected.sourceCommit)) throw new Error('Packaged build tag/source identity is invalid');
-  for (const name of ['desktop/main.cjs', 'desktop/service.cjs', 'desktop/pdf-export.cjs', 'desktop/preload.cjs', 'desktop/print-preload.cjs', 'server/app.js', 'server/download.js', 'server/library-transactions.js', 'server/heic-worker.cjs', 'server/license.js', 'server/license-store.js', 'server/video-container.js', 'server/video-importer.js', 'server/video-metadata.js', 'shared/media.js']) content(name);
+  for (const name of ['desktop/main.cjs', 'desktop/service.cjs', 'desktop/pdf-export.cjs', 'desktop/preload.cjs', 'desktop/print-preload.cjs', 'server/app.js', 'server/download.js', 'server/library-transactions.js', 'server/heic-worker.cjs', 'server/license.js', 'server/license-store.js', 'server/video-container.js', 'server/video-importer.js', 'server/video-metadata.js', 'shared/media.js', 'shared/commands.js']) content(name);
   const packedKey = content('desktop/license-public.pem');
   parseLicensePublicKey(packedKey);
   if (hash(packedKey) !== hash(key)) throw new Error('Packaged license public key differs from the maintainer source key');

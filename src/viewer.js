@@ -12,7 +12,7 @@ const DENSITY = [1, 2, 3];
 const DRAWN = 20; // the slider shows once the album has more leaves than the book draws
 const IDLE = 2500; // ms without input before auto-flip fades the controls
 
-export function openViewer({ album, onOpenPhoto, onClose, onPerPage }) {
+export function openViewer({ album, startIndex = 0, onOpenPhoto, onClose, onPerPage }) {
   const opener = document.activeElement;
   const root = document.createElement('div');
   root.className = 'ab';
@@ -344,7 +344,7 @@ export function openViewer({ album, onOpenPhoto, onClose, onPerPage }) {
       return phoneLandscape.matches ? 0 : $('.ab-foot').offsetHeight;
     },
   };
-  build(0);
+  build(startIndex);
 
   return {
     close,
