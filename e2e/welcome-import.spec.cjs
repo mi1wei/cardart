@@ -123,7 +123,7 @@ test('Import from folder on the welcome page makes an album named after the fold
     const chooser = page.waitForEvent('filechooser');
     await button.click();
     await (await chooser).setFiles(dir);
-    await expect(page.locator('.folder h3')).toHaveText('Summer by the sea');
+    await expect(page.locator('.folder h2')).toHaveText('Summer by the sea');
     await expect(page.locator('.folder .n')).toHaveText('2 photos');
     await expect(page.locator('.toast')).toHaveText("Imported 2 items, skipped 1 file that isn't a photo or video");
     await expect(page.locator('.upload')).toBeHidden();
@@ -157,7 +157,7 @@ test('while a folder imports, the wall stays open, other changes wait and anothe
     await page.locator('.folder-input').setInputFiles(nara);
     release();
     await expect(page.locator('.toast')).toHaveText('Imported 3 items');
-    expect((await page.locator('.folder h3').allTextContents()).sort()).toEqual(['Kyoto', 'Nara']);
+    expect((await page.locator('.folder h2').allTextContents()).sort()).toEqual(['Kyoto', 'Nara']);
     await expect(page.locator('html')).not.toHaveAttribute('data-busy', '');
     await page.evaluate(() => { location.hash = '#/trash'; });
     await expect(page).toHaveURL(`${origin}/#/trash`);
@@ -216,7 +216,7 @@ test('folders dropped on the wall become albums one after another; an empty one 
     expect(await page.locator('.folder').count()).toBe(1);
     release();
     await expect(page.locator('.toast')).toHaveText('Imported 4 items');
-    expect((await page.locator('.folder h3').allTextContents()).sort()).toEqual(['Existing', 'New album', '海'.repeat(50)].sort());
+    expect((await page.locator('.folder h2').allTextContents()).sort()).toEqual(['Existing', 'New album', '海'.repeat(50)].sort());
     await expect(page.locator('.folder', { hasText: '海'.repeat(50) }).locator('.n')).toHaveText('2 photos · 1 video');
   } finally {
     release(); // quitting waits for the import, so never leave the upload held
@@ -240,7 +240,7 @@ test('an album that cannot be created stops only its own folder', async () => {
       { name: 'Second', children: [{ name: 'c.jpg', type: 'image/jpeg', bytes: await jpeg(92) }] },
     ]);
     await expect(page.locator('.toast')).toHaveText('Imported 1 item, 2 failed · Couldn\'t create "First": Disk full');
-    await expect(page.locator('.folder h3')).toHaveText(['Second']);
+    await expect(page.locator('.folder h2')).toHaveText(['Second']);
   } finally { await fixture.close(); }
 });
 
@@ -267,7 +267,7 @@ test('loose photos dropped on the wall get a new album named first; cancelling i
     await dialog.locator('input').fill('Beach day');
     await dialog.locator('[value=ok]').click();
     await expect(page.locator('.toast')).toHaveText('Imported 3 items');
-    expect((await page.locator('.folder h3').allTextContents()).sort()).toEqual(['Beach day', 'Folder']);
+    expect((await page.locator('.folder h2').allTextContents()).sort()).toEqual(['Beach day', 'Folder']);
   } finally { await fixture.close(); }
 });
 
