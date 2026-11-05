@@ -162,6 +162,33 @@ test('phone swipes navigate, open the bottom sheet or close, while a two-finger 
   } finally { await fixture.close(); }
 });
 
+test('on a 320px phone the sheet cover button keeps its icon and its label inside', async () => {
+  const fixture = await desktopFixture();
+  try {
+    const { page } = await open(fixture);
+    await page.setViewportSize({ width: 320, height: 640 });
+    const cover = page.locator('.lb-details [data-act=sheet-cover]');
+    const fits = () => cover.evaluate((button) => {
+      const box = button.getBoundingClientRect();
+      const style = getComputedStyle(button);
+      const label = button.querySelector('span').getBoundingClientRect();
+      return {
+        icon: button.querySelector('svg').getBoundingClientRect().width,
+        inside: label.left >= box.left + parseFloat(style.paddingLeft) - 0.5 && label.right <= box.right - parseFloat(style.paddingRight) + 0.5,
+      };
+    });
+    await swipe(page, 0, -100);
+    await expect(cover).toHaveText('Already the cover');
+    expect(await fits()).toEqual({ icon: 17, inside: true });
+    await page.keyboard.press('Escape');
+    await swipe(page, -100);
+    await expect(page.locator('.lb-count')).toHaveText('2 / 2');
+    await swipe(page, 0, -100);
+    await expect(cover).toHaveText('Set as album cover');
+    expect(await fits()).toEqual({ icon: 17, inside: true });
+  } finally { await fixture.close(); }
+});
+
 test('the ⋯ menu opens under its button when the Windows window buttons push the bar in', async () => {
   const fixture = await desktopFixture();
   try {
