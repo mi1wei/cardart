@@ -15,7 +15,10 @@ export function createBook(container, { title, titlePage = null, pages, photoUrl
   const G = Math.max(1, Math.ceil(pages.length / 2)); // leaves in the whole album
   const S = Math.min(DRAWN, G); // leaves drawn
   const binder = createBinder({ sheets: S, title, titlePage });
-  const stage = createStage(container, binder.xb + binder.B, insets, () => requestRender());
+  // Without WebGL there is no book; the binder already follows the theme, so let it go.
+  let stage;
+  try { stage = createStage(container, binder.xb + binder.B, insets, () => requestRender()); }
+  catch (error) { binder.dispose(); throw error; }
   const { scene, camera, renderer } = stage;
   const canvas = renderer.domElement;
   scene.add(binder.group);

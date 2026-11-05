@@ -394,3 +394,45 @@ test('the title page reads in both themes: the see-through cover follows the pag
     expect(result.afterDispose, 'a closed book stops following the theme').toBe(0);
   } finally { await fixture.close(); }
 });
+
+test('a book that cannot get WebGL stops following the theme', async () => {
+  const fixture = await desktopFixture();
+  try {
+    const { page } = await fixture.launch();
+    await serveModule(page, 'src/book/book.js', '/__folio-book-no-webgl.js');
+    const result = await page.evaluate(async () => {
+      const getContext = HTMLCanvasElement.prototype.getContext;
+      const { addEventListener: add, removeEventListener: remove } = document;
+      const listening = new Set();
+      HTMLCanvasElement.prototype.getContext = function (type, ...args) {
+        return /webgl/i.test(type) ? null : getContext.call(this, type, ...args);
+      };
+      document.addEventListener = function (type, listener, ...args) {
+        if (type === 'folio-theme') listening.add(listener);
+        return add.call(this, type, listener, ...args);
+      };
+      document.removeEventListener = function (type, listener, ...args) {
+        if (type === 'folio-theme') listening.delete(listener);
+        return remove.call(this, type, listener, ...args);
+      };
+      const container = document.createElement('div');
+      document.body.append(container);
+      try {
+        const { createBook } = await import('/__folio-book-no-webgl.js');
+        createBook(container, {
+          title: 'Summer', titlePage: { title: 'Summer', dates: '', count: '1 photo' }, pages: [{ rects: [] }],
+          photoUrl: () => '', insets: { top: 0, bottom: 0 }, onChange() {}, onPhotoClick() {},
+        });
+        return { error: null, listening: listening.size };
+      } catch (error) {
+        return { error: error.message, listening: listening.size };
+      } finally {
+        HTMLCanvasElement.prototype.getContext = getContext;
+        delete document.addEventListener;
+        delete document.removeEventListener;
+        container.remove();
+      }
+    });
+    expect(result).toEqual({ error: 'webgl', listening: 0 });
+  } finally { await fixture.close(); }
+});
