@@ -249,5 +249,12 @@ test('the PDF cover writes the capture dates the way the rest of the app does', 
     await f.page.locator('[data-act=pdf]').click();
     await expect(f.page.locator('.pdf-export .print-cover p')).toHaveText('Jul 12 – 15, 2026');
     await f.page.locator('.pdf-export [data-act=cancel]').click();
+    // Chinese is spelled out by hand, not by Intl: check it too.
+    await f.desktop.context().addCookies([{ name: 'folio_lang', value: 'zh', url: f.origin }]);
+    await f.page.reload();
+    await f.page.locator('.album-page [data-act=menu]').click();
+    await f.page.locator('[data-act=pdf]').click();
+    await expect(f.page.locator('.pdf-export .print-cover p')).toHaveText('2026年7月12日–15日');
+    await f.page.locator('.pdf-export [data-act=cancel]').click();
   } finally { await f.close(); }
 });

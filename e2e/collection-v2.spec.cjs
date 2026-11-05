@@ -113,7 +113,8 @@ test('trash preview has only restore and purge, and permanent deletion asks for 
     await expect(page.locator('.trash-preview')).toHaveCount(1);
     await page.locator('.trash-preview').click();
     await expect(page.locator('.lb')).toBeVisible();
-    await expect(page.locator('.lb [data-act=cover], .lb [data-act=delete]')).toHaveCount(0);
+    // No ⋯ and nothing from it: no cover, copy, move or delete in a trash preview.
+    await expect(page.locator('.lb [data-act=menu], .lb [data-act^=menu-], .lb [data-act^=sheet-], .lb [data-act=delete]')).toHaveCount(0);
     await page.locator('.lb [data-act=close]').click();
     await page.locator('.trash-item input').check();
     await page.locator('[data-act=purge]').click();

@@ -146,7 +146,9 @@ test('faded controls stay hidden across page turns until the mouse moves', async
     await openBook(page);
     await page.locator('.ab-turn [data-act=play]').click();
     await page.locator('.ab-speed [data-speed=fast]').click();
-    await page.mouse.move(5, 5);
+    // Only page turns are under test: a real mouse over the window, or a mousemove Chromium fakes
+    // when the layout changes under the pointer, must not wake the controls.
+    await page.evaluate(() => addEventListener('pointermove', (e) => e.stopPropagation(), true));
     await expect(page.locator('.ab')).toHaveAttribute('data-idle', '', { timeout: 5000 });
     await page.evaluate(() => {
       window.shown = 0;
