@@ -162,6 +162,23 @@ test('phone swipes navigate, open the bottom sheet or close, while a two-finger 
   } finally { await fixture.close(); }
 });
 
+test('the ⋯ menu opens under its button when the Windows window buttons push the bar in', async () => {
+  const fixture = await desktopFixture();
+  try {
+    const { page } = await open(fixture);
+    // A Mac runs the Windows rules too: without window-controls-overlay values they fall back to 24px.
+    await page.evaluate(() => { document.documentElement.dataset.desktop = 'win'; });
+    const button = page.locator('.lb-bar [data-act=menu]');
+    await button.click();
+    const menu = page.locator('.lb-menu');
+    await expect(menu).toBeVisible();
+    const [b, m] = [await button.boundingBox(), await menu.boundingBox()];
+    expect(Math.abs(b.x + b.width - (m.x + m.width))).toBeLessThanOrEqual(1);
+    const titleBarEnd = await page.evaluate(() => (navigator.windowControlsOverlay?.visible ? navigator.windowControlsOverlay.getTitlebarAreaRect().right : null));
+    if (titleBarEnd !== null) expect(m.x + m.width).toBeLessThanOrEqual(titleBarEnd);
+  } finally { await fixture.close(); }
+});
+
 test('video Space toggles outside native controls without replacing a paused video during same-photo updates', async () => {
   const fixture = await desktopFixture();
   try {

@@ -1370,6 +1370,11 @@ button, input, select, summary, .back-link, .link, .welcome-trash,
   [data-desktop='win'] :is(.nav, .lb-bar, .ab-bar) {
     padding-right: calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw) + 24px);
   }
+
+  /* The viewer's ⋯ menu lines up with its button, not with the window buttons. */
+  [data-desktop='win'] .lb-menu {
+    right: calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw) + 24px);
+  }
 }
 
 .logo {
