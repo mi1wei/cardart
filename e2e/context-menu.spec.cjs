@@ -43,6 +43,7 @@ test('photo context actions open the selected photo in 3D and focus the existing
   const fixture = await desktopFixture();
   try {
     const { page } = await fixture.launch();
+    await page.setViewportSize({ width: 1024, height: 600 });
     const origin = new URL(page.url()).origin;
     const album = await seedBook(page, origin, 'Start here', 6, 1);
     await page.goto(`${origin}/#/a/${album.id}`);
@@ -55,6 +56,22 @@ test('photo context actions open the selected photo in 3D and focus the existing
     await item(page, 'note').click();
     await expect(page.locator('.note-input')).toBeFocused();
     await expect(page).toHaveURL(/\/p\/p004$/);
+  } finally { await fixture.close(); }
+});
+
+test('scrolling outside an open context menu closes it when its photo moves', async () => {
+  const fixture = await desktopFixture();
+  try {
+    const { page } = await fixture.launch();
+    await page.setViewportSize({ width: 1024, height: 600 });
+    const origin = new URL(page.url()).origin;
+    const album = await seed(page, origin, 'Scroll context', 6);
+    await page.goto(`${origin}/#/a/${album.id}`);
+    await page.locator('.tile').first().click({ button: 'right' });
+    await expect(item(page, 'open')).toBeFocused();
+    await page.evaluate(() => window.scrollBy(0, 80));
+    await expect.poll(() => page.evaluate(() => scrollY)).toBeGreaterThan(0);
+    await expect(page.locator('.context-menu')).toHaveCount(0);
   } finally { await fixture.close(); }
 });
 

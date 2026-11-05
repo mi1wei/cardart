@@ -87,7 +87,12 @@ export function bindContextMenu(host, selector, itemsFor) {
     }
     const dismiss = () => close(false);
     const outside = (e) => { if (!menu.contains(e.target)) close(false); };
-    const scroll = (e) => { if (!menu.contains(e.target)) close(false); };
+    const scroll = (e) => {
+      if (menu.contains(e.target)) return;
+      // Scrolling into view can queue an event before the menu opens.
+      const position = opener.getBoundingClientRect();
+      if (position.left !== rect.left || position.top !== rect.top) close(false);
+    };
     window.addEventListener('keydown', onKey, true);
     window.addEventListener('blur', dismiss);
     window.addEventListener('resize', dismiss);
