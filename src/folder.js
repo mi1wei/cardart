@@ -18,10 +18,10 @@ export function folder(a, { menu = false } = {}) {
   el.dataset.id = a.id;
   el.innerHTML = `
     <a class="pocket" href="#/a/${a.id}">${pocket(a.id, a.previews)}</a>
-    <div class="meta"><h3></h3><span class="n"></span>${
+    <div class="meta"><h2></h2><span class="n"></span>${
       menu ? `<button class="ibtn" type="button" data-act="menu" aria-label="${t('more')}">${icon('more')}</button>` : ''
     }</div>`;
-  el.querySelector('h3').textContent = a.title;
+  el.querySelector('h2').textContent = a.title;
   el.querySelector('.n').textContent = a.count ? mediaCountText(a) : t('album-empty');
   el.querySelector('.pocket').setAttribute('aria-label', a.title);
   // The capture months follow the count on its line (polish spec §4.3).

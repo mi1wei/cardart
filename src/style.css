@@ -35,6 +35,25 @@
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --font: 'Geist Variable', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei UI',
     'Noto Sans CJK SC', system-ui, sans-serif;
+  --text-12: 12px;
+  --leading-12: 16px;
+  --text-13: 13px;
+  --leading-13: 18px;
+  --text-14: 14px;
+  --leading-14: 20px;
+  --text-16: 16px;
+  --leading-16: 24px;
+  --text-20: 20px;
+  --leading-20: 28px;
+  --text-24: 24px;
+  --leading-24: 32px;
+  --text-28: 28px;
+  --leading-28: 36px;
+  --radius-4: 4px;
+  --radius-8: 8px;
+  --radius-12: 12px;
+  --radius-20: 20px;
+  --radius-pill: 999px;
   /* Floating layers (menus, upload progress, dialogs) and cards, as on cardart.cc */
   --panel: 0 0 0 1px oklch(23.5% 0.02 255 / 0.06), 0 8px 24px oklch(23.5% 0.02 255 / 0.08),
     0 32px 64px -16px oklch(23.5% 0.02 255 / 0.22);
@@ -103,13 +122,29 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--ink);
-  font: 16px/24px var(--font);
+  font: var(--text-16)/var(--leading-16) var(--font);
   -webkit-font-smoothing: antialiased;
+}
+
+small {
+  font-size: var(--text-12);
+  line-height: var(--leading-12);
 }
 
 button {
   font: inherit;
   color: inherit;
+}
+
+button, input, select, summary, .back-link, .link, .welcome-trash,
+.license-bar a, .empty a {
+  min-width: 24px;
+  min-height: 24px;
+}
+
+.welcome-trash, .license-bar a, .empty a {
+  display: inline-flex;
+  align-items: center;
 }
 
 /* Buttons: pills, as on cardart.cc */
@@ -120,12 +155,12 @@ button {
   height: 36px;
   padding: 0 16px 0 14px;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--raised);
   box-shadow: inset 0 0 0 1px var(--line), 0 1px 2px oklch(23.5% 0.02 255 / 0.04);
   color: var(--ink);
-  font-size: 14px;
-  line-height: 20px;
+  font-size: var(--text-14);
+  line-height: var(--leading-14);
   font-weight: 500;
   white-space: nowrap;
   cursor: pointer;
@@ -224,16 +259,16 @@ button {
 
 .t1 {
   margin: 0;
-  font-size: 28px;
-  line-height: 34px;
+  font-size: var(--text-28);
+  line-height: var(--leading-28);
   font-weight: 600;
 }
 
 .sub {
   margin: 6px 0 0;
   color: var(--ink-3);
-  font-size: 13px;
-  line-height: 20px;
+  font-size: var(--text-13);
+  line-height: var(--leading-13);
 }
 
 .empty {
@@ -254,8 +289,8 @@ button {
 
 .welcome h2 {
   margin: 0 0 6px;
-  font-size: 24px;
-  line-height: 32px;
+  font-size: var(--text-20);
+  line-height: var(--leading-20);
   font-weight: 600;
 }
 
@@ -270,7 +305,7 @@ button {
   gap: 14px;
   padding: 32px 24px 24px;
   border: 2px dashed var(--dash);
-  border-radius: 20px;
+  border-radius: var(--radius-20);
   background: var(--soft);
 }
 
@@ -279,7 +314,7 @@ button {
   place-items: center;
   width: 52px;
   height: 52px;
-  border-radius: 16px;
+  border-radius: var(--radius-12);
   background: var(--raised);
   box-shadow: var(--card);
   color: var(--accent);
@@ -300,15 +335,16 @@ button {
 .welcome-drop {
   margin: 0;
   color: var(--ink);
-  font-size: 18px;
-  line-height: 26px;
+  font-size: var(--text-20);
+  line-height: var(--leading-20);
   font-weight: 600;
 }
 
 .welcome-drop-hint {
   margin: -10px 0 4px;
   color: var(--ink-2);
-  font-size: 14px;
+  font-size: var(--text-14);
+  line-height: var(--leading-14);
 }
 
 /* The whole wall takes a drop (polish spec §5). */
@@ -319,7 +355,7 @@ button {
   display: grid;
   place-items: center;
   border: 2px dashed var(--accent);
-  border-radius: 20px;
+  border-radius: var(--radius-20);
   background: color-mix(in srgb, var(--bg) 94%, transparent);
   backdrop-filter: blur(6px);
   pointer-events: none;
@@ -330,7 +366,8 @@ button {
   justify-items: center;
   gap: 10px;
   color: var(--ink);
-  font-size: 17px;
+  font-size: var(--text-16);
+  line-height: var(--leading-16);
   font-weight: 600;
 }
 
@@ -343,15 +380,16 @@ button {
 .welcome-formats {
   margin: 0;
   color: var(--ink-3);
-  font-size: 12px;
-  line-height: 16px;
+  font-size: var(--text-12);
+  line-height: var(--leading-12);
 }
 
 .welcome-trash {
   display: inline-block;
   margin-top: 18px;
   color: var(--ink-2);
-  font-size: 13px;
+  font-size: var(--text-13);
+  line-height: var(--leading-13);
 }
 
 .welcome-trash:hover {
@@ -372,8 +410,8 @@ button {
   }
 
   .t1 {
-    font-size: 24px;
-    line-height: 30px;
+    font-size: var(--text-24);
+    line-height: var(--leading-24);
   }
 
   .ph .btn span {
@@ -506,17 +544,17 @@ button {
   display: flex;
   align-items: center;
   gap: 6px;
-  height: 22px;
+  min-height: var(--leading-16);
   margin-top: 12px;
 }
 
-.folder h3 {
+.folder h2 {
   flex: 0 1 auto;
   min-width: 0;
   margin: 0;
   overflow: hidden;
-  font-size: 14px;
-  line-height: 20px;
+  font-size: var(--text-16);
+  line-height: var(--leading-16);
   font-weight: 550;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -525,7 +563,8 @@ button {
 .folder .n {
   flex: none;
   color: var(--ink-3);
-  font-size: 12px;
+  font-size: var(--text-12);
+  line-height: var(--leading-12);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
@@ -536,7 +575,8 @@ button {
   min-width: 0;
   overflow: hidden;
   color: var(--ink-3);
-  font-size: 12px;
+  font-size: var(--text-12);
+  line-height: var(--leading-12);
   white-space: nowrap;
   text-overflow: ellipsis;
 }
@@ -569,7 +609,7 @@ button {
     flex-basis: 100%;
   }
 
-  .folder h3 {
+  .folder h2 {
     flex: 1 1 0;
   }
 
@@ -605,7 +645,7 @@ button {
   display: grid;
   min-width: 150px;
   padding: 6px;
-  border-radius: 12px;
+  border-radius: var(--radius-12);
   background: var(--raised);
   box-shadow: var(--panel);
 }
@@ -613,11 +653,11 @@ button {
 .menu button {
   padding: 8px 10px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-8);
   background: none;
   color: var(--ink);
-  font-size: 14px;
-  line-height: 20px;
+  font-size: var(--text-14);
+  line-height: var(--leading-14);
   text-align: left;
   cursor: pointer;
 }
@@ -644,7 +684,8 @@ button {
   padding: 10px max(env(safe-area-inset-right, 0px), 24px) 10px max(env(safe-area-inset-left, 0px), 24px);
   background: var(--accent-soft);
   color: var(--ink-2);
-  font-size: 13px;
+  font-size: var(--text-13);
+  line-height: var(--leading-13);
 }
 
 .license-bar a {
@@ -674,7 +715,8 @@ button {
   gap: 7px;
   padding-top: 8px;
   color: var(--ink-3);
-  font-size: 12px;
+  font-size: var(--text-12);
+  line-height: var(--leading-12);
   white-space: nowrap;
 }
 
@@ -688,7 +730,7 @@ button {
   display: grid;
   grid-template-columns: minmax(0, 0.94fr) minmax(0, 1.16fr);
   border: 1px solid var(--line);
-  border-radius: 20px;
+  border-radius: var(--radius-20);
   background: var(--raised);
   overflow: hidden;
 }
@@ -707,17 +749,18 @@ button {
   gap: 12px;
   margin-bottom: 30px;
   color: var(--ink-2);
-  font-size: 12px;
+  font-size: var(--text-12);
+  line-height: var(--leading-12);
   font-weight: 500;
 }
 
 .license-status-badge {
   padding: 3px 9px;
-  border-radius: 999px;
+  border-radius: var(--radius-4);
   background: var(--hover);
   color: var(--ink-2);
-  font-size: 10px;
-  line-height: 18px;
+  font-size: var(--text-12);
+  line-height: var(--leading-12);
   white-space: nowrap;
 }
 
@@ -727,7 +770,7 @@ button {
   width: 46px;
   height: 46px;
   margin-bottom: 17px;
-  border-radius: 14px;
+  border-radius: var(--radius-12);
   color: var(--accent);
   background: var(--accent-soft);
 }
@@ -754,8 +797,8 @@ button {
 
 .license-status-title {
   margin: 0;
-  font-size: 25px;
-  line-height: 1.3;
+  font-size: var(--text-24);
+  line-height: var(--leading-24);
   font-weight: 600;
   letter-spacing: -0.5px;
 }
@@ -763,15 +806,16 @@ button {
 .license-status-description {
   margin: 11px 0 24px;
   color: var(--ink-2);
-  font-size: 14px;
-  line-height: 1.7;
+  font-size: var(--text-14);
+  line-height: var(--leading-14);
 }
 
 .license-facts {
   display: grid;
   gap: 13px;
   margin: 0 0 27px;
-  font-size: 12px;
+  font-size: var(--text-12);
+  line-height: var(--leading-12);
 }
 
 .license-facts > div {
@@ -796,7 +840,8 @@ button {
   display: block;
   margin-top: 1px;
   color: var(--ink-3);
-  font-size: 10px;
+  font-size: var(--text-12);
+  line-height: var(--leading-12);
   font-weight: 400;
 }
 
@@ -817,22 +862,24 @@ button {
 }
 
 .license-safety strong {
-  font-size: 13px;
+  font-size: var(--text-13);
+  line-height: var(--leading-13);
   font-weight: 500;
 }
 
 .license-safety p {
   margin: 5px 0 0;
   color: var(--ink-2);
-  font-size: 12px;
-  line-height: 1.8;
+  font-size: var(--text-12);
+  line-height: var(--leading-12);
 }
 
 .license-page .license-refresh {
   height: 40px;
   margin-top: 19px;
   padding: 0;
-  font-size: 12px;
+  font-size: var(--text-12);
+  line-height: var(--leading-12);
 }
 
 .license-refresh svg {
@@ -847,8 +894,8 @@ button {
 
 .license-activate-title {
   margin: 0;
-  font-size: 22px;
-  line-height: 1.4;
+  font-size: var(--text-20);
+  line-height: var(--leading-20);
   font-weight: 600;
   letter-spacing: -0.4px;
 }
@@ -856,14 +903,14 @@ button {
 .license-activate-description {
   margin: 10px 0 25px;
   color: var(--ink-2);
-  font-size: 13px;
-  line-height: 1.7;
+  font-size: var(--text-13);
+  line-height: var(--leading-13);
 }
 
 .license-file-box {
   padding: 18px;
   border: 1px solid var(--line);
-  border-radius: 13px;
+  border-radius: var(--radius-12);
 }
 
 .license-file-heading {
@@ -880,21 +927,23 @@ button {
   width: 37px;
   height: 42px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-8);
   background: var(--accent-soft);
   color: var(--accent);
 }
 
 .license-file-heading strong {
   display: block;
-  font-size: 13px;
+  font-size: var(--text-13);
+  line-height: var(--leading-13);
   font-weight: 500;
 }
 
 .license-file-heading small {
   display: block;
   color: var(--ink-3);
-  font-size: 11px;
+  font-size: var(--text-12);
+  line-height: var(--leading-12);
 }
 
 .license-page .license-choose {
@@ -904,7 +953,8 @@ button {
 
 .license-page :is(.license-choose, .license-import) {
   height: 42px;
-  font-size: 13px;
+  font-size: var(--text-13);
+  line-height: var(--leading-13);
 }
 
 .license-file-picked {
@@ -913,7 +963,7 @@ button {
   gap: 10px;
   margin-top: 14px;
   padding: 11px 12px;
-  border-radius: 10px;
+  border-radius: var(--radius-12);
   color: var(--accent);
   background: var(--accent-soft);
 }
@@ -931,8 +981,8 @@ button {
 
 .license-selected-name {
   display: block;
-  font-size: 12px;
-  line-height: 1.6;
+  font-size: var(--text-12);
+  line-height: var(--leading-12);
   overflow-wrap: anywhere;
 }
 
@@ -940,13 +990,14 @@ button {
   display: block;
   margin-top: 2px;
   color: var(--ink-2);
-  font-size: 10px;
+  font-size: var(--text-12);
+  line-height: var(--leading-12);
 }
 
 .license-json-details {
   margin-top: 15px;
   border: 1px solid var(--line);
-  border-radius: 11px;
+  border-radius: var(--radius-12);
 }
 
 .license-page summary {
@@ -955,7 +1006,8 @@ button {
   min-height: 44px;
   gap: 8px;
   color: var(--ink-2);
-  font-size: 12px;
+  font-size: var(--text-12);
+  line-height: var(--leading-12);
   list-style: none;
   cursor: pointer;
 }
@@ -1001,15 +1053,16 @@ button {
 .license-json-body p {
   margin: 0 0 10px;
   color: var(--ink-3);
-  font-size: 11px;
-  line-height: 1.7;
+  font-size: var(--text-12);
+  line-height: var(--leading-12);
 }
 
 .license-json-body label {
   display: block;
   margin-bottom: 7px;
   color: var(--ink-2);
-  font-size: 11px;
+  font-size: var(--text-12);
+  line-height: var(--leading-12);
 }
 
 .license-json-body textarea {
@@ -1018,10 +1071,10 @@ button {
   min-width: 0;
   padding: 12px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-8);
   background: var(--bg);
   color: var(--ink);
-  font: 12px/1.7 ui-monospace, monospace;
+  font: var(--text-12)/var(--leading-12) ui-monospace, monospace;
   resize: vertical;
 }
 
@@ -1045,7 +1098,8 @@ button {
   align-items: center;
   gap: 5px;
   color: var(--ink-3);
-  font-size: 10px;
+  font-size: var(--text-12);
+  line-height: var(--leading-12);
 }
 
 .license-local svg {
@@ -1056,9 +1110,9 @@ button {
 .license-result {
   margin: 16px 0 0;
   padding: 12px;
-  border-radius: 9px;
-  font-size: 12px;
-  line-height: 1.7;
+  border-radius: var(--radius-12);
+  font-size: var(--text-12);
+  line-height: var(--leading-12);
   overflow-wrap: anywhere;
 }
 
@@ -1081,20 +1135,21 @@ button {
 .license-help-details summary {
   min-height: 37px;
   color: var(--ink-3);
-  font-size: 11px;
+  font-size: var(--text-12);
+  line-height: var(--leading-12);
 }
 
 .license-help-details p {
   margin: 2px 0 7px;
   color: var(--ink-2);
-  font-size: 11px;
-  line-height: 1.8;
+  font-size: var(--text-12);
+  line-height: var(--leading-12);
 }
 
 .license-computer {
   padding: 24px 18px;
   border: 1px solid var(--line);
-  border-radius: 13px;
+  border-radius: var(--radius-12);
   background: var(--bg);
   text-align: center;
 }
@@ -1108,15 +1163,16 @@ button {
 
 .license-computer strong {
   display: block;
-  font-size: 15px;
+  font-size: var(--text-14);
+  line-height: var(--leading-14);
   font-weight: 500;
 }
 
 .license-computer p {
   margin: 8px 0 0;
   color: var(--ink-2);
-  font-size: 12px;
-  line-height: 1.8;
+  font-size: var(--text-12);
+  line-height: var(--leading-12);
 }
 
 @media (max-width: 760px) {
@@ -1134,7 +1190,7 @@ button {
 
   .license-workspace {
     grid-template-columns: minmax(0, 1fr);
-    border-radius: 16px;
+    border-radius: var(--radius-20);
   }
 
   .license-status-panel {
@@ -1151,7 +1207,7 @@ button {
     width: 38px;
     height: 38px;
     margin-bottom: 12px;
-    border-radius: 11px;
+    border-radius: var(--radius-12);
   }
 
   .license-status-icon svg {
@@ -1160,18 +1216,21 @@ button {
   }
 
   .license-status-title {
-    font-size: 23px;
+    font-size: var(--text-24);
+    line-height: var(--leading-24);
   }
 
   .license-status-description {
     margin: 9px 0 18px;
-    font-size: 13px;
+    font-size: var(--text-13);
+    line-height: var(--leading-13);
   }
 
   .license-facts {
     gap: 10px;
     margin-bottom: 19px;
-    font-size: 11px;
+    font-size: var(--text-12);
+    line-height: var(--leading-12);
   }
 
   .license-safety {
@@ -1180,11 +1239,13 @@ button {
   }
 
   .license-safety strong {
-    font-size: 12px;
+    font-size: var(--text-12);
+    line-height: var(--leading-12);
   }
 
   .license-safety p {
-    font-size: 11px;
+    font-size: var(--text-12);
+    line-height: var(--leading-12);
   }
 
   .license-page .license-refresh {
@@ -1197,12 +1258,14 @@ button {
   }
 
   .license-activate-title {
-    font-size: 21px;
+    font-size: var(--text-20);
+    line-height: var(--leading-20);
   }
 
   .license-activate-description {
     margin: 8px 0 19px;
-    font-size: 12px;
+    font-size: var(--text-12);
+    line-height: var(--leading-12);
   }
 
   .license-file-box {
@@ -1215,17 +1278,20 @@ button {
   }
 
   .license-file-heading strong {
-    font-size: 12px;
+    font-size: var(--text-12);
+    line-height: var(--leading-12);
   }
 
   .license-file-heading small {
-    font-size: 10px;
+    font-size: var(--text-12);
+    line-height: var(--leading-12);
   }
 
   .license-page :is(.license-choose, .license-import) {
     height: 44px;
     padding: 0 16px;
-    font-size: 12px;
+    font-size: var(--text-12);
+    line-height: var(--leading-12);
   }
 
   .license-file-picked .ibtn {
@@ -1239,7 +1305,8 @@ button {
 
   .license-json-details summary {
     padding: 0 12px;
-    font-size: 11px;
+    font-size: var(--text-12);
+    line-height: var(--leading-12);
   }
 
   .license-import-actions {
@@ -1253,7 +1320,8 @@ button {
   }
 
   .license-local {
-    font-size: 9px;
+    font-size: var(--text-12);
+    line-height: var(--leading-12);
   }
 
   .license-help-details {
@@ -1310,10 +1378,10 @@ button {
   gap: 9px;
   margin-right: 14px;
   padding: 4px 6px;
-  border-radius: 10px;
+  border-radius: var(--radius-8);
   color: var(--ink);
-  font-size: 16px;
-  line-height: 24px;
+  font-size: var(--text-16);
+  line-height: var(--leading-16);
   font-weight: 650;
   text-decoration: none;
 }
@@ -1336,7 +1404,7 @@ button {
 :is(.lang, .theme) {
   display: inline-flex;
   padding: 3px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--track);
 }
 
@@ -1345,11 +1413,11 @@ button {
   height: 28px;
   padding: 0 10px;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: none;
   color: var(--ink-3);
-  font-size: 13px;
-  line-height: 1;
+  font-size: var(--text-13);
+  line-height: var(--leading-13);
   font-weight: 500;
   cursor: pointer;
 }
@@ -1397,10 +1465,10 @@ button {
   gap: 2px;
   margin: 0 0 8px -6px;
   padding: 2px 10px 2px 2px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   color: var(--ink-3);
-  font-size: 13px;
-  line-height: 20px;
+  font-size: var(--text-13);
+  line-height: var(--leading-13);
   text-decoration: none;
 }
 
@@ -1481,7 +1549,8 @@ button {
 .picked {
   margin: 0 4px;
   color: var(--ink-2);
-  font-size: 14px;
+  font-size: var(--text-14);
+  line-height: var(--leading-14);
   font-weight: 500;
   white-space: nowrap;
 }
@@ -1539,7 +1608,7 @@ button {
   flex: calc(var(--a) * 1000) 1 calc(var(--a) * var(--row));
   max-width: calc(var(--a) * var(--row) * 2);
   aspect-ratio: var(--a);
-  border-radius: 2px;
+  border-radius: var(--radius-4);
   background: var(--tile);
 }
 
@@ -1551,7 +1620,7 @@ button {
 .folder-skel i {
   display: block;
   aspect-ratio: 253 / 212;
-  border-radius: 16px;
+  border-radius: var(--radius-12);
   background: var(--ghost);
 }
 
@@ -1559,7 +1628,7 @@ button {
   display: block;
   width: 60%;
   height: 14px;
-  border-radius: 7px;
+  border-radius: var(--radius-8);
   background: var(--ghost);
 }
 
@@ -1579,13 +1648,14 @@ button {
 .tile {
   position: relative;
   flex: calc(var(--a) * 1000) 1 calc(var(--a) * var(--row));
-  min-width: 0;
+  min-width: 24px;
   max-width: calc(var(--a) * var(--row) * 2);
+  max-height: calc(var(--row) * 2);
   aspect-ratio: var(--a);
   padding: 0;
   overflow: hidden;
   border: 0;
-  border-radius: 2px;
+  border-radius: var(--radius-4);
   box-shadow: 0 0 0 4px var(--frame), 0 4px 12px -4px oklch(23.5% 0.02 255 / 0.28);
   background: var(--tile);
   cursor: pointer;
@@ -1596,7 +1666,7 @@ button {
   inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   transition: transform 0.4s var(--ease-out);
 }
 
@@ -1608,11 +1678,11 @@ button {
   align-items: center;
   gap: 5px;
   padding: 3px 7px;
-  border-radius: 6px;
+  border-radius: var(--radius-4);
   background: rgb(16 25 32 / 78%);
   color: #fff;
-  font-size: 11px;
-  line-height: 16px;
+  font-size: var(--text-12);
+  line-height: var(--leading-12);
   font-variant-numeric: tabular-nums;
   pointer-events: none;
 }
@@ -1639,7 +1709,8 @@ button {
   display: grid;
   place-items: center;
   color: var(--ink-3);
-  font-size: 12px;
+  font-size: var(--text-12);
+  line-height: var(--leading-12);
 }
 
 .badge {
@@ -1647,12 +1718,12 @@ button {
   left: 8px;
   top: 8px;
   padding: 0 8px;
-  border-radius: 999px;
+  border-radius: var(--radius-4);
   background: rgb(255 255 255 / 0.94);
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.12);
   color: #1c2430;
-  font-size: 12px;
-  line-height: 20px;
+  font-size: var(--text-12);
+  line-height: var(--leading-12);
   font-weight: 600;
 }
 
@@ -1703,7 +1774,7 @@ button {
   top: 0;
   z-index: 50;
   pointer-events: none;
-  border-radius: 2px;
+  border-radius: var(--radius-4);
   box-shadow: 0 26px 40px -14px rgb(20 35 55 / 0.55), 0 0 0 4px var(--frame);
 }
 
@@ -1714,7 +1785,7 @@ button {
   }
 
   .tile {
-    border-radius: 2px;
+    border-radius: var(--radius-4);
     box-shadow: 0 0 0 2.5px var(--frame), 0 2px 6px -2px oklch(23.5% 0.02 255 / 0.25);
   }
 
@@ -1745,7 +1816,7 @@ button {
   min-height: 330px;
   margin-top: 4px;
   border: 2px dashed var(--dash);
-  border-radius: 20px;
+  border-radius: var(--radius-20);
   background: var(--soft);
   color: var(--ink-2);
   text-align: center;
@@ -1760,14 +1831,15 @@ button {
 .drop b {
   margin-top: 8px;
   color: var(--ink);
-  font-size: 17px;
-  line-height: 24px;
+  font-size: var(--text-16);
+  line-height: var(--leading-16);
 }
 
 .drop small {
   margin-top: 6px;
   color: var(--ink-3);
-  font-size: 12px;
+  font-size: var(--text-12);
+  line-height: var(--leading-12);
 }
 
 .link {
@@ -1782,7 +1854,7 @@ button {
 .dropping .grid {
   outline: 2px dashed var(--dash);
   outline-offset: 10px;
-  border-radius: 8px;
+  border-radius: var(--radius-8);
 }
 
 .dropping .drop {
@@ -1798,7 +1870,7 @@ button {
 .toast {
   position: fixed;
   z-index: 90;
-  border-radius: 16px;
+  border-radius: var(--radius-12);
   background: var(--raised);
   box-shadow: var(--panel);
 }
@@ -1809,8 +1881,8 @@ button {
   width: 320px;
   max-width: calc(100vw - 32px);
   padding: 14px 16px;
-  font-size: 14px;
-  line-height: 20px;
+  font-size: var(--text-14);
+  line-height: var(--leading-14);
 }
 
 .upload .r {
@@ -1830,7 +1902,8 @@ button {
 .upload .r span {
   min-width: 0;
   color: var(--ink-3);
-  font-size: 13px;
+  font-size: var(--text-13);
+  line-height: var(--leading-13);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1840,7 +1913,7 @@ button {
   height: 6px;
   margin: 10px 0 8px;
   overflow: hidden;
-  border-radius: 3px;
+  border-radius: var(--radius-4);
   background: var(--line);
 }
 
@@ -1854,7 +1927,8 @@ button {
 
 .upload small {
   color: var(--ink-3);
-  font-size: 12px;
+  font-size: var(--text-12);
+  line-height: var(--leading-12);
 }
 
 .toast {
@@ -1862,11 +1936,11 @@ button {
   bottom: calc(env(safe-area-inset-bottom, 0px) + 24px);
   translate: -50%;
   padding: 10px 18px;
-  border-radius: 999px;
+  border-radius: var(--radius-12);
   background: var(--ink);
   color: var(--bg);
-  font-size: 14px;
-  line-height: 20px;
+  font-size: var(--text-14);
+  line-height: var(--leading-14);
 }
 
 /* Dialogs */
@@ -1874,12 +1948,12 @@ button {
   width: min(400px, calc(100vw - 32px));
   padding: 22px 24px;
   border: 0;
-  border-radius: 20px;
+  border-radius: var(--radius-20);
   background: var(--raised);
   box-shadow: var(--panel);
   color: var(--ink);
-  font-size: 14px;
-  line-height: 20px;
+  font-size: var(--text-14);
+  line-height: var(--leading-14);
 }
 
 .dlg::backdrop {
@@ -1888,8 +1962,8 @@ button {
 
 .dlg h3 {
   margin: 0 0 8px;
-  font-size: 18px;
-  line-height: 26px;
+  font-size: var(--text-20);
+  line-height: var(--leading-20);
 }
 
 .dlg-text {
@@ -1903,7 +1977,7 @@ button {
   margin: 6px 0 4px;
   padding: 0 12px;
   border: 0;
-  border-radius: 10px;
+  border-radius: var(--radius-8);
   background: var(--hover);
   box-shadow: inset 0 0 0 1px var(--line);
   color: var(--ink);
@@ -1958,12 +2032,14 @@ button {
 .shortcuts h4 {
   margin: 20px 0 8px;
   color: var(--ink-2);
-  font-size: 13px;
+  font-size: var(--text-13);
+  line-height: var(--leading-13);
 }
 
 .shortcuts dl {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--text-14);
+  line-height: var(--leading-14);
 }
 
 .shortcuts dl > div {
@@ -2001,7 +2077,8 @@ button {
   flex: none;
   width: 72px;
   color: var(--ink-2);
-  font-size: 13px;
+  font-size: var(--text-13);
+  line-height: var(--leading-13);
 }
 
 .set-v {
@@ -2017,8 +2094,8 @@ button {
 .set-v small {
   display: block;
   color: var(--ink-3);
-  font-size: 12px;
-  line-height: 16px;
+  font-size: var(--text-12);
+  line-height: var(--leading-12);
 }
 
 .settings .theme button {
@@ -2035,7 +2112,8 @@ button {
 .settings .set-row .btn {
   height: 32px;
   padding: 0 14px;
-  font-size: 13px;
+  font-size: var(--text-13);
+  line-height: var(--leading-13);
 }
 
 .set-acts {
@@ -2046,6 +2124,10 @@ button {
 }
 
 /* A long library path breaks anywhere rather than widening the row. */
+.set-library .set-v {
+  min-width: min(100%, 160px);
+}
+
 .set-library-path {
   overflow-wrap: anywhere;
 }
@@ -2079,7 +2161,8 @@ body:has(.ab, .lb) {
   gap: 6px;
   margin: 14px 0;
   color: var(--ink-2);
-  font-size: 13px;
+  font-size: var(--text-13);
+  line-height: var(--leading-13);
 }
 
 .phone-network select {
@@ -2087,7 +2170,7 @@ body:has(.ab, .lb) {
   min-width: 0;
   padding: 8px 10px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-8);
   background: var(--raised);
   color: var(--ink);
   font: inherit;
@@ -2098,7 +2181,7 @@ body:has(.ab, .lb) {
   height: 220px;
   margin: 12px auto 0;
   padding: 8px;
-  border-radius: 12px;
+  border-radius: var(--radius-12);
   background: #fff;
   box-shadow: 0 0 0 1px var(--line);
 }
@@ -2124,12 +2207,12 @@ body:has(.ab, .lb) {
   flex: 1;
   min-width: 0;
   height: 36px;
-  padding: 0 12px;
+  padding: calc((36px - var(--leading-13)) / 2) 12px;
   overflow: hidden;
-  border-radius: 10px;
+  border-radius: var(--radius-8);
   background: var(--hover);
   color: var(--ink-2);
-  font: 13px/36px ui-monospace, Menlo, monospace;
+  font: var(--text-13)/var(--leading-13) ui-monospace, Menlo, monospace;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
@@ -2148,8 +2231,8 @@ body:has(.ab, .lb) {
 .tg small {
   display: block;
   color: var(--ink-3);
-  font-size: 12px;
-  line-height: 18px;
+  font-size: var(--text-12);
+  line-height: var(--leading-12);
 }
 
 .sw {
@@ -2159,7 +2242,7 @@ body:has(.ab, .lb) {
   width: 46px;
   height: 28px;
   margin: 0;
-  border-radius: 14px;
+  border-radius: var(--radius-pill);
   background: var(--line);
   cursor: pointer;
   transition: background-color 0.2s;
@@ -2199,8 +2282,8 @@ body:has(.ab, .lb) {
 .note {
   margin: 10px 0 0;
   color: var(--ink-3);
-  font-size: 12px;
-  line-height: 18px;
+  font-size: var(--text-12);
+  line-height: var(--leading-12);
 }
 
 /* WeChat tip */
@@ -2212,8 +2295,8 @@ body:has(.ab, .lb) {
   padding: 6px max(env(safe-area-inset-right, 0px), 6px) 6px max(env(safe-area-inset-left, 0px), 14px);
   background: var(--soft);
   color: var(--ink-2);
-  font-size: 13px;
-  line-height: 19px;
+  font-size: var(--text-13);
+  line-height: var(--leading-13);
 }
 
 .wx-tip span {
@@ -2237,7 +2320,8 @@ body:has(.ab, .lb) {
   .fab .btn {
     height: 46px;
     padding: 0 22px 0 18px;
-    font-size: 16px;
+    font-size: var(--text-16);
+    line-height: var(--leading-16);
     pointer-events: auto;
     box-shadow: inset 0 0 0 1px var(--line), 0 10px 24px -10px rgb(20 35 55 / 0.5);
   }
@@ -2315,8 +2399,8 @@ body:has(.ab, .lb) {
   flex: 1;
   min-width: 0;
   margin: 0;
-  font-size: 16px;
-  line-height: 24px;
+  font-size: var(--text-16);
+  line-height: var(--leading-16);
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
@@ -2342,7 +2426,7 @@ body:has(.ab, .lb) {
 .ab-turn,
 .ab-player {
   padding: 4px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--raised);
   box-shadow: inset 0 0 0 1px var(--line), 0 8px 22px -14px oklch(23.5% 0.02 255 / 0.45);
 }
@@ -2364,14 +2448,15 @@ body:has(.ab, .lb) {
   height: 36px;
   padding: 0 14px 0 10px;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: transparent;
   color: var(--ink);
   display: inline-flex;
   align-items: center;
   gap: 6px;
   font: inherit;
-  font-size: 14px;
+  font-size: var(--text-14);
+  line-height: var(--leading-14);
   font-weight: 500;
   white-space: nowrap;
   cursor: pointer;
@@ -2390,7 +2475,7 @@ body:has(.ab, .lb) {
 .ab-speed {
   display: inline-flex;
   padding: 2px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--track);
 }
 
@@ -2399,11 +2484,12 @@ body:has(.ab, .lb) {
   height: 30px;
   padding: 0 10px;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: none;
   color: var(--ink-2);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--text-13);
+  line-height: var(--leading-13);
   cursor: pointer;
 }
 
@@ -2451,14 +2537,15 @@ body:has(.ab, .lb) {
   margin-left: -8px;
   padding: 0 12px 0 8px;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: transparent;
   color: var(--ink-2);
   display: inline-flex;
   align-items: center;
   gap: 6px;
   font: inherit;
-  font-size: 14px;
+  font-size: var(--text-14);
+  line-height: var(--leading-14);
   font-weight: 500;
   white-space: nowrap;
   cursor: pointer;
@@ -2477,16 +2564,16 @@ body:has(.ab, .lb) {
 .ab-count {
   min-width: 72px;
   text-align: center;
-  font-size: 13px;
-  line-height: 20px;
+  font-size: var(--text-13);
+  line-height: var(--leading-13);
   color: var(--ink-2);
   font-variant-numeric: tabular-nums;
 }
 
 .ab-hint {
   margin: 0;
-  font-size: 12px;
-  line-height: 16px;
+  font-size: var(--text-12);
+  line-height: var(--leading-12);
   font-weight: 500;
   color: var(--ink-3);
   text-align: center;
@@ -2498,11 +2585,12 @@ body:has(.ab, .lb) {
   gap: 4px;
   height: 36px;
   padding: 0 4px 0 12px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--raised);
   box-shadow: inset 0 0 0 1px var(--line);
   color: var(--ink-2);
-  font-size: 13px;
+  font-size: var(--text-13);
+  line-height: var(--leading-13);
   pointer-events: auto;
 }
 
@@ -2522,7 +2610,7 @@ body:has(.ab, .lb) {
   align-items: center;
   height: 36px;
   padding: 3px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--raised);
   box-shadow: inset 0 0 0 1px var(--line);
   pointer-events: auto;
@@ -2531,7 +2619,8 @@ body:has(.ab, .lb) {
 .ab-layout-k {
   padding: 0 6px 0 9px;
   color: var(--ink-3);
-  font-size: 13px;
+  font-size: var(--text-13);
+  line-height: var(--leading-13);
   white-space: nowrap;
 }
 
@@ -2542,11 +2631,12 @@ body:has(.ab, .lb) {
   height: 30px;
   padding: 0 11px 0 9px;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: none;
   color: var(--ink-2);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--text-13);
+  line-height: var(--leading-13);
   font-weight: 500;
   white-space: nowrap;
   cursor: pointer;
@@ -2625,13 +2715,14 @@ body:has(.ab, .lb) {
   height: 36px;
   padding: 0 16px 0 14px;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--accent);
   color: var(--on-accent);
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-size: 14px;
+  font-size: var(--text-14);
+  line-height: var(--leading-14);
   font-weight: 500;
   cursor: pointer;
 }
@@ -2645,14 +2736,15 @@ body:has(.ab, .lb) {
   height: 36px;
   padding: 0 16px 0 14px;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--raised);
   box-shadow: inset 0 0 0 1px var(--line);
   color: var(--ink-2);
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-size: 14px;
+  font-size: var(--text-14);
+  line-height: var(--leading-14);
   font-weight: 500;
   white-space: nowrap;
   cursor: pointer;
@@ -2743,4 +2835,29 @@ body:has(.ab, .lb) {
     padding: 0;
     justify-content: center;
   }
+}
+
+@media (pointer: coarse) {
+  :root :is(button, input:not([type=checkbox], [type=radio]), select, textarea, summary, .logo, .back-link, .link, .welcome-trash, .license-bar a, .empty a) {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .sort-label, .ab-select, .ab-layout {
+    height: auto;
+    min-height: 44px;
+  }
+
+  .tg { min-height: 44px; }
+}
+
+@media (pointer: coarse) and (max-width: 600px) {
+  .ab-bar {
+    gap: 4px;
+    padding-left: max(10px, env(safe-area-inset-left, 0px));
+    padding-right: max(10px, env(safe-area-inset-right, 0px));
+  }
+
+  .ab-foot { padding-left: 10px; padding-right: 10px; }
+  .trash-page .ph { flex-wrap: wrap; }
 }
