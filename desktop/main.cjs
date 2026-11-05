@@ -412,6 +412,7 @@ async function startDesktop({ appRoot = join(__dirname, '..'), licensePublicKeyF
   }
   handle('folio:desktop:info', () => desktopInfo({
     version: metadata.version, libraryDir: settings.libraryDir, home: app.getPath('home'), platform: process.platform, update: updates.status(),
+    fullscreen: window.isFullScreen(),
   }));
   handle('folio:desktop:reveal-library', () => { openPath(settings.libraryDir); });
   handle('folio:desktop:choose-library', () => chooseAnotherLibrary());

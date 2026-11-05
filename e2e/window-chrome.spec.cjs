@@ -101,6 +101,10 @@ test('the top bar is the title bar in the desktop app, and full screen closes th
       await desktop.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setFullScreen(true));
       await expect(page.locator('html')).toHaveAttribute('data-fullscreen', '', { timeout: 10_000 });
       expect(await left()).toBeLessThan(78);
+      // A page loaded in full screen (choosing another library loads it again) closes the gap too.
+      await page.reload();
+      await expect(page.locator('html')).toHaveAttribute('data-fullscreen', '', { timeout: 10_000 });
+      expect(await left()).toBeLessThan(78);
       await desktop.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setFullScreen(false));
       await expect(page.locator('html')).not.toHaveAttribute('data-fullscreen', '', { timeout: 10_000 });
     } else {
