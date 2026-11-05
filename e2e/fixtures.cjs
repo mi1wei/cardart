@@ -5,6 +5,21 @@ const { mkdtemp, mkdir, writeFile, rm } = require('node:fs/promises');
 const { tmpdir } = require('node:os');
 const { join } = require('node:path');
 
+// Node's recursive rm repeats its retries at every folder level, so a file that a Windows process
+// still holds after quitting stalls it for minutes. Windows retries the whole removal for 20 seconds
+// instead, then leaves the temporary folder and names the locked file.
+async function removeIsolated(root) {
+  if (process.platform !== 'win32') return rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+  const end = Date.now() + 20_000;
+  for (;;) {
+    try { return await rm(root, { recursive: true, force: true }); }
+    catch (error) {
+      if (Date.now() > end) { console.warn(`Left ${root}: ${error.message}`); return; }
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+  }
+}
+
 async function desktopFixture({ license = 'active', plan = 'trial', features = ['album_write'] } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'folio-desktop-e2e-'));
   const profile = join(root, 'Profile with spaces');
@@ -68,8 +83,7 @@ async function desktopFixture({ license = 'active', plan = 'trial', features = [
       await stop();
       // Windows removal retries need cleanup time after the scenario and shutdown have finished.
       if (process.platform === 'win32') test.setTimeout(test.info().timeout + 30_000);
-      await test.step('Remove isolated desktop files', () =>
-        rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }));
+      await test.step('Remove isolated desktop files', () => removeIsolated(root));
     },
   };
 }

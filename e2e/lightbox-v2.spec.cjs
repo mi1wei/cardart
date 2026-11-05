@@ -221,8 +221,10 @@ test('video Space toggles outside native controls without replacing a paused vid
     });
     await page.locator('.lb-bar [data-act=menu]').click();
     await page.locator('.lb-menu [data-act=menu-cover]').click();
-    await page.locator('.lb-bar [data-act=menu]').click();
+    // More stays shut while the cover saves, so reopen it only after the update has landed.
     await expect(page.locator('.lb-menu [data-act=menu-cover]')).toBeDisabled();
+    await page.locator('.lb-bar [data-act=menu]').click();
+    await expect(page.locator('.lb-menu')).toBeVisible();
     await page.keyboard.press('Escape');
     expect(await page.locator('.lb-video').evaluate((video) => video === window.sameS2Video && video.paused && Math.abs(video.currentTime - 0.75) < 0.02)).toBe(true);
     await page.locator('.lb').focus();
