@@ -4,7 +4,7 @@ export const COMMANDS = Object.freeze([
 ]);
 
 export function normalizeContext(value) {
-  if (!value || !['albums', 'album', 'trash', 'license'].includes(value.page) ||
+  if (!value || !['home', 'albums', 'album', 'trash', 'license'].includes(value.page) ||
       typeof value.busy !== 'boolean' || !['light', 'dark', 'auto'].includes(value.appearance) ||
       !['s', 'm', 'l'].includes(value.density)) return null;
   return { page: value.page, busy: value.busy, appearance: value.appearance, density: value.density };
