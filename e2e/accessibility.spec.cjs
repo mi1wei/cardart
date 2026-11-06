@@ -413,9 +413,13 @@ test('accessible names and headings track cover changes, live album rename and l
     await tiles.nth(1).click();
     await expect(page.locator('.lb-album-name')).toHaveText('Summer focus');
     await expect.soft(page.locator('.lb-back')).toHaveAccessibleName('Back to “Summer focus”', { timeout: 100 });
+    // A computer shows the zoom controls once the photo is zoomed.
+    await page.keyboard.press('+');
+    await expect(page.locator('.lb')).toHaveAttribute('data-zoomed', 'true');
     await expect.soft(page.locator('.lb-zoom [data-act=actual]')).toHaveAccessibleName('1:1 Actual size', { timeout: 100 });
+    await page.keyboard.press('0');
     expect((await page.request.patch(`${origin}/api/albums/${album.id}`, { data: { title: 'Renamed summer' } })).ok()).toBe(true);
-    await page.locator('.lb [data-act=details]').click();
+    await expect(page.locator('.lb-details')).toBeVisible();
     await page.locator('[data-note-edit]').click();
     await page.locator('.note-input').fill('A note returns the updated album without rebuilding the viewer.');
     await page.locator('[data-note-save]').click();
@@ -433,6 +437,8 @@ test('accessible names and headings track cover changes, live album rename and l
     await expect.soft(tiles.nth(1)).toHaveAccessibleName('p1.jpg，封面', { timeout: 100 });
     await tiles.nth(1).click();
     await expect.soft(page.locator('.lb-back')).toHaveAccessibleName('返回「Renamed summer」', { timeout: 100 });
+    await page.keyboard.press('+');
+    await expect(page.locator('.lb')).toHaveAttribute('data-zoomed', 'true');
     await expect.soft(page.locator('.lb-zoom [data-act=actual]')).toHaveAccessibleName('1:1 实际大小', { timeout: 100 });
   } finally { await fixture.close(); }
 });

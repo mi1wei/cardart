@@ -20,7 +20,7 @@ export function createPhotoZoom(root, { media, onSwipe, onZoom }) {
   map.setAttribute('role', 'img');
   map.setAttribute('aria-label', lt('minimap'));
   map.innerHTML = '<img alt="" draggable="false"><span class="lb-minimap-viewport"></span>';
-  root.append(controls, map);
+  root.querySelector('.lb-preview').append(controls, map);
   const viewport = map.querySelector('span');
   const events = new AbortController();
   const pointers = new Map();

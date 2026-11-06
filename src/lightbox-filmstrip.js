@@ -5,7 +5,7 @@ export function createFilmstrip(root, media, navigate) {
   const strip = document.createElement('nav');
   strip.className = 'lb-filmstrip';
   strip.setAttribute('aria-label', lt('filmstrip'));
-  root.append(strip);
+  root.querySelector('.lb-preview').append(strip);
   const events = new AbortController();
   let timer;
   let key;

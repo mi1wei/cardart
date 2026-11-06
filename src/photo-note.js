@@ -133,6 +133,7 @@ export function createPhotoNote(host, onAlbum) {
 
   return {
     get saving() { return saving || pendingPhotoChange; },
+    get dirty() { return saving || pendingPhotoChange || (editing && input.value !== previousNote); },
     setPending(value) { pendingPhotoChange = value; if (alive) render(); },
     setPhoto(albumId, photo) {
       const key = `${albumId}/${photo.id}/${photo.sha256}`;

@@ -65,7 +65,7 @@ test('photo Details shows original dimensions and EXIF safely without changing t
     expect(await page.evaluate(() => window.exifExecuted)).toBeUndefined();
     await expect(page.locator('.upload')).toBeHidden();
     await page.screenshot({ path: test.info().outputPath('details-desktop.png') });
-    await expect(page.locator('.lb [data-act=original]')).toBeEnabled();
+    await expect(page.locator('.lb-details [data-act=original]')).toBeEnabled();
     await page.keyboard.press('Escape');
     await expect(panel).toBeHidden();
     await expect(page.locator('.lb')).toBeVisible();
@@ -74,7 +74,7 @@ test('photo Details shows original dimensions and EXIF safely without changing t
     await expect(page.locator('.lb')).toHaveCount(0);
     await page.goto(`${origin}/#/a/${album.id}/3d/p/p001`);
     await expect(page.locator('.ab canvas')).toBeVisible();
-    await page.locator('.lb-bar [data-act=details]').click();
+    await expect(page.locator('.lb-details')).toBeVisible();
     await expect(page.locator('.lb-details [data-field=dimensions]')).toHaveText('3000 × 2000');
     await page.keyboard.press('Escape');
     await page.keyboard.press('Escape');

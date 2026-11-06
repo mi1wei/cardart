@@ -135,7 +135,7 @@ test('New album and License commands cannot discard an unsaved photo note', asyn
     const album = await seed(page, origin, 'Draft', 1);
     await page.goto(`${origin}/#/a/${album.id}/p/p001`);
     await expect(page.locator('.lb')).toBeVisible();
-    await page.locator('.lb [data-act=details]').click();
+    await expect(page.locator('.lb-details')).toBeVisible();
     await page.locator('[data-note-edit]').click();
     await page.locator('.note-input').fill('Keep this draft');
     const confirmations = [];

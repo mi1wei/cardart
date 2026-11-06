@@ -92,10 +92,6 @@
 .lb[data-zoomed=true] .lb-stage { cursor: grab; }
 .lb.lb-panning .lb-stage { cursor: grabbing; }
 .lb-video { display: block; width: 100%; height: 100%; object-fit: contain; touch-action: auto; }
-.lb .lb-nav { position: absolute; top: 50%; z-index: 2; width: 40px; height: 40px; transform: translateY(-50%); }
-.lb-nav.l { left: 24px; }
-.lb-nav.r { right: 24px; }
-.lb.has-details .lb-nav.r { right: 326px; }
 .lb-media-status {
   position: absolute;
   inset: auto 16px 16px;
@@ -251,14 +247,155 @@
 .lb-menu { position: absolute; z-index: 7; top: calc(57px + env(safe-area-inset-top, 0px)); right: 12px; min-width: 170px; padding: 5px; border: 1px solid #2a2f35; border-radius: var(--radius-12); background: #16191c; }
 .lb-menu button { display: flex; align-items: center; gap: 9px; width: 100%; min-height: 44px; padding: 8px 12px; border: 0; border-radius: var(--radius-8); background: transparent; color: #e9ecef; text-align: left; }
 .lb-menu [data-act=menu-delete] { color: #f2a59a; }
-/* A computer has Delete in the bar; phones find it in ⋯ (polish spec §4.4). */
+/* A computer shows the photo in a frame beside its open details card, in the app's theme. */
 @media (min-width: 861px) {
-  .lb-menu [data-act=menu-delete] { display: none; }
+  .lb {
+    --bg: inherit;
+    --raised: inherit;
+    --ink: inherit;
+    --line: inherit;
+    --accent: inherit;
+    --hover: inherit;
+    overflow: auto;
+    color-scheme: inherit;
+    background: var(--bg);
+    color: var(--ink);
+    touch-action: pan-y;
+  }
+  .lb :focus-visible { outline-color: var(--accent); }
+  .lb button:not(:disabled):hover { background-color: var(--hover); }
+  .lb-back .lb-album-name,
+  .lb-bar .sp,
+  .lb-bar [data-act=original],
+  .lb-bar [data-act=menu],
+  .lb .lb-menu,
+  .lb .lb-filmstrip,
+  .lb-details [data-act=sheet-delete] { display: none; }
+  /* Kept at one class so the desktop title-bar padding still applies. */
+  .lb-bar {
+    position: sticky;
+    min-height: 64px;
+    padding-right: 28px;
+    border-bottom: 1px solid var(--line);
+    background: var(--raised);
+  }
+  .lb .lb-back { flex: none; max-width: none; color: var(--ink-2); font-size: var(--text-12); line-height: var(--leading-12); border-radius: var(--radius-8); }
+  .lb .lb-back svg { width: 16px; height: 16px; flex-basis: 16px; }
+  .lb .lb-brand { display: flex; flex: none; align-items: center; gap: 6px; color: var(--ink); font-size: var(--text-16); line-height: var(--leading-16); font-weight: 600; }
+  .lb .lb-bar-album {
+    min-width: 0;
+    max-width: 240px;
+    margin-left: 8px;
+    padding-left: 16px;
+    overflow: hidden;
+    border-left: 1px solid var(--line);
+    color: var(--ink-3);
+    font-size: var(--text-12);
+    line-height: var(--leading-12);
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .lb .lb-count { margin-left: auto; color: var(--ink-2); font-weight: 500; }
+  .lb .ibtn { width: 32px; height: 32px; border-color: var(--line); border-radius: var(--radius-8); background: var(--raised); color: var(--ink-2); }
+  .lb .lb-desktop-details { width: auto; height: 36px; gap: 6px; padding: 6px 10px; border: 0; font-size: var(--text-12); line-height: var(--leading-12); }
+  .lb .ibtn[aria-expanded=true] { color: var(--accent); background: var(--accent-soft); }
+  .lb .lb-workspace {
+    position: relative;
+    inset: auto;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    gap: 24px;
+    max-width: 1360px;
+    margin: 0 auto;
+    padding: 24px 32px;
+  }
+  .lb.has-details .lb-workspace { grid-template-columns: minmax(0, 1fr) 370px; }
+  .lb .lb-preview {
+    position: sticky;
+    inset: 88px auto auto;
+    align-self: start;
+    width: 100%;
+    aspect-ratio: 1.34;
+    max-height: calc(100dvh - 112px);
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-12);
+    background: var(--tile);
+  }
+  .lb .lb-stage { inset: 28px; }
+  .lb .lb-missing { color: var(--ink-2); }
+  .lb .lb-media-status { border-color: var(--line); background: var(--raised); color: var(--ink); }
+  .lb .lb-details {
+    position: static;
+    width: 100%;
+    max-height: none;
+    padding: 22px 24px;
+    overflow: visible;
+    border-color: var(--line);
+    border-radius: var(--radius-12);
+    background: var(--raised);
+    box-shadow: none;
+    backdrop-filter: none;
+  }
+  .lb .lb-details-header { color: var(--ink-3); }
+  .lb .lb-details-header .ibtn, .lb .lb-delete { width: 28px; height: 28px; border: 0; }
+  .lb .lb-title-row { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+  .lb .lb-name { min-width: 0; flex: 1; margin: 0; color: var(--ink); font-size: var(--text-20); line-height: var(--leading-20); }
+  .lb .lb-facts { gap: 6px; margin-top: 10px; color: var(--ink-2); }
+  .lb .lb-facts span { padding: 2px 6px; border-color: var(--line); }
+  .lb .lb-details-status { margin-top: 18px; color: var(--ink-2); }
+  .lb .lb-details-group { margin-top: 20px; padding-top: 16px; border-color: var(--line); }
+  .lb .lb-details-group h3 { margin-bottom: 12px; color: var(--ink-3); }
+  .lb .lb-details dl > div + div { margin-top: 12px; }
+  .lb .lb-details dt { color: var(--ink-3); }
+  .lb .lb-details dd { color: var(--ink-2); font-size: var(--text-13); line-height: var(--leading-13); }
+  .lb .lb-capture-date { font-size: var(--text-16); line-height: var(--leading-16); font-weight: 500; }
+  .lb .lb-capture-time { color: var(--ink-3); }
+  .lb .lb-details details { margin-top: 16px; border-color: var(--line); }
+  .lb .lb-details summary { padding: 12px 0; color: var(--ink-2); }
+  .lb .lb-parameters dl { gap: 8px; }
+  .lb .lb-parameters dl > div { padding: 10px 12px; border-color: var(--line); background: var(--bg); }
+  .lb .lb-parameters dd { font-size: var(--text-16); line-height: var(--leading-16); }
+  .lb .lb-file-properties dl, .lb .lb-gps dl { padding-bottom: 12px; }
+  .lb .lb-photo-actions { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; margin-top: 16px; }
+  .lb .lb-photo-actions .btn {
+    justify-content: center;
+    min-width: 0;
+    height: auto;
+    min-height: 36px;
+    padding: 8px 7px;
+    border-radius: var(--radius-8);
+    font-size: var(--text-12);
+    line-height: var(--leading-12);
+    white-space: normal;
+    text-align: center;
+  }
+  .lb .lb-photo-actions svg { flex: none; width: 15px; height: 15px; }
+  .lb .btn { border-color: var(--line); background: var(--raised); color: var(--ink); }
+  .lb .btn.pri { border-color: var(--accent); background: var(--accent); color: var(--on-accent); }
+  .lb .btn.pri:not(:disabled):hover { background: var(--accent-hover); }
+  .lb .btn.danger { color: var(--danger); }
+  .lb .photo-note { border-color: var(--line); }
+  .lb :is(.note-label, .note-readonly, .note-help, .note-count) { color: var(--ink-3); }
+  .lb :is(.note-edit, .note-expand, .note-clear) { color: var(--accent); }
+  .lb .note-text { color: var(--ink-2); }
+  .lb .note-input { border-color: var(--line); background: var(--bg); color: var(--ink); }
+  .lb .note-input:focus { outline-color: var(--accent); }
+  .lb .note-error { color: var(--danger); }
+  /* The zoom bar appears once the photo leaves its fitted size. */
+  .lb .lb-zoom:has([data-act=fit][aria-pressed=true]) { display: none; }
+  .lb .lb-zoom { bottom: 12px; border-color: var(--line); background: var(--raised); }
+  .lb .lb-zoom button { border-color: var(--line); background: transparent; color: var(--ink-2); }
+  .lb .lb-zoom [aria-pressed=true] { background: var(--hover); }
+  .lb .lb-zoom-value { color: var(--ink-2); }
+  /* Above the zoom bar, which reaches the corner in narrow windows. */
+  .lb .lb-minimap { right: 12px; bottom: 60px; border-color: var(--line); background: var(--raised); }
 }
 @media (max-width: 860px) {
   .lb-bar { gap: 4px; min-height: calc(56px + env(safe-area-inset-top, 0px)); padding-right: max(10px, env(safe-area-inset-right, 0px)); padding-left: max(10px, env(safe-area-inset-left, 0px)); }
   .lb-back { max-width: calc(100vw - 210px); font-size: var(--text-12); line-height: var(--leading-12); }
-  .lb .lb-desktop-action, .lb .lb-nav { display: none; }
+  .lb .lb-nav, .lb-back-label, .lb-brand, .lb-bar-album, .lb-desktop-details span, .lb-details [data-act=original], .lb .lb-delete { display: none; }
   .lb-bar .sp { display: none; }
   .lb-count { margin-left: auto; margin-right: 4px; font-size: var(--text-12); line-height: var(--leading-12); }
   .lb .ibtn { width: 40px; height: 40px; border: 0; background: transparent; }

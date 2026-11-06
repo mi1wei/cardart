@@ -3,6 +3,17 @@ const { readFile, mkdir } = require('node:fs/promises');
 const { join, dirname } = require('node:path');
 const { desktopFixture } = require('./fixtures.cjs');
 const { seedMixed, openAlbum } = require('./video-fixtures.cjs');
+const { photoBytes } = require('../tests/fixtures/photo-metadata.cjs');
+
+const visibleActions = (page) => page.locator('.lb-bar').evaluate((bar) =>
+  [...bar.querySelectorAll('button')].filter((button) => button.getClientRects().length).map((button) => button.dataset.act));
+const imageFitsStage = (page) => page.evaluate(() => {
+  const image = document.querySelector('.lb-img').getBoundingClientRect();
+  const stage = document.querySelector('.lb-stage').getBoundingClientRect();
+  return image.width > 0 && image.left >= stage.left - 1 && image.right <= stage.right + 1 && image.top >= stage.top - 1 && image.bottom <= stage.bottom + 1;
+});
+// Media query listeners run in the rendering update, before animation frame callbacks.
+const nextFrames = (page) => page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
 
 async function open(fixture, options = {}) {
   const album = await test.step('Prepare mixed-media album', () => seedMixed(fixture, options));
@@ -18,43 +29,159 @@ async function swipe(page, dx, dy = 0) {
   await stage.dispatchEvent('pointerup', { pointerId: 7, pointerType: 'touch', clientX: 190 + dx, clientY: 300 + dy });
 }
 
-test('fullscreen fit viewer has floating persistent details and a navigable mixed-media filmstrip', async () => {
+test('a computer shows the photo beside open details on a page that follows the app theme', async () => {
   const fixture = await desktopFixture();
   try {
     const { page, album } = await open(fixture);
+    await page.evaluate(() => localStorage.setItem('theme', 'light'));
+    await page.reload();
+    const details = page.locator('.lb-details');
+    await expect(page.locator('.lb')).toHaveCSS('background-color', 'rgb(247, 249, 251)');
+    await expect(page.locator('.lb-bar')).toHaveCSS('height', '64px');
+    await expect(page.locator('.lb-back')).toHaveText('Albums', { useInnerText: true });
+    await expect(page.locator('.lb-brand')).toHaveText('Folio');
+    await expect(page.locator('.lb-bar-album')).toHaveText(album.title);
+    expect(await visibleActions(page)).toEqual(['close', 'prev', 'next', 'details']);
+    await expect(page.locator('.lb-filmstrip')).toBeHidden();
+    await expect(details).toBeVisible();
+    await expect(details).toHaveCSS('width', '370px');
+    await expect(page.locator('[data-field=dimensions]')).toHaveText('1200 × 800');
+    const preview = await page.locator('.lb-preview').boundingBox();
+    const card = await details.boundingBox();
+    expect(card.x - (preview.x + preview.width)).toBeCloseTo(24, 0);
+    await expect.poll(() => imageFitsStage(page)).toBe(true);
+    const image = await page.locator('.lb-img').boundingBox();
+    await page.screenshot({ path: test.info().outputPath('computer-light.png') });
+    await page.locator('.lb-bar [data-act=details]').click();
+    await expect(details).toBeHidden();
+    expect((await page.locator('.lb-preview').boundingBox()).width).toBeGreaterThan(preview.width + 300);
+    await expect.poll(async () => (await page.locator('.lb-img').boundingBox()).width).toBeGreaterThan(image.width + 100);
+    await expect.poll(() => imageFitsStage(page)).toBe(true);
+    await page.reload();
+    await expect(page.locator('.lb-img')).toBeVisible();
+    await expect(details).toBeHidden();
+    // The phone keeps its own choice.
+    expect(await page.evaluate(() => localStorage.getItem('lightbox-details'))).toBeNull();
+    await page.evaluate(() => localStorage.setItem('theme', 'dark'));
+    await page.reload();
+    await expect(page.locator('.lb')).toHaveCSS('background-color', 'rgb(18, 20, 23)');
+    await page.screenshot({ path: test.info().outputPath('computer-dark.png') });
+  } finally { await fixture.close(); }
+});
+
+test('a phone keeps the dark fullscreen viewer, its own details choice and the mixed-media filmstrip', async () => {
+  const fixture = await desktopFixture();
+  try {
+    const { page, album } = await open(fixture);
+    await page.setViewportSize({ width: 390, height: 844 });
+    const details = page.locator('.lb-details');
     await expect(page.locator('.lb')).toHaveCSS('background-color', 'rgb(13, 15, 17)');
-    await expect(page.locator('.lb-details')).toBeHidden();
-    await expect(page.locator('.lb-back')).toContainText(album.title);
-    for (const action of ['details', 'original', 'delete', 'menu']) await expect(page.locator(`.lb-bar [data-act=${action}]`)).toBeVisible();
+    await expect(details).toBeHidden();
+    await expect(page.locator('.lb-back')).toHaveText(album.title, { useInnerText: true });
+    await expect(page.locator('.lb-brand')).toBeHidden();
+    await expect(page.locator('.lb-bar-album')).toBeHidden();
+    expect(await visibleActions(page)).toEqual(['close', 'details', 'original', 'menu']);
     await expect(page.locator('.lb-filmstrip button')).toHaveCount(2);
     await expect(page.locator('.lb-filmstrip [aria-current=true]')).toHaveAccessibleName(/photo.jpg/);
     await expect(page.locator('.lb-filmstrip [data-kind=video] .lb-film-play')).toBeVisible();
+    await expect.poll(() => imageFitsStage(page)).toBe(true);
     const image = await page.locator('.lb-img').boundingBox();
-    const stage = await page.locator('.lb-stage').boundingBox();
-    expect(image.width).toBeLessThanOrEqual(stage.width + 1);
-    expect(image.height).toBeLessThanOrEqual(stage.height + 1);
     await page.keyboard.press('i');
-    await expect(page.locator('.lb-details')).toBeVisible();
-    await expect(page.locator('.lb-details')).toHaveCSS('width', '290px');
-    const expandedImage = await page.locator('.lb-img').boundingBox();
-    expect(expandedImage.width).toBeCloseTo(image.width, 0);
-    await expect(page.locator('[data-field=dimensions]')).toHaveText('1200 × 800');
+    await expect(details).toBeVisible();
+    expect((await page.locator('.lb-img').boundingBox()).width).toBeCloseTo(image.width, 0);
     await page.reload();
-    await expect(page.locator('.lb-details')).toBeVisible();
+    await expect(details).toBeVisible();
     await page.locator('.lb-bar [data-act=details]').click();
     await page.locator('.lb-filmstrip button').nth(1).click();
     await expect(page.locator('.lb-count')).toHaveText('2 / 2');
     await expect(page.locator('.lb-filmstrip [aria-current=true]')).toHaveAccessibleName(/clip.mp4/);
     await page.reload();
-    await expect(page.locator('.lb-details')).toBeHidden();
-    await page.screenshot({ path: test.info().outputPath('fullscreen-dark.png') });
+    await expect(details).toBeHidden();
+    await page.screenshot({ path: test.info().outputPath('phone-dark.png') });
   } finally { await fixture.close(); }
 });
 
-test('filmstrip fades after two seconds, restores on pointer or touch and remains keyboard accessible', async () => {
+test('each layout keeps its own details choice, and an old closed choice does not hide the computer card', async () => {
   const fixture = await desktopFixture();
   try {
     const { page } = await open(fixture);
+    const details = page.locator('.lb-details');
+    const toggle = page.locator('.lb-bar [data-act=details]');
+    await page.evaluate(() => localStorage.setItem('lightbox-details', 'false'));
+    await page.reload();
+    await expect(details).toBeVisible();
+    await page.setViewportSize({ width: 860, height: 800 });
+    await expect(details).toBeHidden();
+    await toggle.click();
+    await expect(details).toBeVisible();
+    await page.setViewportSize({ width: 1180, height: 800 });
+    await expect(details).toBeVisible();
+    await toggle.click();
+    await expect(details).toBeHidden();
+    await page.setViewportSize({ width: 860, height: 800 });
+    await expect(details).toBeVisible();
+    expect(await page.evaluate(() => ['lightbox-details', 'lightbox-details-desktop'].map((key) => localStorage.getItem(key)))).toEqual(['true', 'false']);
+  } finally { await fixture.close(); }
+});
+
+test('changing between computer and phone widths keeps an unsaved note without asking', async () => {
+  const fixture = await desktopFixture();
+  try {
+    const { page } = await open(fixture);
+    const asked = [];
+    page.on('dialog', (dialog) => { asked.push(dialog.message()); return dialog.dismiss(); });
+    await expect(page.locator('.lb-details')).toBeVisible();
+    await page.locator('[data-note-edit]').click();
+    await page.getByLabel('Note text', { exact: true }).fill('Draft across layouts');
+    await page.setViewportSize({ width: 860, height: 800 });
+    await nextFrames(page);
+    await expect(page.locator('.lb-details')).toBeVisible();
+    await page.setViewportSize({ width: 1180, height: 800 });
+    await nextFrames(page);
+    await expect(page.locator('.lb-details')).toBeVisible();
+    await expect(page.locator('.note-input')).toHaveValue('Draft across layouts');
+    expect(asked).toEqual([]);
+  } finally { await fixture.close(); }
+});
+
+test('small computer windows keep a long name and camera beside the photo without sideways scrolling', async () => {
+  const fixture = await desktopFixture();
+  try {
+    const { page, origin, album } = await open(fixture);
+    const name = `${'Very-long-unbroken-file-name-'.repeat(6)}.jpg`;
+    const data = await photoBytes({ width: 1200, height: 800, exif: { IFD0: { Make: 'Folio Test', Model: 'Extremely-long-camera-model-name-'.repeat(3) } } });
+    const response = await page.request.post(`${origin}/api/albums/${album.id}/photos?name=${encodeURIComponent(name)}`, { headers: { 'X-Album-Upload': '1' }, data });
+    expect(response.ok()).toBe(true);
+    const { photo } = await response.json();
+    // Without a hashchange: the open album does not know the upload yet and would drop the address.
+    await page.evaluate((hash) => history.replaceState(null, '', hash), `#/a/${album.id}/p/${photo.id}`);
+    await page.reload();
+    await expect(page.locator('[data-field=camera]')).toContainText('Extremely-long-camera-model-name-');
+    for (const [width, height] of [[861, 640], [900, 640]]) {
+      await page.setViewportSize({ width, height });
+      await expect(page.locator('.lb-brand')).toBeVisible();
+      await expect(page.locator('.lb-details')).toHaveCSS('width', '370px');
+      expect(await page.locator('.lb').evaluate((root) => root.scrollWidth - root.clientWidth)).toBeLessThanOrEqual(0);
+      const card = await page.locator('.lb-details').boundingBox();
+      const title = await page.locator('.lb-name').boundingBox();
+      expect(title.x + title.width).toBeLessThanOrEqual(card.x + card.width);
+    }
+    // Long details scroll the page while the photo stays in view.
+    await page.locator('.lb').evaluate((root) => root.scrollTo(0, root.scrollHeight));
+    await expect.poll(() => page.locator('.lb').evaluate((root) => root.scrollTop)).toBeGreaterThan(0);
+    expect((await page.locator('.lb-preview').boundingBox()).y).toBeCloseTo(88, 0);
+    await page.setViewportSize({ width: 860, height: 640 });
+    await expect(page.locator('.lb-brand')).toBeHidden();
+    await expect(page.locator('.lb')).toHaveCSS('background-color', 'rgb(13, 15, 17)');
+    expect((await page.locator('.lb-bar').boundingBox()).y).toBe(0);
+  } finally { await fixture.close(); }
+});
+
+test('on a phone the filmstrip fades after two seconds, restores on pointer or touch and remains keyboard accessible', async () => {
+  const fixture = await desktopFixture();
+  try {
+    const { page } = await open(fixture);
+    await page.setViewportSize({ width: 390, height: 844 });
     await expect(page.locator('.lb-filmstrip')).toHaveCSS('opacity', '0');
     await page.locator('.lb-stage').dispatchEvent('pointermove', { clientX: 100, clientY: 100 });
     await expect(page.locator('.lb-filmstrip')).toHaveCSS('opacity', '1');
@@ -71,7 +198,6 @@ test('zoom anchors wheel input, pans with a visible minimap and resets before de
   const fixture = await desktopFixture();
   try {
     const { page } = await open(fixture);
-    await page.keyboard.press('i');
     await page.locator('.lb-stage').dispatchEvent('wheel', { deltaY: -500, clientX: 350, clientY: 300, ctrlKey: true });
     await expect(page.locator('.lb')).toHaveAttribute('data-zoomed', 'true');
     await expect(page.locator('.lb-minimap')).toBeVisible();
@@ -93,6 +219,9 @@ test('zoom anchors wheel input, pans with a visible minimap and resets before de
     await expect(page.locator('.lb-bar [data-act=details]')).toBeFocused();
     await page.keyboard.press('Escape');
     await expect(page.locator('.lb')).toHaveCount(0);
+    // On a computer Escape hides the card for now; only the Details button changes the remembered choice.
+    await page.locator('.tile').first().click();
+    await expect(page.locator('.lb-details')).toBeVisible();
   } finally { await fixture.close(); }
 });
 
@@ -101,6 +230,9 @@ test('fit, actual pixels, double-click and keyboard zoom operate only on photos'
   try {
     const { page } = await open(fixture);
     await page.setViewportSize({ width: 900, height: 650 });
+    // A computer shows the zoom controls only once the photo is zoomed.
+    await expect(page.locator('.lb-zoom')).toBeHidden();
+    await page.keyboard.press('+');
     await page.locator('[data-act=actual]').click();
     const actual = await page.locator('.lb-img').boundingBox();
     expect(actual.width).toBeCloseTo(1200, 0);
@@ -189,10 +321,11 @@ test('on a 320px phone the sheet cover button keeps its icon and its label insid
   } finally { await fixture.close(); }
 });
 
-test('the ⋯ menu opens under its button when the Windows window buttons push the bar in', async () => {
+test('at phone width the ⋯ menu opens under its button when the Windows window buttons push the bar in', async () => {
   const fixture = await desktopFixture();
   try {
     const { page } = await open(fixture);
+    await page.setViewportSize({ width: 860, height: 800 });
     // A Mac runs the Windows rules too: without window-controls-overlay values they fall back to 24px.
     await page.evaluate(() => { document.documentElement.dataset.desktop = 'win'; });
     const button = page.locator('.lb-bar [data-act=menu]');
@@ -219,13 +352,10 @@ test('video Space toggles outside native controls without replacing a paused vid
       await sought;
       window.sameS2Video = video;
     });
-    await page.locator('.lb-bar [data-act=menu]').click();
-    await page.locator('.lb-menu [data-act=menu-cover]').click();
-    // More stays shut while the cover saves, so reopen it only after the update has landed.
-    await expect(page.locator('.lb-menu [data-act=menu-cover]')).toBeDisabled();
-    await page.locator('.lb-bar [data-act=menu]').click();
-    await expect(page.locator('.lb-menu')).toBeVisible();
-    await page.keyboard.press('Escape');
+    const cover = page.locator('.lb-details [data-act=sheet-cover]');
+    await cover.click();
+    // The card greys the button out once the update has landed.
+    await expect(cover).toBeDisabled();
     expect(await page.locator('.lb-video').evaluate((video) => video === window.sameS2Video && video.paused && Math.abs(video.currentTime - 0.75) < 0.02)).toBe(true);
     await page.locator('.lb').focus();
     await page.keyboard.press('Space');
@@ -233,6 +363,8 @@ test('video Space toggles outside native controls without replacing a paused vid
     await page.keyboard.press('Space');
     await expect.poll(() => page.locator('.lb-video').evaluate((video) => video.paused)).toBe(true);
     await page.locator('.lb-bar [data-act=details]').focus();
+    await page.keyboard.press('Space');
+    await expect(page.locator('.lb-details')).toBeHidden();
     await page.keyboard.press('Space');
     await expect(page.locator('.lb-details')).toBeVisible();
     expect(await page.locator('.lb-video').evaluate((video) => video.paused)).toBe(true);
@@ -258,7 +390,7 @@ test('download saves the exact original bytes, not a rendered preview', async ()
         item.once('done', (_, state) => { global.s2Download = { state, name: item.getFilename() }; });
       });
     }, destination);
-    await page.locator('.lb-bar [data-act=original]').click();
+    await page.locator('.lb-details [data-act=original]').click();
     await expect.poll(() => desktop.evaluate(() => global.s2Download)).toEqual({ state: 'completed', name: 'photo.jpg' });
     expect(await readFile(destination)).toEqual(original);
     await expect(page.locator('.lb')).toBeVisible();
@@ -269,7 +401,7 @@ test('deleted items expose keyboard reachable undo and restore without losing th
   const fixture = await desktopFixture();
   try {
     const { page, origin, album } = await open(fixture);
-    await page.locator('.lb-bar [data-act=delete]').click();
+    await page.locator('.lb-details [data-act=delete]').click();
     await page.locator('dialog').getByRole('button', { name: 'Delete', exact: true }).click();
     await expect(page.locator('.lb-count')).toHaveText('1 / 1');
     const undo = page.locator('.undo-toast button');
@@ -290,7 +422,6 @@ test('Escape and detail close preserve the note saving and unsaved draft gates',
   const held = new Promise((resolve) => { release = resolve; });
   try {
     const { page, origin, album } = await open(fixture);
-    await page.keyboard.press('i');
     await page.locator('[data-note-edit]').click();
     await page.getByLabel('Note text', { exact: true }).fill('Keep this draft');
     page.once('dialog', (dialog) => dialog.dismiss());
@@ -344,7 +475,8 @@ test('trash preview resolves its own media and only invokes restore or confirmed
       });
     }, { album, origin });
     await expect(page.locator('.lb-img')).toHaveAttribute('src', /trash-preview/);
-    await expect(page.locator('.lb-bar [data-act]')).toHaveCount(3);
+    await expect(page.locator('.lb-bar [data-act]')).toHaveCount(5);
+    await expect(page.locator('.lb-back')).toHaveText('Recently Deleted', { useInnerText: true });
     await expect(page.locator('.lb-details')).toHaveCount(0);
     await page.keyboard.press('i');
     await expect(page.locator('.lb-details')).toHaveCount(0);
@@ -379,38 +511,45 @@ test('trash preview resolves its own media and only invokes restore or confirmed
   } finally { await fixture.close(); }
 });
 
-test('the top bar keeps details, download, delete and More; More sets the album cover', async () => {
+test('a computer bar pages and opens details, while the card downloads, deletes and sets the cover', async () => {
   const fixture = await desktopFixture();
   try {
     const { page, origin, album } = await open(fixture);
-    await expect(page.locator('.lb-brand')).toHaveCount(0);
-    const shown = await page.locator('.lb-bar').evaluate((bar) =>
-      [...bar.querySelectorAll('button')].filter((button) => button.getClientRects().length).map((button) => button.dataset.act));
-    expect(shown).toEqual(['close', 'details', 'original', 'delete', 'menu']);
-    await expect(page.locator('.lb-bar [data-act=original]')).toHaveAccessibleName('Download original');
-    await page.locator('.lb-bar [data-act=menu]').click();
-    const cover = page.locator('.lb-menu [data-act=menu-cover]');
+    expect(await visibleActions(page)).toEqual(['close', 'prev', 'next', 'details']);
+    await expect(page.locator('.lb-bar [data-act=details]')).toHaveText('Details');
+    const card = page.locator('.lb-details');
+    const original = card.locator('[data-act=original]');
+    const remove = card.locator('[data-act=delete]');
+    const cover = card.locator('[data-act=sheet-cover]');
+    await expect(original).toHaveText('Download original');
+    await expect(original).toHaveAccessibleName('Download original');
+    await expect(remove).toHaveAccessibleName('Delete photo');
+    await expect(card.locator('[data-act=sheet-delete]')).toBeHidden(); // Delete sits beside the name
     await expect(cover).toBeDisabled();
     await expect(cover).toHaveText('Already the cover');
-    await expect(page.locator('.lb-menu [data-act=menu-delete]')).toBeHidden(); // the bar has Delete on a computer
-    await page.keyboard.press('Escape');
-    await page.keyboard.press('ArrowRight');
-    await expect(page.locator('.lb-bar [data-act=original]')).toHaveAccessibleName('Download original video');
-    await page.locator('.lb-bar [data-act=menu]').click();
+    await page.locator('.lb-bar [data-act=next]').click();
+    await expect(page.locator('.lb-count')).toHaveText('2 / 2');
+    await expect(original).toHaveText('Download original video');
+    await expect(original).toHaveAccessibleName('Download original video');
+    await expect(remove).toHaveAccessibleName('Delete video');
     await expect(cover).toBeEnabled();
     await expect(cover).toHaveText('Set as album cover');
     await cover.click();
     await expect.poll(async () => (await (await page.request.get(`${origin}/api/albums/${album.id}`)).json()).cover).toBe(album.photos[1].id);
-    await page.locator('.lb-bar [data-act=menu]').click();
     await expect(cover).toBeDisabled();
+    // A phone keeps Download and More in its bar, labelled for the current item.
+    await page.setViewportSize({ width: 390, height: 844 });
+    expect(await visibleActions(page)).toEqual(['close', 'details', 'original', 'menu']);
+    await expect(page.locator('.lb-bar [data-act=original]')).toHaveAccessibleName('Download original video');
   } finally { await fixture.close(); }
 });
 
-test('More copies or moves the current item to another album, then shows the next one', async () => {
+test('More on a phone copies or moves the current item to another album, then shows the next one', async () => {
   test.setTimeout(60_000);
   const fixture = await desktopFixture();
   try {
     const { page, origin, album } = await open(fixture);
+    await page.setViewportSize({ width: 860, height: 800 });
     const kyoto = await (await page.request.post(`${origin}/api/albums`, { data: { title: 'Kyoto' } })).json();
     const count = async (id) => (await (await page.request.get(`${origin}/api/albums/${id}`)).json()).photos.length;
     const pick = async (act) => {
@@ -454,6 +593,7 @@ test('switching the album picker from Copy to Move still asks before an unsaved 
   const fixture = await desktopFixture();
   try {
     const { page, origin, album } = await open(fixture);
+    await page.setViewportSize({ width: 860, height: 800 });
     const kyoto = await (await page.request.post(`${origin}/api/albums`, { data: { title: 'Kyoto' } })).json();
     const count = async (id) => (await (await page.request.get(`${origin}/api/albums/${id}`)).json()).photos.length;
     await page.locator('.lb-bar [data-act=details]').click();
@@ -489,6 +629,7 @@ test('copy and move wait for an import to finish', async () => {
   const fixture = await desktopFixture();
   try {
     const { page } = await open(fixture);
+    await page.setViewportSize({ width: 860, height: 800 });
     await page.evaluate(() => document.documentElement.setAttribute('data-busy', ''));
     try {
       await page.locator('.lb-bar [data-act=menu]').click();
@@ -506,6 +647,7 @@ test('a read-only license disables setting the cover, copying and moving in More
   const fixture = await desktopFixture({ license: 'expired' });
   try {
     const { page } = await open(fixture);
+    await page.setViewportSize({ width: 860, height: 800 });
     await page.locator('.lb-bar [data-act=menu]').click();
     for (const act of ['cover', 'copy', 'move']) await expect(page.locator(`.lb-menu [data-act=menu-${act}]`)).toHaveAttribute('aria-disabled', 'true');
     await page.locator('.lb-menu [data-act=menu-copy]').dispatchEvent('click');
