@@ -17,7 +17,9 @@ const words = {
     purgeAllConfirm: 'Permanently delete everything in Recently Deleted? This cannot be undone.',
     trashEmpty: 'Nothing in Recently Deleted', albumGroup: 'Albums', mediaGroup: 'Photos and videos',
     movedToTrash: 'Moved to Recently Deleted', undo: 'Undo', restored: 'Restored',
-    pdf: 'Export PDF', photoDates: 'Capture dates',
+    pdf: 'Export PDF', recent: 'Recently updated', photoDates: 'Capture dates',
+    sortFeature: 'By capture time', sortFeatureText: 'Find photos by filename or note. Browse in capture, upload or your own order.',
+    trashFeature: 'Accidental deletes are recoverable', trashFeatureText: 'Deleted albums and media stay in Recently Deleted for 30 days. Undo right away or restore them later.',
   },
   zh: {
     searchAlbums: '搜索相册名', searchPhotos: '搜索文件名和备注', clear: '清除搜索',
@@ -35,7 +37,9 @@ const words = {
     purgeAllConfirm: '彻底删除「最近删除」中的全部内容？此操作不能恢复。',
     trashEmpty: '最近删除为空', albumGroup: '相册', mediaGroup: '照片和视频',
     movedToTrash: '已移到「最近删除」', undo: '撤销', restored: '已恢复',
-    pdf: '导出 PDF', photoDates: '拍摄日期',
+    pdf: '导出 PDF', recent: '最近更新', photoDates: '拍摄日期',
+    sortFeature: '按拍摄时间', sortFeatureText: '按拍摄、上传时间或手动顺序浏览，搜索文件名和备注，轻松找到照片。',
+    trashFeature: '误删可找回', trashFeatureText: '相册和照片、视频删除后保留 30 天，可以立即撤销，也可以稍后恢复。',
   },
 };
 

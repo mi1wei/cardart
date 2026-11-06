@@ -131,6 +131,18 @@ test('package verification accepts the supported thin target layouts without tre
   }
 });
 
+test('package accepts the hashed home page book media but no other web media', async (t) => {
+  const f = await fixture(t);
+  for (const [path, data] of [['assets/home-book-Ab_9.jpg', 'owned poster fixture'], ['assets/home-book-Ab_9.mp4', 'owned video fixture']]) {
+    await f.file(join(f.root, 'dist', path), data);
+    await f.file(join(f.resources, 'web', path), data);
+  }
+  await verifyPackage(f);
+  await f.file(join(f.root, 'dist/assets/other-Ab_9.mp4'), 'unexpected media');
+  await f.file(join(f.resources, 'web/assets/other-Ab_9.mp4'), 'unexpected media');
+  await assert.rejects(verifyPackage(f), /unexpected web resource: assets\/other-Ab_9\.mp4/i);
+});
+
 test('package requires the standalone print entry even when missing from both build and package', async (t) => {
   const f = await fixture(t);
   await rm(join(f.root, 'dist/print.html'));

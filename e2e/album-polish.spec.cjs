@@ -186,8 +186,8 @@ test('in Chinese the app keeps the name Folio in the nav, titles and phone tips'
     await page.goto(`${origin}/#/a/${album.id}`);
     await expect(page).toHaveTitle('旅行 · Folio');
     await page.goto(`${origin}/#/`);
-    await expect(page).toHaveURL(/#\/albums$/);
-    await expect(page).toHaveTitle('相册 · Folio');
+    await expect(page).toHaveURL(/#\/$/);
+    await expect(page).toHaveTitle('Folio');
     await page.locator('.nav [data-act=phone]').click();
     await expect(page.locator('dialog[open] .note')).toContainText('「Folio」');
     // 「相册页」 means "album page"; only the old app name 册页 must be gone.

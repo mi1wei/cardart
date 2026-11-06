@@ -10,6 +10,21 @@ scripts/generate-icons.js. The navigation logo and macOS menu-bar template
 derive from the monochrome src/assets/folio-mark.svg.
 This record does not provide a trademark clearance opinion.
 
+The homepage media are byte-identical copies of the repository mockup:
+  src/assets/home-book.jpg
+  docs/superpowers/mockups/2026-10-27-folio-redesign/book-hero-poster.jpg
+  SHA-256: 55c89dcee107cbe91ad14193a1e499371b940ad6babe210aeaa86ab0b67b02f6
+
+  src/assets/home-book.mp4
+  docs/superpowers/mockups/2026-10-27-folio-redesign/book-hero.mp4
+  SHA-256: fb5d110fb1a82a570bd8f1eb386c476cfd8aa2d09c6dc152706d2104537b081d
+
+The mockup's scenes.js contains original SVG stand-in scenes and explicitly
+uses no external images. This establishes local repository provenance, not
+an independent certification of every rendered/encoded frame's rights.
+Maintainers must confirm the media rights and H.264 distribution conditions
+before approving distribution.
+
 Geist Variable is supplied by @fontsource-variable/geist 5.3.0 under OFL-1.1.
 The upstream font license is retained, including public/geist-OFL.txt.
 System fallback fonts are used through the OS and are not copied into Folio.

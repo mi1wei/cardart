@@ -28,7 +28,7 @@ test('port fallback after restart preserves English, albums and activation witho
     expect(changed).not.toBe(origin);
     expect(await (await fetch(origin)).text()).toBe('foreign service');
     await expect(page.locator('html')).toHaveAttribute('lang', 'en');
-    await expect(page.locator('.page > .ph .t1')).toHaveText('Albums');
+    await expect(page.locator('.nav [data-page=albums]')).toHaveText('Albums');
     expect(await desktop.evaluate(({ Menu }) => Menu.getApplicationMenu().getMenuItemById('license').label)).toBe('License…');
     expect(await desktop.evaluate(() => global.folioTestNotices.length)).toBeGreaterThan(0);
     const albums = await (await page.request.get(`${changed}/api/albums`)).json();
