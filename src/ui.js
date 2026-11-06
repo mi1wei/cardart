@@ -1,4 +1,3 @@
-import brandMark from './assets/folio-mark.svg?raw';
 import { t } from './i18n.js';
 
 const PATHS = {
@@ -42,18 +41,18 @@ const PATHS = {
   gear: '<path d="M18.2 10.3L20.3 10.7L20.3 13.3L18.2 13.7L17.5 15.2L18.8 16.9L16.9 18.8L15.2 17.5L13.7 18.2L13.3 20.3L10.7 20.3L10.3 18.2L8.8 17.5L7.1 18.8L5.2 16.9L6.5 15.2L5.8 13.7L3.7 13.3L3.7 10.7L5.8 10.3L6.5 8.8L5.2 7.1L7.1 5.2L8.8 6.5L10.3 5.8L10.7 3.7L13.3 3.7L13.7 5.8L15.2 6.5L16.9 5.2L18.8 7.1L17.5 8.8Z"/><circle cx="12" cy="12" r="2.6"/>',
   gridSmall: '<path d="M5 5h3v3H5zM10.5 5h3v3h-3zM16 5h3v3h-3zM5 10.5h3v3H5zM10.5 10.5h3v3h-3zM16 10.5h3v3h-3zM5 16h3v3H5zM10.5 16h3v3h-3zM16 16h3v3h-3z"/>',
   gridLarge: '<rect x="4.5" y="4.5" width="6" height="6" rx="1.2"/><rect x="13.5" y="4.5" width="6" height="6" rx="1.2"/><rect x="4.5" y="13.5" width="6" height="6" rx="1.2"/><rect x="13.5" y="13.5" width="6" height="6" rx="1.2"/>',
+  // An open album with one page being turned (Flip in 3D).
+  book: '<path d="M12 8.2C10 6.8 7.3 6.3 4 6.5v11.8c3.3-.2 6 .3 8 1.7 2-1.4 4.7-1.9 8-1.7V6.5c-1.1-.1-2.1 0-3.1.1"/><path d="M12 8.2V20"/><path d="M12 8.2c.6-2.6 2.6-4.3 5.6-4.7v10.6c-3 .4-5 1.8-5.6 4"/>',
   layout1: '<rect x="3.5" y="5" width="17" height="14" rx="2"/><rect x="8" y="8.5" width="8" height="7" rx="1" fill="currentColor" stroke="none"/>',
   layout2: '<rect x="3.5" y="5" width="17" height="14" rx="2"/><rect x="6.8" y="8.5" width="4.6" height="7" rx="1" fill="currentColor" stroke="none"/><rect x="12.6" y="8.5" width="4.6" height="7" rx="1" fill="currentColor" stroke="none"/>',
   layout3: '<rect x="3.5" y="5" width="17" height="14" rx="2"/><rect x="6.8" y="8.5" width="5" height="7" rx="1" fill="currentColor" stroke="none"/><rect x="13" y="8.5" width="4.2" height="3" rx=".8" fill="currentColor" stroke="none"/><rect x="13" y="12.5" width="4.2" height="3" rx=".8" fill="currentColor" stroke="none"/>',
 };
 
-// Full-colour app illustration for brand spots; the single-colour mark stays for icon buttons.
+// Full-colour app illustration for brand spots.
 export const brandLogo = () => '<img class="brand-logo" src="/icons/folio-logo.png" alt="" width="28" height="28" draggable="false">';
 
 export const icon = (name) =>
-  name === 'book'
-    ? brandMark
-    : `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${PATHS[name]}</svg>`;
+  `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${PATHS[name]}</svg>`;
 
 // The way back to the album wall from the album, Recently Deleted and License pages (polish spec §3.5).
 export const backLink = () => `<a class="back-link" href="#/albums">${icon('prev')}<span>${t('all-albums')}</span></a>`;
