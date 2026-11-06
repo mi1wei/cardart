@@ -3,7 +3,7 @@ const sharp = require('sharp');
 const { desktopFixture } = require('./fixtures.cjs');
 const { openSettings, seed, setLang, style } = require('./ui-helpers.cjs');
 
-test('the dark palette covers page surfaces and the lightbox stays dark', async () => {
+test('the dark palette covers page surfaces, the computer viewer follows it and the phone viewer stays dark', async () => {
   const fixture = await desktopFixture();
   try {
     const { page } = await fixture.launch();
@@ -22,7 +22,9 @@ test('the dark palette covers page surfaces and the lightbox stays dark', async 
     await page.keyboard.press('Escape');
     await page.locator('.tile').click();
     await expect(page.locator('.lb')).toBeVisible();
-    expect(await style(page, '.lb', 'backgroundColor')).toBe('rgb(13, 15, 17)');
+    expect(await style(page, '.lb', 'backgroundColor')).toBe('rgb(18, 20, 23)');
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(page.locator('.lb')).toHaveCSS('background-color', 'rgb(13, 15, 17)');
     await page.goto(`${origin}/#/albums`);
     await expect(page.locator('.lb')).toHaveCount(0);
     await expect(page.locator('.folder')).toHaveCount(1);

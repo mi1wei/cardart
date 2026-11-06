@@ -1,5 +1,5 @@
 import { api, mediaUrl } from './api.js';
-import { dialog, icon, toast } from './ui.js';
+import { brandLogo, dialog, icon, toast } from './ui.js';
 import { t } from './i18n.js';
 import { allowWrite } from './license.js';
 import { createPhotoDetails } from './photo-details.js';
@@ -26,22 +26,22 @@ export function openLightbox({ album, index = 0, onIndex = () => {}, onAlbum = (
   root.dataset.preview = String(Boolean(trashActions));
   root.innerHTML = `
     <header class="lb-bar">
-      <button class="lb-back" type="button" data-act="close" aria-label="${t('close')}">${icon('prev')}<span class="lb-album-name"></span></button>
+      <button class="lb-back" type="button" data-act="close" aria-label="${t('close')}">${icon('prev')}<span class="lb-back-label">${trashActions ? c('trash') : t('albums')}</span><span class="lb-album-name"></span></button>
+      <span class="lb-brand">${brandLogo()}<span>${t('app')}</span></span><span class="lb-bar-album"></span>
       <b class="lb-count" aria-live="polite"></b><span class="sp"></span>
+      <button class="ibtn lb-nav l" type="button" data-act="prev" aria-label="${t('prev-photo')}">${icon('prev')}</button>
+      <button class="ibtn lb-nav r" type="button" data-act="next" aria-label="${t('next-photo')}">${icon('next')}</button>
       ${trashActions ? `
         <button class="lb-btn" type="button" data-write data-act="restore" aria-label="${lt('restore')}">${icon('refresh')}<span>${lt('restore')}</span></button>
         <button class="lb-btn" type="button" data-write data-act="purge" aria-label="${lt('purge')}">${icon('trash')}<span>${lt('purge')}</span></button>` : `
-        <button class="ibtn lb-desktop-details" type="button" data-act="details" aria-label="${t('details')}" aria-expanded="false" aria-controls="photo-details">${icon('info')}</button>
+        <button class="ibtn lb-desktop-details" type="button" data-act="details" aria-label="${t('details')}" aria-expanded="false" aria-controls="photo-details">${icon('info')}<span>${t('details')}</span></button>
         <button class="ibtn" type="button" data-act="original" aria-label="${t('original')}">${icon('download')}<span class="lb-sr">${t('original')}</span></button>
-        <button class="ibtn lb-desktop-action" type="button" data-write data-act="delete" aria-label="${t('delete-photo')}">${icon('trash')}</button>
         <button class="ibtn lb-overflow" type="button" data-act="menu" aria-label="${t('more')}" aria-haspopup="menu" aria-expanded="false">${icon('more')}</button>`}
     </header>
     <div class="lb-workspace"><section class="lb-preview">
       <div class="lb-stage"><img class="lb-img" alt="" draggable="false"><span class="lb-missing">${t('image-missing')}</span>
         <div class="lb-media-status" role="status" hidden><p></p><button class="btn" type="button" data-act="video-retry" hidden>${t('video-retry')}</button></div>
       </div>
-      <button class="ibtn lb-nav l" type="button" data-act="prev" aria-label="${t('prev-photo')}">${icon('prev')}</button>
-      <button class="ibtn lb-nav r" type="button" data-act="next" aria-label="${t('next-photo')}">${icon('next')}</button>
     </section></div>
     ${trashActions ? '' : `<div class="lb-menu" role="menu" hidden>
       <button type="button" role="menuitem" data-write data-act="menu-cover">${icon('image')}<span>${t('set-album-cover')}</span></button>
@@ -184,6 +184,7 @@ export function openLightbox({ album, index = 0, onIndex = () => {}, onAlbum = (
     setMedia(p);
     $('.lb-count').textContent = `${index + 1} / ${album.photos.length}`;
     $('.lb-album-name').textContent = album.title;
+    $('.lb-bar-album').textContent = album.title;
     $('.lb-back').setAttribute('aria-label', t(trashActions ? 'back-to-trash' : 'back-to-album', { title: album.title }));
     root.setAttribute('aria-label', `${trashActions ? lt('trash-preview') : album.title} · ${index + 1} / ${album.photos.length}`);
     details?.setPhoto(album.id, p);
@@ -196,8 +197,11 @@ export function openLightbox({ album, index = 0, onIndex = () => {}, onAlbum = (
       const isCover = (album.cover ?? album.photos[0].id) === p.id;
       for (const button of root.querySelectorAll('[data-act=sheet-cover], [data-act=menu-cover]')) button.disabled = isCover;
       for (const label of root.querySelectorAll('[data-act=sheet-cover] span, [data-act=menu-cover] span')) label.textContent = t(isCover ? 'already-cover' : 'set-album-cover');
-      $('[data-act=original]').setAttribute('aria-label', t(p.kind === 'video' ? 'original-video' : 'original'));
-      $('[data-act=original] span').textContent = t(p.kind === 'video' ? 'original-video' : 'original');
+      const original = t(p.kind === 'video' ? 'original-video' : 'original');
+      for (const button of root.querySelectorAll('[data-act=original]')) {
+        button.setAttribute('aria-label', original);
+        button.querySelector('span').textContent = original;
+      }
       $('[data-act=delete]').setAttribute('aria-label', t(p.kind === 'video' ? 'delete-video' : 'delete-photo'));
     }
     for (const j of [index - 1, index + 1]) {

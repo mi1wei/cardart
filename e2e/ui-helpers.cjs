@@ -34,8 +34,8 @@ async function seedBook(page, origin, title, count, perPage, notes = {}) {
   return full;
 }
 
-// The app opens on the album wall, so going there again is a same-document no-op that keeps the
-// albums loaded at launch. Reload to show albums created through the API since (polish spec §3.1).
+// The app opens on the home page. Reload on the wall so albums created through the API since
+// launch show up.
 async function openWall(page, origin) {
   await page.goto(`${origin}/#/albums`);
   await page.reload();

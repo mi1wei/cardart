@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import { commandAllowed, normalizeContext } from './commands.js';
 
 const album = { page: 'album', busy: false, appearance: 'auto', density: 'm' };
+const home = { ...album, page: 'home' };
 
 test('menu context accepts only valid pages, booleans and preferences', () => {
   assert.deepEqual(normalizeContext({ ...album, ignored: '/private/path' }), album);
@@ -23,6 +24,16 @@ test('unknown, readonly, busy and wrong-page commands cannot mutate albums', () 
   }
   assert.equal(commandAllowed('run-shell', album, true), false);
   assert.equal(commandAllowed('new-album', null, true), false);
+});
+
+test('the home page can create and import albums but not change one album', () => {
+  assert.deepEqual(normalizeContext(home), home);
+  for (const name of ['new-album', 'import-folder', 'license', 'settings', 'appearance-dark']) {
+    assert.equal(commandAllowed(name, normalizeContext(home), true), true, name);
+  }
+  for (const name of ['add-photos', 'export-pdf', 'density-l']) {
+    assert.equal(commandAllowed(name, normalizeContext(home), true), false, name);
+  }
 });
 
 test('readonly users can use appearance, density and help without changing the library', () => {

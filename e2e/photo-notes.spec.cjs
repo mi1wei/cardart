@@ -196,8 +196,7 @@ test('a pending note save cannot be abandoned or race another photo mutation', a
     await page.locator('[data-note-save]').click();
     await started;
     await expect(page.locator('.note-form')).toHaveAttribute('aria-busy', 'true');
-    await page.locator('.lb-bar [data-act=menu]').click();
-    await page.locator('.lb-menu [data-act=menu-cover]').click();
+    await page.locator('.lb-details [data-act=sheet-cover]').click();
     expect((await (await page.request.get(`${origin}/api/albums/${album.id}`)).json()).cover).toBe(null);
     await page.locator('.lb-nav.l').click();
     await expect(page.locator('.lb-count')).toHaveText('2 / 2');
@@ -231,8 +230,7 @@ test('an earlier cover save blocks note submission until its response cannot rev
       await held;
       await route.fulfill({ response });
     });
-    await page.locator('.lb-bar [data-act=menu]').click();
-    await page.locator('.lb-menu [data-act=menu-cover]').click();
+    await page.locator('.lb-details [data-act=sheet-cover]').click();
     await started;
     await expect(page.locator('[data-note-save]')).toBeDisabled();
     release();

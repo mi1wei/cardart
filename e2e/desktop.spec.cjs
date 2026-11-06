@@ -65,7 +65,7 @@ test('isolated desktop uses the real utility backend and a sandboxed renderer', 
         item.once('done', (_, state) => { global.ownedDownloadState = state; });
       });
     }, downloaded);
-    await page.locator('.lb [data-act=original]').click();
+    await page.locator('.lb-details [data-act=original]').click();
     await expect.poll(() => desktop.evaluate(() => global.ownedDownloadState)).toBe('completed');
     expect(await readFile(downloaded)).toEqual(png);
     await expect(page.locator('.lb')).toBeVisible();

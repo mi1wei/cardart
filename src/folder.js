@@ -12,16 +12,17 @@ export function pocket(albumId, previews) {
   return `<span class="back"></span>${pics.join('')}<span class="front"></span><span class="notch"></span>`;
 }
 
-export function folder(a, { menu = false } = {}) {
+// Cards are h2 on the wall; under the home page's "Recently updated" heading they are h3.
+export function folder(a, { menu = false, heading = 'h2' } = {}) {
   const el = document.createElement('article');
   el.className = 'folder';
   el.dataset.id = a.id;
   el.innerHTML = `
     <a class="pocket" href="#/a/${a.id}">${pocket(a.id, a.previews)}</a>
-    <div class="meta"><h2></h2><span class="n"></span>${
+    <div class="meta"><${heading}></${heading}><span class="n"></span>${
       menu ? `<button class="ibtn" type="button" data-act="menu" aria-label="${t('more')}">${icon('more')}</button>` : ''
     }</div>`;
-  el.querySelector('h2').textContent = a.title;
+  el.querySelector(heading).textContent = a.title;
   el.querySelector('.n').textContent = a.count ? mediaCountText(a) : t('album-empty');
   el.querySelector('.pocket').setAttribute('aria-label', a.title);
   // The capture months follow the count on its line (polish spec §4.3).

@@ -34,11 +34,11 @@ export function createPhotoDetails(root, onAlbum) {
   panel.setAttribute('aria-labelledby', 'photo-details-title');
   panel.innerHTML = `
     <header class="lb-details-header"><span>${t('details')}</span><button class="ibtn" type="button" data-act="details-close" aria-label="${t('details-close')}">${icon('close')}</button></header>
-    <div class="lb-title-row"><h2 class="lb-name" id="photo-details-title" data-field="file-name"></h2></div>
+    <div class="lb-title-row"><h2 class="lb-name" id="photo-details-title" data-field="file-name"></h2><button class="ibtn lb-delete" type="button" data-write data-act="delete" aria-label="${t('delete-photo')}">${icon('trash')}</button></div>
     <div class="lb-facts"><span data-field="format"></span><span data-field="dimensions"></span><span data-field="bytes"></span></div>
     <div class="lb-note-host"></div>
     <div class="lb-details-body" id="photo-details-body"><p class="lb-details-status" role="status"></p><div class="lb-details-content"></div></div>
-    <div class="lb-photo-actions"><button class="btn" type="button" data-write data-act="sheet-cover">${icon('image')}<span>${t('set-album-cover')}</span></button><button class="btn danger" type="button" data-write data-act="sheet-delete">${icon('trash')}<span>${t('delete-photo')}</span></button></div>`;
+    <div class="lb-photo-actions"><button class="btn pri" type="button" data-act="original" aria-label="${t('original')}">${icon('download')}<span>${t('original')}</span></button><button class="btn" type="button" data-write data-act="sheet-cover">${icon('image')}<span>${t('set-album-cover')}</span></button><button class="btn danger" type="button" data-write data-act="sheet-delete">${icon('trash')}<span>${t('delete-photo')}</span></button></div>`;
   root.querySelector('.lb-workspace').append(panel);
   const $ = (selector) => panel.querySelector(selector);
   const note = createPhotoNote($('.lb-note-host'), onAlbum);
@@ -47,8 +47,16 @@ export function createPhotoDetails(root, onAlbum) {
   const body = $('.lb-details-body');
   const mobile = matchMedia('(max-width: 860px)');
   let current;
-  let opened = false;
-  try { opened = localStorage.getItem('lightbox-details') === 'true'; } catch {}
+  // Phones and computers remember their own choice; a computer shows details unless closed there.
+  const key = () => mobile.matches ? 'lightbox-details' : 'lightbox-details-desktop';
+  function preferred() {
+    try {
+      const value = localStorage.getItem(key());
+      return mobile.matches ? value === 'true' : value !== 'false';
+    } catch { return !mobile.matches; }
+  }
+  function remember() { try { localStorage.setItem(key(), String(opened)); } catch {} }
+  let opened = preferred();
   let revision = 0;
   let controller;
 
@@ -161,15 +169,15 @@ export function createPhotoDetails(root, onAlbum) {
     body.hidden = !opened;
     root.classList.toggle('has-details', opened);
     for (const trigger of root.querySelectorAll('[data-act=details]')) trigger.setAttribute('aria-expanded', String(opened));
-    try { localStorage.setItem('lightbox-details', String(opened)); } catch {}
   }
-  function close() {
+  function close(save = true) {
     if (!opened) return false;
     if (!note.canLeave()) return true;
     opened = false;
     revision++;
     controller?.abort();
     sync();
+    if (save) remember();
     root.querySelector('.lb-desktop-details')?.focus({ preventScroll: true });
     return true;
   }
@@ -177,10 +185,23 @@ export function createPhotoDetails(root, onAlbum) {
     if (opened) return;
     opened = true;
     sync();
+    remember();
     void load();
   }
   function onLayoutChange() {
-    sync();
+    const wanted = preferred();
+    if (wanted && !opened) {
+      opened = true;
+      sync();
+      if (current) void load();
+    } else if (!wanted && opened && !note.dirty && note.canLeave()) {
+      const focused = panel.contains(document.activeElement);
+      opened = false;
+      revision++;
+      controller?.abort();
+      sync();
+      if (focused) root.querySelector('.lb-desktop-details')?.focus({ preventScroll: true });
+    }
     for (const section of content.querySelectorAll('.lb-parameters, .lb-gps')) section.open = !mobile.matches;
   }
   mobile.addEventListener('change', onLayoutChange);
@@ -203,7 +224,8 @@ export function createPhotoDetails(root, onAlbum) {
     toggle() { if (!close()) open(); },
     open,
     close,
-    escape: close,
+    // A computer hides the card for now; only Details, i and × change the remembered choice.
+    escape: () => close(mobile.matches),
     canLeave: () => note.canLeave(),
     contains: (element) => panel.contains(element),
     dispose() { revision++; controller?.abort(); mobile.removeEventListener('change', onLayoutChange); note.dispose(); panel.remove(); },

@@ -6,28 +6,11 @@ const { dropFiles, jpeg } = require('./drop-helpers.cjs');
 const { join } = require('node:path');
 const { mkdir, writeFile } = require('node:fs/promises');
 
-test('the app opens on the album wall, and old or unknown addresses lead there too', async () => {
-  const fixture = await desktopFixture();
-  try {
-    const { page } = await fixture.launch();
-    const origin = new URL(page.url()).origin;
-    await expect(page).toHaveURL(`${origin}/#/albums`);
-    await expect(page.locator('.page > .ph .t1')).toHaveText('Albums');
-    for (const address of ['/#/', '/#/home', '/#/a/not-an-album', '/']) {
-      await page.goto(`${origin}${address}`);
-      await expect(page).toHaveURL(`${origin}/#/albums`);
-      await expect(page.locator('.page > .ph .t1')).toHaveText('Albums');
-    }
-    // A phone's link carries its key in the query; rewriting the hash must keep it.
-    await page.goto(`${origin}/?key=kept#/`);
-    await expect(page).toHaveURL(`${origin}/?key=kept#/albums`);
-  } finally { await fixture.close(); }
-});
-
 test('an empty library shows the welcome page and creates the first album from it', async () => {
   const fixture = await desktopFixture();
   try {
     const { page } = await fixture.launch();
+    await openWall(page, new URL(page.url()).origin);
     const welcome = page.locator('.welcome');
     await expect(welcome).toBeVisible();
     await expect(welcome.locator('h2')).toHaveText('Welcome to Folio');
@@ -56,7 +39,7 @@ test('the welcome page links to Recently Deleted while it holds something', asyn
     const origin = new URL(page.url()).origin;
     const album = await (await page.request.post(`${origin}/api/albums`, { data: { title: 'Gone' } })).json();
     expect((await page.request.delete(`${origin}/api/albums/${album.id}`)).ok()).toBe(true);
-    await page.reload();
+    await openWall(page, origin);
     await expect(page.locator('.welcome')).toBeVisible();
     await expect(page.locator('.folders .trash-card')).toHaveCount(0);
     const link = page.locator('.welcome-trash');
@@ -118,6 +101,7 @@ test('Import from folder on the welcome page makes an album named after the fold
       'a.jpg': await jpeg(50), 'more/b.jpg': await jpeg(51), '.thumbnails/t.jpg': await jpeg(52), '.DS_Store': 'junk', 'list.txt': 'notes',
     });
     const { page } = await fixture.launch();
+    await openWall(page, new URL(page.url()).origin);
     const button = page.locator('.welcome [data-act=import-folder]');
     await expect(button).toHaveText('Import from folder…');
     const chooser = page.waitForEvent('filechooser');
@@ -139,6 +123,7 @@ test('while a folder imports, the wall stays open, other changes wait and anothe
     const nara = await folderOnDisk(fixture, 'Nara', { 'n0.jpg': await jpeg(62) });
     const { page } = await fixture.launch();
     const origin = new URL(page.url()).origin;
+    await openWall(page, origin);
     const held = new Promise((resolve) => { release = resolve; });
     let entered;
     const started = new Promise((resolve) => { entered = resolve; });
@@ -173,6 +158,7 @@ test('a read-only license imports no folder', async () => {
     const dir = await folderOnDisk(fixture, 'Locked', { 'a.jpg': await jpeg(70) });
     const { page } = await fixture.launch();
     const origin = new URL(page.url()).origin;
+    await openWall(page, origin);
     await expect(page.locator('.welcome [data-act=import-folder]')).toHaveAttribute('aria-disabled', 'true');
     // As if the license ran out while the folder dialog was open.
     await page.locator('.folder-input').setInputFiles(dir);
@@ -229,6 +215,7 @@ test('an album that cannot be created stops only its own folder', async () => {
   try {
     const { page } = await fixture.launch();
     const origin = new URL(page.url()).origin;
+    await openWall(page, origin);
     let refused = false;
     await page.route(`${origin}/api/albums`, async (route) => {
       if (route.request().method() !== 'POST' || refused) return route.continue();
@@ -248,6 +235,7 @@ test('files that are not photos, dropped with folders, are counted in the summar
   const fixture = await desktopFixture();
   try {
     const { page } = await fixture.launch();
+    await openWall(page, new URL(page.url()).origin);
     await expect(page.locator('.welcome')).toBeVisible();
     await dropFiles(page, [
       { name: 'Empty', children: [{ name: '.DS_Store', bytes: Buffer.from('junk') }] },
@@ -269,6 +257,7 @@ test('a drop says it is being read and turns away another drop meanwhile, on the
   try {
     const { page } = await fixture.launch();
     const origin = new URL(page.url()).origin;
+    await openWall(page, origin);
     const photo = async (name, width) => ({ name, type: 'image/jpeg', bytes: await jpeg(width) });
     const trip = [{ name: 'Trip', children: [await photo('a.jpg', 140), await photo('b.jpg', 141), await photo('c.jpg', 142)] }];
     const again = [{ name: 'Again', children: [await photo('d.jpg', 143)] }];
@@ -319,6 +308,7 @@ test('loose photos dropped on the wall get a new album named first; cancelling i
   try {
     const { page } = await fixture.launch();
     const origin = new URL(page.url()).origin;
+    await openWall(page, origin);
     await expect(page.locator('.welcome .welcome-drop')).toHaveText('Drop photos or folders here');
     const drop = async () => dropFiles(page, [
       { name: 'x.jpg', type: 'image/jpeg', bytes: await jpeg(100) },
@@ -346,6 +336,7 @@ test('a read-only license takes no drop on the wall', async () => {
   try {
     const { page } = await fixture.launch();
     const origin = new URL(page.url()).origin;
+    await openWall(page, origin);
     await dropFiles(page, [{ name: 'Locked', children: [{ name: 'a.jpg', type: 'image/jpeg', bytes: await jpeg(110) }] }]);
     await expect(page.locator('.toast')).toHaveText(/^Read-only mode/);
     expect(await (await page.request.get(`${origin}/api/albums`)).json()).toEqual([]);

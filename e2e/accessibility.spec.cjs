@@ -6,15 +6,16 @@ const { seedBook, openWall, openSettings, setLang } = require('./ui-helpers.cjs'
 const { photoBytes } = require('../tests/fixtures/photo-metadata.cjs');
 const sharp = require('sharp');
 
-async function readableText(page, surface) {
-  const bad = await page.locator('body').evaluate((root) => {
+// `display` names the one display-size element a surface may have (the home page's title).
+async function readableText(page, surface, display = null) {
+  const bad = await page.locator('body').evaluate((root, display) => {
     const leading = { 12: 16, 13: 18, 14: 20, 16: 24, 20: 28, 24: 32, 28: 36 };
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
     const bad = [];
     while (walker.nextNode()) {
       const node = walker.currentNode;
       const el = node.parentElement;
-      if (!node.textContent.trim() || !el || el.closest('.print-sheet, script, style') ||
+      if (!node.textContent.trim() || !el || el.closest('.print-sheet, script, style') || (display && el.closest(display)) ||
           !el.checkVisibility({ opacityProperty: true, visibilityProperty: true })) continue;
       const css = getComputedStyle(el);
       const size = parseFloat(css.fontSize);
@@ -23,7 +24,7 @@ async function readableText(page, surface) {
       }
     }
     return bad;
-  });
+  }, display);
   expect.soft(bad, surface).toEqual([]);
 }
 
@@ -32,6 +33,9 @@ test('typography stays readable across pages, menus and dialogs in both language
   try {
     const { page } = await fixture.launch();
     const origin = new URL(page.url()).origin;
+    await expect(page.locator('.home .h1')).toBeVisible();
+    await readableText(page, 'empty home', '.home .h1');
+    await openWall(page, origin);
     await expect(page.locator('.welcome')).toBeVisible();
     await readableText(page, 'welcome');
     const album = await seedBook(page, origin, 'A summer with a long album title', 1, 1);
@@ -45,8 +49,14 @@ test('typography stays readable across pages, menus and dialogs in both language
     });
     expect(noted.ok()).toBe(true);
     for (const language of ['en', 'zh']) {
-      await openWall(page, origin);
+      await page.goto(`${origin}/#/`);
+      await page.reload();
       await setLang(page, language);
+      await expect(page.locator('.recent .folder')).toHaveCount(1);
+      await readableText(page, `${language} home`, '.home .h1');
+      await expect.soft(page.locator('.recent .folder h3')).toHaveCSS('font-size', '16px', { timeout: 100 });
+
+      await openWall(page, origin);
       await expect(page.locator('.folder')).toHaveCount(1);
       await readableText(page, `${language} wall`);
       await expect.soft(page.locator('.folder :is(h2,h3)')).toHaveCSS('font-size', '16px', { timeout: 100 });
@@ -239,9 +249,14 @@ for (const width of [320, 390]) {
       const count = width === 390 ? 44 : 3;
       const album = await seedBook(page, origin, 'A long album title for a small screen', count, 1);
       await page.setViewportSize({ width, height: 844 });
-      await openWall(page, origin);
+      await page.reload();
       expect(await page.evaluate(() => matchMedia('(pointer: coarse)').matches)).toBe(true);
       const controls = 'button, a[href], select, input[type=range], input[type=search]';
+      await expect(page.locator('.recent .folder')).toHaveCount(1);
+      await targets(page.locator('.nav, .home').locator(controls), 44, 'coarse home targets');
+      await noOverflow(page);
+
+      await openWall(page, origin);
       await expect(page.locator('.folder')).toHaveCount(1);
       await targets(page.locator('.nav, .page').locator(controls), 44, 'coarse wall targets');
       await noOverflow(page);
@@ -398,9 +413,13 @@ test('accessible names and headings track cover changes, live album rename and l
     await tiles.nth(1).click();
     await expect(page.locator('.lb-album-name')).toHaveText('Summer focus');
     await expect.soft(page.locator('.lb-back')).toHaveAccessibleName('Back to “Summer focus”', { timeout: 100 });
+    // A computer shows the zoom controls once the photo is zoomed.
+    await page.keyboard.press('+');
+    await expect(page.locator('.lb')).toHaveAttribute('data-zoomed', 'true');
     await expect.soft(page.locator('.lb-zoom [data-act=actual]')).toHaveAccessibleName('1:1 Actual size', { timeout: 100 });
+    await page.keyboard.press('0');
     expect((await page.request.patch(`${origin}/api/albums/${album.id}`, { data: { title: 'Renamed summer' } })).ok()).toBe(true);
-    await page.locator('.lb [data-act=details]').click();
+    await expect(page.locator('.lb-details')).toBeVisible();
     await page.locator('[data-note-edit]').click();
     await page.locator('.note-input').fill('A note returns the updated album without rebuilding the viewer.');
     await page.locator('[data-note-save]').click();
@@ -418,6 +437,8 @@ test('accessible names and headings track cover changes, live album rename and l
     await expect.soft(tiles.nth(1)).toHaveAccessibleName('p1.jpg，封面', { timeout: 100 });
     await tiles.nth(1).click();
     await expect.soft(page.locator('.lb-back')).toHaveAccessibleName('返回「Renamed summer」', { timeout: 100 });
+    await page.keyboard.press('+');
+    await expect(page.locator('.lb')).toHaveAttribute('data-zoomed', 'true');
     await expect.soft(page.locator('.lb-zoom [data-act=actual]')).toHaveAccessibleName('1:1 实际大小', { timeout: 100 });
   } finally { await fixture.close(); }
 });

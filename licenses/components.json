@@ -2,7 +2,7 @@
   "version": 1,
   "documents": [
     { "file": "licenses/SOURCES.txt", "sha256": "f42ed7b3961370645f0c46c8aa689bb8a0d9e7d0aef731b6985fc0fada214304", "source": "https://github.com/mi1wei/cardart", "kind": "source-reference-not-complete-source-delivery" },
-    { "file": "licenses/ASSET_PROVENANCE.txt", "sha256": "43859eeda70b7dc69bf970aa353583638e0e5dd422a04af2111e0dce598c0b5d", "source": "https://github.com/mi1wei/cardart", "kind": "project-provenance-pending-rights-review" },
+    { "file": "licenses/ASSET_PROVENANCE.txt", "sha256": "e7e0023e17f701bd58e0317be7e6d40d6f28eb565dd8e174372e8187378e4395", "source": "https://github.com/mi1wei/cardart", "kind": "project-provenance-pending-rights-review" },
     { "file": "licenses/vendor/folio-demo-scenes.txt", "sha256": "11f9f155581ec0a11ed2e7da7fc6ee2a9321d5bf59bde645513e6b3c0405ac8d", "source": "https://github.com/mi1wei/cardart", "kind": "project-mockup-source" },
     { "file": "licenses/vendor/libvips-NOTICES.txt", "sha256": "6f0d5086e3bcbee12bcdacf5878b31d1104002aeecaeb241d3fff466108082fe", "source": "https://github.com/lovell/sharp-libvips/blob/ebb95f8add54eee8bed840e3fb587e4cbec857d7/THIRD-PARTY-NOTICES.md", "kind": "publisher-notices-table" },
     { "file": "licenses/vendor/libvips-build-LICENSE.txt", "sha256": "b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1", "source": "https://github.com/lovell/sharp-libvips/blob/ebb95f8add54eee8bed840e3fb587e4cbec857d7/LICENSE", "kind": "build-recipe-license" },
@@ -28,6 +28,8 @@
   "assets": [
     { "file": "src/assets/folio-app-icon.png", "sha256": "aaa970c5c278e3dbe7869ba7f3d2132c5057f215b5f55df089a48b8731abd8bd", "provenance": "Supplied child-and-album illustration with project-redrawn album photographs; rights review still required" },
     { "file": "src/assets/folio-mark.svg", "sha256": "8d00c0eb3b6d63940f02cb248fdaa68ab37e262a153c1cf75ccf12ef9df7daa1", "provenance": "Project monochrome brand mark for the navigation logo and menu-bar template" },
+    { "file": "src/assets/home-book.jpg", "sha256": "55c89dcee107cbe91ad14193a1e499371b940ad6babe210aeaa86ab0b67b02f6", "provenance": "Byte-identical project mockup poster; rights review still required" },
+    { "file": "src/assets/home-book.mp4", "sha256": "fb5d110fb1a82a570bd8f1eb386c476cfd8aa2d09c6dc152706d2104537b081d", "provenance": "Byte-identical project mockup video; rights/codec review still required" },
     { "file": "public/geist-OFL.txt", "sha256": "71609cbb5c78b5870d712eab73a31d76622635c6ed034ab5cee3b9ecbda8685f", "provenance": "Geist font upstream OFL-1.1 notice" }
   ],
   "overrides": {

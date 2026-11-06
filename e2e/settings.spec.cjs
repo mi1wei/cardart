@@ -20,7 +20,7 @@ test('Settings holds appearance, language and the license in one dialog', async 
     await expect(page.locator('html')).toHaveAttribute('lang', 'zh-CN');
     await expect(settings.locator('h3')).toHaveText('设置');
     await expect(settings.locator('[data-theme-mode=dark]')).toHaveAttribute('aria-pressed', 'true');
-    await expect(page.locator('.page > .ph .t1')).toHaveText('相册');
+    await expect(page.locator('.home .h1')).toHaveText('把照片装进一本能翻的相册');
     await settings.locator('[data-act=done]').click();
     await expect(page.locator('dialog.settings')).toHaveCount(0);
     await openSettings(page);
@@ -42,6 +42,7 @@ test('Manage waits for an import to finish, then opens the license page', async 
   const fixture = await desktopFixture();
   try {
     const { page } = await fixture.launch();
+    const origin = new URL(page.url()).origin;
     await page.evaluate(() => document.documentElement.setAttribute('data-busy', ''));
     const settings = await openSettings(page);
     await expect(settings.locator('[data-lang=zh]')).toBeDisabled();
@@ -49,7 +50,7 @@ test('Manage waits for an import to finish, then opens the license page', async 
     await expect(settings.locator('[data-act=license]')).toHaveAttribute('aria-disabled', 'true');
     await settings.locator('[data-act=license]').dispatchEvent('click');
     await expect(page.locator('.toast')).toHaveText('Wait for the current import to finish before managing the license.');
-    await expect(page).toHaveURL(/#\/albums$/);
+    await expect(page).toHaveURL(`${origin}/`);
     // The import ends while Settings is still open.
     await page.evaluate(() => document.documentElement.removeAttribute('data-busy'));
     await expect(settings.locator('[data-lang=zh]')).toBeEnabled();
@@ -61,13 +62,14 @@ test('Manage waits for an import to finish, then opens the license page', async 
   } finally { await fixture.close(); }
 });
 
-test('the top bar keeps the logo, phone access and Settings, and every page leads back to the albums', async () => {
+test('the top bar keeps the logo, Home and Albums tabs, phone access and Settings, and every page leads back to the albums', async () => {
   const fixture = await desktopFixture();
   try {
     const { page } = await fixture.launch();
     const origin = new URL(page.url()).origin;
-    await expect(page.locator('.nav .logo')).toHaveAttribute('href', '#/albums');
-    await expect(page.locator('.nav .nl, .nav .theme, .nav .lang')).toHaveCount(0);
+    await expect(page.locator('.nav .logo')).toHaveAttribute('href', '#/');
+    await expect(page.locator('.nav .nl')).toHaveText(['Home', 'Albums']);
+    await expect(page.locator('.nav .theme, .nav .lang')).toHaveCount(0);
     await expect(page.locator('.nav [data-act=phone]')).toBeVisible();
     await expect(page.locator('.nav [data-act=settings]')).toHaveAccessibleName('Settings');
     const album = await seed(page, origin, 'Way back', 1);
