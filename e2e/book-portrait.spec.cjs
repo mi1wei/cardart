@@ -129,3 +129,43 @@ test('an upright phone stays on the page it shows when the album changes under t
     await expect(count).toHaveText('Page 3 of 5');
   } finally { await fixture.close(); }
 });
+
+// A real finger on the screen: the browser makes touch pointer events from it.
+async function touch(session, points) {
+  const [first, ...rest] = points;
+  await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: first[0], y: first[1] }] });
+  for (const [x, y] of rest) await session.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y }] });
+  await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+}
+
+test('a phone held sideways shows only the album: a swipe turns the page, a tap on empty space brings the controls back', async () => {
+  test.setTimeout(60_000);
+  const fixture = await desktopFixture();
+  try {
+    const { page, desktop } = await fixture.launch();
+    const origin = new URL(page.url()).origin;
+    await page.setViewportSize({ width: 844, height: 390 });
+    const album = await seedBook(page, origin, 'Sideways', 3, 1);
+    await page.goto(`${origin}/#/a/${album.id}/3d`);
+    const book = page.locator('.ab');
+    const count = page.locator('.ab-count');
+    await expect(count).toHaveText('1 / 3', { timeout: 15000 });
+    await expect(book).toHaveAttribute('data-idle', '', { timeout: 5000 });
+    await expect.poll(() => page.locator('.ab-foot').evaluate((el) => Number(getComputedStyle(el).opacity))).toBeLessThan(0.1);
+    const session = await desktop.context().newCDPSession(page);
+    await session.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 1 });
+    await expect.poll(() => settled(page), { timeout: 15000 }).toBe(true);
+    await touch(session, [[760, 200], [600, 200], [400, 200], [150, 200]]);
+    await expect(count).toHaveText('2 / 3');
+    await expect(book).toHaveAttribute('data-idle', '');
+    await expect.poll(() => settled(page), { timeout: 15000 }).toBe(true);
+    await touch(session, [[422, 12]]); // above the album
+    await expect(page.locator('.ab[data-idle]')).toHaveCount(0);
+    await expect(count).toHaveText('2 / 3');
+    await expect(book).toHaveAttribute('data-idle', '', { timeout: 5000 });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(page.locator('.ab[data-idle]')).toHaveCount(0);
+    await page.waitForTimeout(3500);
+    await expect(page.locator('.ab[data-idle]')).toHaveCount(0);
+  } finally { await fixture.close(); }
+});

@@ -205,3 +205,32 @@ test('when auto-flip ends, focus returns to the play button; a lost GL context s
     await expect(page.locator('.ab-progress')).toBeHidden();
   } finally { await fixture.close(); }
 });
+
+test('full screen shows only the album, and moving the mouse brings the controls back', async () => {
+  test.setTimeout(60_000);
+  const fixture = await desktopFixture();
+  try {
+    const { page, desktop } = await fixture.launch();
+    await openBook(page);
+    const book = page.locator('.ab');
+    // The window's own full-screen animation runs after the page is already full screen.
+    const windowFull = () => desktop.evaluate(() => global.folioTestDesktop.window.isFullScreen());
+    const barOpacity = () => page.locator('.ab-bar').evaluate((el) => Number(getComputedStyle(el).opacity));
+    await page.locator('.ab [data-act=fullscreen]').click();
+    await expect.poll(() => page.evaluate(() => !!document.fullscreenElement)).toBe(true);
+    await expect.poll(windowFull).toBe(true);
+    await page.mouse.move(5, 5);
+    await expect(book).toHaveAttribute('data-idle', '', { timeout: 5000 });
+    await expect.poll(barOpacity).toBeLessThan(0.1);
+    await page.mouse.move(300, 300);
+    await expect(page.locator('.ab[data-idle]')).toHaveCount(0);
+    await expect(book).toHaveAttribute('data-idle', '', { timeout: 5000 });
+    await page.mouse.move(320, 320);
+    await page.locator('.ab [data-act=fullscreen]').click();
+    await expect.poll(() => page.evaluate(() => !!document.fullscreenElement)).toBe(false);
+    await expect.poll(windowFull).toBe(false);
+    // Out of full screen the controls stay.
+    await page.waitForTimeout(3500);
+    await expect(page.locator('.ab[data-idle]')).toHaveCount(0);
+  } finally { await fixture.close(); }
+});
