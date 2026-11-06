@@ -69,6 +69,7 @@ export function openViewer({ album, startIndex = 0, onOpenPhoto, onClose, onPerP
   let stepping = false;
   let playState = 'off';
   let idleTimer = 0;
+  const phoneLandscape = matchMedia('(orientation: landscape) and (max-height: 519.98px)');
   const player = createFlipPlayer({ step, onState });
 
   // Full screen is the whole page, so the lightbox shows over the book too (spec §9). iPhone has no
@@ -88,6 +89,9 @@ export function openViewer({ album, startIndex = 0, onOpenPhoto, onClose, onPerP
     full.innerHTML = icon(on ? 'fullscreenExit' : 'fullscreen');
     full.setAttribute('aria-label', t(on ? 'fullscreen-exit' : 'fullscreen'));
     full.setAttribute('aria-pressed', String(on));
+    // Full screen shows only the album: the bars float over it and fade like during auto-flip.
+    wake();
+    book?.redraw();
   }
 
   const photoUrl = (i, size) => mediaUrl(album.id, album.photos[i].id, size);
@@ -191,21 +195,34 @@ export function openViewer({ album, startIndex = 0, onOpenPhoto, onClose, onPerP
     else player.toggle();
   }
 
-  // While playing, the controls fade after a moment; any input brings them back.
+  // Full screen and a phone held sideways show only the album; auto-flip fades the controls too.
+  const albumOnly = () => !!document.fullscreenElement || phoneLandscape.matches;
+
+  // The controls fade after a moment; input brings them back.
   function wake() {
     root.removeAttribute('data-idle');
     clearTimeout(idleTimer);
-    if (player.state() === 'playing') idleTimer = setTimeout(() => root.setAttribute('data-idle', ''), IDLE);
+    if (player.state() === 'playing' || albumOnly()) idleTimer = setTimeout(() => root.setAttribute('data-idle', ''), IDLE);
+  }
+
+  // A finger moving is a swipe, and a layout change moves no mouse but still sends a move at the cursor.
+  let mouseAt = '';
+  function onPointerMove(e) {
+    if (e.pointerType !== 'mouse' || `${e.clientX},${e.clientY}` === mouseAt) return;
+    mouseAt = `${e.clientX},${e.clientY}`;
+    wake();
   }
 
   function onPointerDown(e) {
-    // On a touch screen the first tap only brings the faded controls back.
-    if (root.hasAttribute('data-idle') && e.pointerType !== 'mouse') {
+    player.restart(); // a page held or dragged gets a full step before auto-flip turns it
+    if (e.pointerType === 'mouse' || !root.hasAttribute('data-idle')) wake();
+    // Faded during auto-flip, the first tap only brings the controls back. With only the album
+    // showing, a swipe turns the page and a tap on empty space brings them back (onBlankTap).
+    else if (!albumOnly()) {
       e.stopPropagation();
       e.preventDefault();
+      wake();
     }
-    player.restart(); // a page held or dragged gets a full step before auto-flip turns it
-    wake();
   }
 
   function fail() {
@@ -238,6 +255,11 @@ export function openViewer({ album, startIndex = 0, onOpenPhoto, onClose, onPerP
         startSide: titlePage || pages.findIndex((page) => page.rects.some((r) => r.i === i)) % 2 === 1 ? -1 : 1,
         single: upright.matches,
         onChange,
+        onBlankTap: (e) => {
+          if (e.pointerType === 'mouse' || !root.hasAttribute('data-idle')) return false;
+          wake();
+          return true;
+        },
         onPhotoClick: (index) => {
           player.pause();
           onOpenPhoto(index);
@@ -312,6 +334,7 @@ export function openViewer({ album, startIndex = 0, onOpenPhoto, onClose, onPerP
     clearTimeout(idleTimer);
     window.removeEventListener('keydown', onKey);
     document.removeEventListener('fullscreenchange', onFullscreen);
+    phoneLandscape.removeEventListener('change', wake);
     if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
     stage.removeEventListener('webglcontextlost', fail, true);
     book?.dispose();
@@ -321,7 +344,8 @@ export function openViewer({ album, startIndex = 0, onOpenPhoto, onClose, onPerP
   }
 
   root.addEventListener('click', onClick);
-  root.addEventListener('pointermove', wake);
+  root.addEventListener('pointermove', onPointerMove);
+  phoneLandscape.addEventListener('change', wake);
   root.addEventListener('pointerdown', onPointerDown, true);
   window.addEventListener('keydown', onKey);
   document.addEventListener('fullscreenchange', onFullscreen);
@@ -334,17 +358,17 @@ export function openViewer({ album, startIndex = 0, onOpenPhoto, onClose, onPerP
   const onTurn = () => book?.setSingle(upright.matches);
   upright.addEventListener('change', onTurn);
 
-  // Read live so the framing follows rotation; in phone landscape the foot floats over the book.
-  const phoneLandscape = matchMedia('(orientation: landscape) and (max-height: 519.98px)');
+  // Read live so the framing follows rotation; in phone landscape and full screen the bars float over the book.
   const insets = {
     get top() {
-      return $('.ab-bar').offsetHeight;
+      return document.fullscreenElement ? 0 : $('.ab-bar').offsetHeight;
     },
     get bottom() {
-      return phoneLandscape.matches ? 0 : $('.ab-foot').offsetHeight;
+      return phoneLandscape.matches || document.fullscreenElement ? 0 : $('.ab-foot').offsetHeight;
     },
   };
   build(startIndex);
+  wake();
 
   return {
     close,
