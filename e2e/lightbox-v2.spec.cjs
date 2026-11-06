@@ -477,6 +477,9 @@ test('trash preview resolves its own media and only invokes restore or confirmed
     await expect(page.locator('.lb-img')).toHaveAttribute('src', /trash-preview/);
     await expect(page.locator('.lb-bar [data-act]')).toHaveCount(5);
     await expect(page.locator('.lb-back')).toHaveText('Recently Deleted', { useInnerText: true });
+    // The light computer bar keeps Restore and Delete permanently readable.
+    const ink = await page.locator('.lb-brand').evaluate((node) => getComputedStyle(node).color);
+    for (const act of ['restore', 'purge']) await expect(page.locator(`.lb-bar [data-act=${act}]`)).toHaveCSS('color', ink);
     await expect(page.locator('.lb-details')).toHaveCount(0);
     await page.keyboard.press('i');
     await expect(page.locator('.lb-details')).toHaveCount(0);

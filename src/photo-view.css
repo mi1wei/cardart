@@ -281,6 +281,7 @@
   }
   .lb .lb-back { flex: none; max-width: none; color: var(--ink-2); font-size: var(--text-12); line-height: var(--leading-12); border-radius: var(--radius-8); }
   .lb .lb-back svg { width: 16px; height: 16px; flex-basis: 16px; }
+  .lb .lb-btn { color: var(--ink); }
   .lb .lb-brand { display: flex; flex: none; align-items: center; gap: 6px; color: var(--ink); font-size: var(--text-16); line-height: var(--leading-16); font-weight: 600; }
   .lb .lb-bar-album {
     min-width: 0;
