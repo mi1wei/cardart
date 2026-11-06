@@ -14,6 +14,11 @@ const imageFitsStage = (page) => page.evaluate(() => {
 });
 // Media query listeners run in the rendering update, before animation frame callbacks.
 const nextFrames = (page) => page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+// The computer card is open; wait until the phone layout has closed it before touching details.
+async function toPhone(page, width = 390, height = 844) {
+  await page.setViewportSize({ width, height });
+  await expect(page.locator('.lb-details')).toBeHidden();
+}
 
 async function open(fixture, options = {}) {
   const album = await test.step('Prepare mixed-media album', () => seedMixed(fixture, options));
@@ -258,7 +263,7 @@ test('phone swipes navigate, open the bottom sheet or close, while a two-finger 
   const fixture = await desktopFixture();
   try {
     const { page, desktop } = await open(fixture);
-    await page.setViewportSize({ width: 390, height: 844 });
+    await toPhone(page);
     await swipe(page, 0, -100);
     await expect(page.locator('.lb-details')).toBeVisible();
     const sheet = await page.locator('.lb-details').boundingBox();
@@ -298,7 +303,7 @@ test('on a 320px phone the sheet cover button keeps its icon and its label insid
   const fixture = await desktopFixture();
   try {
     const { page } = await open(fixture);
-    await page.setViewportSize({ width: 320, height: 640 });
+    await toPhone(page, 320, 640);
     const cover = page.locator('.lb-details [data-act=sheet-cover]');
     const fits = () => cover.evaluate((button) => {
       const box = button.getBoundingClientRect();
@@ -324,8 +329,10 @@ test('on a 320px phone the sheet cover button keeps its icon and its label insid
 test('at phone width the ⋯ menu opens under its button when the Windows window buttons push the bar in', async () => {
   const fixture = await desktopFixture();
   try {
-    const { page } = await open(fixture);
-    await page.setViewportSize({ width: 860, height: 800 });
+    const { page, desktop } = await open(fixture);
+    // Resize the real window: an emulated viewport leaves the Windows title-bar values at the window's width.
+    await desktop.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(860, 800));
+    await expect.poll(() => page.evaluate(() => innerWidth)).toBe(860);
     // A Mac runs the Windows rules too: without window-controls-overlay values they fall back to 24px.
     await page.evaluate(() => { document.documentElement.dataset.desktop = 'win'; });
     const button = page.locator('.lb-bar [data-act=menu]');
@@ -596,7 +603,7 @@ test('switching the album picker from Copy to Move still asks before an unsaved 
   const fixture = await desktopFixture();
   try {
     const { page, origin, album } = await open(fixture);
-    await page.setViewportSize({ width: 860, height: 800 });
+    await toPhone(page, 860, 800);
     const kyoto = await (await page.request.post(`${origin}/api/albums`, { data: { title: 'Kyoto' } })).json();
     const count = async (id) => (await (await page.request.get(`${origin}/api/albums/${id}`)).json()).photos.length;
     await page.locator('.lb-bar [data-act=details]').click();

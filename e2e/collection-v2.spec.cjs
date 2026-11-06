@@ -56,6 +56,8 @@ test('keyboard selection, copy to another album, delete undo and trash restore p
     await page.locator('.batch-bar [data-act=copy]').click();
     await page.locator(`.album-picker [data-target="${b.id}"]`).click();
     await expect.poll(async () => (await (await page.request.get(`${origin}/api/albums/${b.id}`)).json()).photos.length).toBe(3);
+    // The page clears the selection only once it has the copy's response.
+    await expect(page.locator('.tile.sel')).toHaveCount(0);
     await page.keyboard.press(process.platform === 'darwin' ? 'Meta+a' : 'Control+a');
     await page.locator('.batch-bar [data-act=delete]').click();
     await page.locator('dialog.dlg [value=ok]').click();
