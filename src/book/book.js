@@ -4,6 +4,7 @@ import { DIM, photoAt } from './layout.js';
 import { createStage } from './scene.js';
 import { createSheet, restHoleAngle } from './sheet.js';
 import { createPageTexture } from './textures.js';
+import { drawTitlePage } from './title-page.js';
 
 const { W, H, T } = DIM;
 const PI = Math.PI;
@@ -34,6 +35,15 @@ export function createBook(container, { title, titlePage = null, pages, photoUrl
     scene.add(sheet.group);
     sheets.push(sheet);
   }
+  const portraitSheets = Array.from({ length: 2 }, () => {
+    const sheet = createSheet(blank[0], blank[1]);
+    sheet.front.userData = { portrait: true };
+    sheet.group.visible = false;
+    scene.add(sheet.group);
+    return sheet;
+  });
+  const portraitTextures = new Map();
+  let portraitTurn = null;
 
   // Leaf 0 is the cover; leaf j ≥ 1 is drawn sheet j − 1 and shows album leaf o + j − 1.
   // Leaves j < k lie on the left. The album spread is o + k, or 0 when closed.
@@ -42,10 +52,7 @@ export function createBook(container, { title, titlePage = null, pages, photoUrl
   let o = 0;
   let k = 1;
   let ringX = 0;
-  // Upright phones show one page (v2 spec §8): side −1 is the left page of the spread, 1 the right;
-  // pan follows side so the camera glides between them. Page 1 is the title page.
   let side = 1;
-  let pan = 1;
   const pageHalf = () => (binder.xb + binder.B) / 2;
   let pointer = null;
   let drag = null;
@@ -60,6 +67,41 @@ export function createBook(container, { title, titlePage = null, pages, photoUrl
   const spread = () => (k === 0 ? 0 : o + k);
   const pageNo = () => (k === 0 ? 0 : 2 * spread() - (side < 0 ? 1 : 0));
   const report = () => onChange({ spread: spread(), spreads: G + 1, closed: k === 0, page: pageNo(), pages: 2 * G + 1, single });
+
+  function portraitTexture(page) {
+    if (!portraitTextures.has(page)) {
+      const texture = createPageTexture(0, pages[page - 2] ?? null, photoUrl, requestRender, itemInfo);
+      texture.anisotropy = anisotropy;
+      if (page === 1) {
+        const context = texture.image.getContext('2d');
+        context.save();
+        context.translate(22, 16);
+        drawTitlePage(context, titlePage ?? { title, dates: '', count: '' }, W - 44, H - 32);
+        context.globalCompositeOperation = 'destination-over';
+        context.fillStyle = '#eef1f3';
+        context.fillRect(0, 0, W - 44, H - 32);
+        context.restore();
+        texture.needsUpdate = true;
+      }
+      portraitTextures.set(page, texture);
+    }
+    return portraitTextures.get(page);
+  }
+
+  function refreshPortraitTextures() {
+    const want = new Set();
+    if (single && k > 0) {
+      for (const page of [pageNo() - 1, pageNo(), pageNo() + 1, portraitTurn?.from, portraitTurn?.to]) {
+        if (page >= 1 && page <= 2 * G + 1) want.add(page);
+      }
+    }
+    for (const [page, texture] of portraitTextures) {
+      if (want.has(page)) continue;
+      texture.dispose();
+      portraitTextures.delete(page);
+    }
+    for (const page of want) portraitTexture(page);
+  }
 
   // Real pages for the spreads around the current one; every other face shows the blank film.
   function refreshTextures() {
@@ -83,6 +125,7 @@ export function createBook(container, { title, titlePage = null, pages, photoUrl
       sheet.front.material.map = textures.get(2 * (o + i)) ?? blank[0];
       sheet.back.material.map = textures.get(2 * (o + i) + 1) ?? blank[1];
     });
+    refreshPortraitTextures();
     requestRender();
   }
 
@@ -123,13 +166,13 @@ export function createBook(container, { title, titlePage = null, pages, photoUrl
   }
 
   // Straight to an album spread, without turning pages.
-  function jump(s, at = 1) {
+  function jump(s, at = 1, turn = null) {
     s = Math.max(1, Math.min(G + 1, Math.round(s)));
     pointer = drag = null;
+    portraitTurn = turn;
     o = Math.max(0, Math.min(G - S, s - MIDDLE));
     k = s - o;
     side = s === G + 1 ? -1 : at; // the last spread has no right page
-    pan = side;
     leaves.forEach((leaf, j) => Object.assign(leaf, idle(j, k)));
     report();
     refreshTextures();
@@ -138,32 +181,79 @@ export function createBook(container, { title, titlePage = null, pages, photoUrl
   // From the cover: if the window has not got back to the start yet, jump there.
   const open = () => (o > 0 ? jump(1, -1) : setSpread(1));
 
-  // One page on: across to the right page, or turn the leaf to the next left page.
+  function preparePortraitTurn(direction) {
+    const from = pageNo();
+    const to = from + direction;
+    if (to < 1 || to > 2 * G + 1) return null;
+    const start = direction > 0 ? 0 : PI;
+    return {
+      from, to, direction, start, goal: start,
+      leaf: { th: start, w: 0, b: 0, bv: 0, wait: 0 },
+    };
+  }
+
+  function commitPortraitTurn() {
+    const turn = portraitTurn;
+    turn.goal = turn.direction > 0 ? PI : 0;
+    jump(Math.floor((turn.to + 1) / 2), turn.to % 2 ? -1 : 1, turn);
+  }
+
+  function turnPortrait(direction) {
+    portraitTurn = null;
+    if (pageNo() === 1 && direction < 0) return setSpread(0);
+    portraitTurn = preparePortraitTurn(direction);
+    if (portraitTurn) commitPortraitTurn();
+  }
+
   function nextPage() {
     if (k === 0) return open();
-    if (side < 0 && spread() <= G) return look(1);
-    setSpread(spread() + 1);
+    turnPortrait(1);
   }
 
   function prevPage() {
     if (k === 0) return;
-    if (side > 0) return look(-1);
-    setSpread(spread() - 1); // from the title page this closes the book
-  }
-
-  function look(next) {
-    side = next;
-    report();
-    requestRender();
+    turnPortrait(-1);
   }
 
   const setLocal = (kk) => setSpread(kk === 0 ? 0 : o + kk);
+
+  function advanceLeaf(leaf, goal, dt, dragged, cover = false) {
+    if (reduced.matches) {
+      Object.assign(leaf, { th: goal, w: 0, b: 0, bv: 0, wait: 0 });
+      return false;
+    }
+    const steps = Math.ceil(dt * 120);
+    const interval = dt / steps;
+    for (let count = 0; count < steps; count++) {
+      leaf.w += (-81 * (leaf.th - goal) - 16.2 * leaf.w) * interval;
+      leaf.th += leaf.w * interval;
+      if (leaf.th < 0 || leaf.th > PI) {
+        leaf.th = Math.min(PI, Math.max(0, leaf.th));
+        leaf.w = 0;
+      }
+      if (cover) continue;
+      if (dragged) {
+        leaf.b = goal - leaf.th;
+        leaf.bv = 0;
+      } else {
+        leaf.bv += (-196 * (leaf.b + 0.06 * leaf.w) - 15.4 * leaf.bv) * interval;
+        leaf.b += leaf.bv * interval;
+      }
+      leaf.b = Math.min(PI - leaf.th, Math.max(-leaf.th, leaf.b));
+    }
+    const still = Math.abs(leaf.w) < 1e-2 && Math.abs(leaf.b) < 1e-3 && Math.abs(leaf.bv) < 1e-2;
+    if (!dragged && still && Math.abs(leaf.th - goal) < 1e-3) {
+      Object.assign(leaf, { th: goal, w: 0, b: 0, bv: 0 });
+      return false;
+    }
+    return true;
+  }
 
   // Advances every leaf by dt seconds; returns true while anything still moves.
   function step(dt) {
     let moving = false;
     leaves.forEach((leaf, j) => {
-      const dragged = drag?.j === j;
+      const dragged = !drag?.portrait && drag?.j === j;
       const goal = dragged ? drag.edge : j < k ? PI : 0;
       if (reduced.matches) {
         Object.assign(leaf, { th: goal, w: 0, b: 0, bv: 0, wait: 0 });
@@ -174,51 +264,47 @@ export function createBook(container, { title, titlePage = null, pages, photoUrl
         moving = true;
         return;
       }
-      const n = Math.ceil(dt * 120);
-      const h = dt / n;
-      for (let i = 0; i < n; i++) {
-        leaf.w += (-81 * (leaf.th - goal) - 16.2 * leaf.w) * h;
-        leaf.th += leaf.w * h;
-        if (leaf.th < 0 || leaf.th > PI) {
-          leaf.th = Math.min(PI, Math.max(0, leaf.th));
-          leaf.w = 0;
-        }
-        if (j === 0) continue; // the cover does not bend
-        if (dragged) {
-          leaf.b = goal - leaf.th;
-          leaf.bv = 0;
-        } else {
-          leaf.bv += (-196 * (leaf.b + 0.06 * leaf.w) - 15.4 * leaf.bv) * h;
-          leaf.b += leaf.bv * h;
-        }
-        leaf.b = Math.min(PI - leaf.th, Math.max(-leaf.th, leaf.b));
-      }
-      const still = Math.abs(leaf.w) < 1e-2 && Math.abs(leaf.b) < 1e-3 && Math.abs(leaf.bv) < 1e-2;
-      if (!dragged && still && Math.abs(leaf.th - goal) < 1e-3) Object.assign(leaf, { th: goal, w: 0, b: 0, bv: 0 });
-      else moving = true;
+      if (advanceLeaf(leaf, goal, dt, dragged, j === 0)) moving = true;
     });
-    if (reduced.matches) pan = side;
-    else if (pan !== side) {
-      pan += (side - pan) * (1 - Math.exp(-dt * 9));
-      if (Math.abs(side - pan) < 1e-3) pan = side;
+    if (portraitTurn) {
+      const dragged = !!drag?.portrait;
+      if (advanceLeaf(portraitTurn.leaf, dragged ? drag.edge : portraitTurn.goal, dt, dragged)) moving = true;
+      else if (!dragged) portraitTurn = null;
     }
-    if (pan !== side) moving = true;
     return moving;
   }
 
   function place() {
     const c = leaves[0].th / PI;
     const { C } = binder.pose(c);
+    const portrait = single && k > 0 && c > .999;
     sheets.forEach((sheet, i) => {
+      sheet.group.visible = !portrait;
       const { th, b } = leaves[i + 1];
       const psiR = restHoleAngle(C[1], binder.R, (S - i - 0.5) * T);
       const psiL = PI - restHoleAngle(C[1], binder.R, (i + 0.5) * T);
       sheet.update(C, binder.R, psiR + (th / PI) * (psiL - psiR), th, b);
     });
+    portraitSheets[0].group.visible = portrait;
+    portraitSheets[1].group.visible = portrait && !!portraitTurn;
+    if (portrait) {
+      const base = portraitSheets[0];
+      const height = (S - .5) * T;
+      base.front.material.map = portraitTexture(portraitTurn ? (portraitTurn.direction > 0 ? portraitTurn.to : portraitTurn.from) : pageNo());
+      base.update(C, binder.R, restHoleAngle(C[1], binder.R, height), 0, 0);
+      if (portraitTurn) {
+        const turn = portraitSheets[1];
+        const { th, b } = portraitTurn.leaf;
+        turn.front.material.map = portraitTexture(portraitTurn.direction > 0 ? portraitTurn.from : portraitTurn.to);
+        const psiR = restHoleAngle(C[1], binder.R, height + T * .2);
+        const psiL = PI - restHoleAngle(C[1], binder.R, height + T * .2);
+        turn.update(C, binder.R, psiR + (th / PI) * (psiL - psiR), th, b);
+      }
+    }
     ringX = C[0];
     const opened = smoothstep(c);
     const zoom = 1 + 0.15 * Math.sin(PI * c);
-    if (single) stage.frame(binder.closedCenter * (1 - opened) + pan * pageHalf() * opened, zoom, pageHalf());
+    if (single) stage.frame(binder.closedCenter * (1 - opened) + pageHalf() * opened, zoom, pageHalf());
     else stage.frame(binder.closedCenter * (1 - opened), zoom);
   }
 
@@ -265,13 +351,50 @@ export function createBook(container, { title, titlePage = null, pages, photoUrl
     else if (x >= ringX) j = k <= S ? k : -1;
     const slop = e.pointerType === 'mouse' ? 5 : 9;
     pointer = { id: e.pointerId, x0: e.clientX, y0: e.clientY, x, j, fromRight: j >= k, slop, samples: [] };
+    if (single && k > 0) {
+      portraitTurn = null;
+      pointer.portrait = true;
+      leaves.forEach((leaf, index) => Object.assign(leaf, idle(index, k)));
+      requestRender();
+    }
     canvas.setPointerCapture(e.pointerId);
   }
 
   function onMove(e) {
     const p = pointer;
-    if (!p || e.pointerId !== p.id || p.j < 0) return;
+    if (!p || e.pointerId !== p.id) return;
     const dx = e.clientX - p.x0;
+    if (p.portrait) {
+      if (!drag && Math.hypot(dx, e.clientY - p.y0) < p.slop) return;
+      if (!drag && (p.vertical || Math.abs(e.clientY - p.y0) >= Math.abs(dx))) {
+        p.vertical = true;
+        return;
+      }
+      const direction = dx < 0 ? 1 : -1;
+      if (pageNo() === 1 && direction < 0) {
+        portraitTurn = null;
+        drag = null;
+        p.samples = [];
+        p.portrait = false;
+        p.j = 0;
+        p.fromRight = false;
+      } else {
+        if (!drag || portraitTurn?.direction !== direction) {
+          portraitTurn = preparePortraitTurn(direction);
+          p.fromRight = direction > 0;
+          p.edge0 = direction > 0 ? 0 : PI;
+          p.scale = pxPerMm();
+        }
+        drag = p;
+        p.edge = Math.acos(Math.min(1, Math.max(-1, Math.cos(p.edge0) + dx / p.scale / W)));
+        p.samples.push([e.timeStamp, e.clientX]);
+        if (p.samples.length > 20) p.samples.shift();
+        refreshPortraitTextures();
+        requestRender();
+        return;
+      }
+    }
+    if (p.j < 0) return;
     if (!drag) {
       if (Math.hypot(dx, e.clientY - p.y0) < p.slop) return;
       const leaf = leaves[p.j];
@@ -285,14 +408,18 @@ export function createBook(container, { title, titlePage = null, pages, photoUrl
     requestRender();
   }
 
-  function release(p, e) {
+  function shouldTurn(p, e) {
     p.samples.push([e.timeStamp, e.clientX]);
     const [t0, x0] = p.samples.find(([t]) => e.timeStamp - t <= 100);
     const dt = (e.timeStamp - t0) / 1000;
     const vx = dt > 0 ? (e.clientX - x0) / p.scale / W / dt : 0; // sheet widths per second, rightwards
     const v = p.fromRight ? -vx : vx;
     const progress = p.fromRight ? p.edge / PI : 1 - p.edge / PI;
-    if (v > 0.9 || (progress > 0.22 && v >= -0.05)) {
+    return v > 0.9 || (progress > 0.22 && v >= -0.05);
+  }
+
+  function release(p, e) {
+    if (shouldTurn(p, e)) {
       setLocal(p.fromRight ? Math.max(k, p.j + 1) : Math.min(k, p.j));
       return true;
     }
@@ -302,16 +429,17 @@ export function createBook(container, { title, titlePage = null, pages, photoUrl
   function tap(e, p) {
     if (k === 0) return open();
     aim(e);
-    const [first] = raycaster.intersectObjects(sheets.flatMap((s) => [s.front, s.back]), false);
+    const targets = single ? [portraitSheets[0].front] : sheets.flatMap((s) => [s.front, s.back]);
+    const [first] = raycaster.intersectObjects(targets, false);
     if (first) {
       const { i, back } = first.object.userData;
-      const face = 2 * (o + i) + (back ? 1 : 0);
+      const face = single ? pageNo() - 2 : 2 * (o + i) + (back ? 1 : 0);
       const u = back ? 1 - first.uv.x : first.uv.x;
-      const index = photoAt(pages[face], face, u * W, (1 - first.uv.y) * H);
+      const index = photoAt(pages[face], single ? 0 : face, u * W, (1 - first.uv.y) * H);
       if (index >= 0) return onPhotoClick(index);
     }
     if (onBlankTap(e)) return;
-    if (single) return p.x < pan * pageHalf() ? prevPage() : nextPage();
+    if (single) return p.x < pageHalf() ? prevPage() : nextPage();
     setSpread(spread() + (p.x < ringX ? -1 : 1));
   }
 
@@ -321,8 +449,12 @@ export function createBook(container, { title, titlePage = null, pages, photoUrl
     pointer = null;
     if (drag) {
       drag = null;
-      // On one page a swipe that turns no leaf still moves a page: left page → right page and back.
-      if (!release(p, e) && single && Math.abs(e.clientX - p.x0) > 40) (e.clientX < p.x0 ? nextPage : prevPage)();
+      if (p.portrait) {
+        if (portraitTurn) {
+          if (e.type === 'pointerup' && shouldTurn(p, e)) commitPortraitTurn();
+          else portraitTurn.goal = portraitTurn.start;
+        }
+      } else if (e.type === 'pointerup') release(p, e);
     } else if (e.type === 'pointerup' && Math.hypot(e.clientX - p.x0, e.clientY - p.y0) < p.slop) {
       tap(e, p); // a swipe that turned no leaf (e.g. past the last spread) is not a tap
     }
@@ -346,17 +478,24 @@ export function createBook(container, { title, titlePage = null, pages, photoUrl
   return {
     next: () => (single ? nextPage() : k === 0 ? open() : setSpread(spread() + 1)),
     prev: () => (single ? prevPage() : setSpread(spread() - 1)),
-    toggleCover: () => (k > 0 ? setSpread(0) : open()),
+    toggleCover: () => {
+      portraitTurn = null;
+      return k > 0 ? setSpread(0) : open();
+    },
     jump,
     setSingle(on) {
+      if (single === on) return;
+      pointer = drag = null;
+      portraitTurn = null;
       single = on;
       if (spread() === G + 1) side = -1;
-      pan = side;
+      leaves.forEach((leaf, index) => Object.assign(leaf, idle(index, k)));
+      refreshPortraitTextures();
       report();
       requestRender();
     },
     redraw: requestRender,
-    stats: () => ({ offset: o, textures: textures.size }),
+    stats: () => ({ offset: o, textures: textures.size + portraitTextures.size }),
     dispose() {
       disposed = true;
       cancelAnimationFrame(raf);
@@ -366,7 +505,9 @@ export function createBook(container, { title, titlePage = null, pages, photoUrl
       canvas.removeEventListener('pointerup', onUp);
       canvas.removeEventListener('pointercancel', onUp);
       sheets.forEach((s) => s.dispose());
+      portraitSheets.forEach((sheet) => sheet.dispose());
       for (const texture of [...textures.values(), ...blank]) texture.dispose();
+      for (const texture of portraitTextures.values()) texture.dispose();
       binder.dispose();
       stage.dispose();
     },

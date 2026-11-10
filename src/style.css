@@ -2808,6 +2808,34 @@ body:has(.ab, .lb) {
   gap: 6px;
 }
 
+.ab-fullscreen {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  height: 44px;
+  min-height: 44px;
+  margin-bottom: 20px;
+  padding: 0 19px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--raised);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--text-14);
+  line-height: var(--leading-14);
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.ab-fullscreen:hover { background: var(--hover); }
+.ab-fullscreen svg { width: 24px; height: 24px; }
+
+@media (max-width: 600px) and (orientation: portrait) {
+  .ab-fullscreen { display: inline-flex; }
+}
+
 /* Turning, auto-flip and the cover share one capsule at the bottom (v2 spec §8). */
 .ab-turn,
 .ab-player {

@@ -15,6 +15,7 @@ const PATHS = {
   prev: '<path d="m14.5 6-6 6 6 6"/>',
   next: '<path d="m9.5 6 6 6-6 6"/>',
   phone: '<rect x="7" y="2.5" width="10" height="19" rx="2"/><path d="M11 18.5h2"/>',
+  rotatePhone: '<path d="M16 12h3a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-3" opacity=".4"/><rect x="3" y="6" width="10" height="16" rx="2"/><path d="M7 8h2M11 2h2a6 6 0 0 1 6 6m-3-3 3 3 3-3"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
   upload: '<path d="M12 15V4M7.5 8.5 12 4l4.5 4.5M5 15v3.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V15"/>',
   play: '<path d="m9 6 9 6-9 6z" fill="currentColor" stroke="none"/>',

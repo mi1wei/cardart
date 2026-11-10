@@ -32,6 +32,7 @@ export function openViewer({ album, startIndex = 0, onOpenPhoto, onClose, onPerP
       <button class="ab-secondary" type="button" data-act="cover" aria-label="${t('close-book')}">${icon('bookClosed')}<span>${t('close-book')}</span></button>
     </header>
     <footer class="ab-foot">
+      <button class="ab-fullscreen" type="button" data-act="view-fullscreen">${icon('rotatePhone')}<span>${t('fullscreen-view')}</span></button>
       <div class="ab-nav ab-turn">
         <button class="ab-icon ab-round" type="button" data-act="prev" aria-label="${t('prev-page')}">${icon('prev')}</button>
         <span class="ab-count" aria-live="polite"></span>
@@ -60,6 +61,7 @@ export function openViewer({ album, startIndex = 0, onOpenPhoto, onClose, onPerP
   const slider = $('.ab-slider');
   const per = $('.ab-select select');
   const full = $('[data-act=fullscreen]');
+  const fullscreenHint = $('.ab-fullscreen');
   let book = null;
   let pages = [];
   let spread = 1;
@@ -89,6 +91,8 @@ export function openViewer({ album, startIndex = 0, onOpenPhoto, onClose, onPerP
     full.innerHTML = icon(on ? 'fullscreenExit' : 'fullscreen');
     full.setAttribute('aria-label', t(on ? 'fullscreen-exit' : 'fullscreen'));
     full.setAttribute('aria-pressed', String(on));
+    if (on && document.activeElement === fullscreenHint) full.focus();
+    paint();
     // Full screen shows only the album: the bars float over it and fade like during auto-flip.
     wake();
     book?.redraw();
@@ -109,6 +113,7 @@ export function openViewer({ album, startIndex = 0, onOpenPhoto, onClose, onPerP
   function paint() {
     const state = player.state();
     const on = state !== 'off';
+    fullscreenHint.hidden = full.hidden || standalone || !!document.fullscreenElement || view.closed || on;
     $('.ab-bar [data-act=cover]').hidden = view.closed;
     $('.ab-turn').hidden = view.closed || on;
     $('.ab-player').hidden = !on;
@@ -308,7 +313,7 @@ export function openViewer({ album, startIndex = 0, onOpenPhoto, onClose, onPerP
     if (target.dataset.per) setPerPage(Number(target.dataset.per));
     else if (target.dataset.speed) player.setSpeed(target.dataset.speed);
     else if (act === 'close') onClose();
-    else if (act === 'fullscreen') toggleFullscreen();
+    else if (act === 'fullscreen' || act === 'view-fullscreen') toggleFullscreen();
     else if (act === 'play') startPlaying();
     else if (act === 'pause') player.toggle();
     else if (act === 'stop') player.stop();

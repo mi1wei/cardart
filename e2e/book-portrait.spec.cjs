@@ -32,6 +32,66 @@ async function swipe(page, from, to) {
   await page.mouse.up();
 }
 
+test('the portrait fullscreen hint is readable, touch-sized and hidden in landscape', async () => {
+  test.setTimeout(60_000);
+  const fixture = await desktopFixture();
+  try {
+    const { page } = await fixture.launch();
+    const origin = new URL(page.url()).origin;
+    await page.setViewportSize({ width: 390, height: 844 });
+    const album = await seedBook(page, origin, 'Fullscreen hint', 3, 1);
+    await page.goto(`${origin}/#/a/${album.id}/3d`);
+    const hint = page.getByRole('button', { name: 'View fullscreen', exact: true });
+    await expect(hint).toBeVisible();
+    expect((await hint.boundingBox()).height).toBeGreaterThanOrEqual(44);
+    const footer = await page.locator('.ab-turn').boundingBox();
+    const button = await hint.boundingBox();
+    expect(button.y + button.height).toBeLessThan(footer.y);
+    await hint.click();
+    await expect.poll(() => page.evaluate(() => !!document.fullscreenElement)).toBe(true);
+    await expect(hint).toBeHidden();
+    await page.evaluate(() => document.exitFullscreen());
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(hint).toBeVisible();
+    await page.setViewportSize({ width: 844, height: 390 });
+    await expect(hint).toBeHidden();
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(hint).toBeVisible();
+    await page.evaluate(() => localStorage.setItem('lang', 'zh'));
+    await page.reload();
+    await expect(page.getByRole('button', { name: '全屏观看', exact: true })).toBeVisible();
+  } finally { await fixture.close(); }
+});
+
+test('the iPhone fullscreen hint explains Home Screen viewing and hides in standalone mode', async () => {
+  test.setTimeout(60_000);
+  const fixture = await desktopFixture();
+  try {
+    const { page } = await fixture.launch();
+    const origin = new URL(page.url()).origin;
+    await page.setViewportSize({ width: 390, height: 844 });
+    const album = await seedBook(page, origin, 'iPhone fullscreen', 1, 1);
+    await page.evaluate((hash) => {
+      Object.defineProperty(navigator, 'userAgent', { configurable: true, value: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile/15E148 Safari/604.1' });
+      Object.defineProperty(document, 'fullscreenEnabled', { configurable: true, value: false });
+      location.hash = hash;
+    }, `#/a/${album.id}/3d`);
+    const hint = page.getByRole('button', { name: 'View fullscreen', exact: true });
+    await expect(hint).toBeVisible();
+    await hint.click();
+    await expect(page.locator('.toast')).toContainText('Home Screen');
+    expect(await page.evaluate(() => !!document.fullscreenElement)).toBe(false);
+    await page.evaluate(() => { location.hash = '#/'; });
+    await expect(page.locator('.ab')).toHaveCount(0);
+    await page.evaluate((hash) => {
+      Object.defineProperty(navigator, 'standalone', { configurable: true, value: true });
+      location.hash = hash;
+    }, `#/a/${album.id}/3d`);
+    await expect(page.locator('.ab')).toBeVisible();
+    await expect(hint).toBeHidden();
+  } finally { await fixture.close(); }
+});
+
 test('an upright phone shows one page at a time and swipes through its pages', async () => {
   test.setTimeout(60_000);
   const fixture = await desktopFixture();
@@ -86,6 +146,220 @@ test('rotating an upright phone to spreads and back keeps the page it shows', as
     await expect(count).toHaveText('2 / 3');
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(count).toHaveText('Page 4 of 5');
+  } finally { await fixture.close(); }
+});
+
+test('successive portrait pages turn without moving the viewing camera', async () => {
+  test.setTimeout(90_000);
+  const fixture = await desktopFixture();
+  let observedPage;
+  try {
+    const { page } = await fixture.launch();
+    observedPage = page;
+    const origin = new URL(page.url()).origin;
+    await page.setViewportSize({ width: 390, height: 844 });
+    const album = await seedBook(page, origin, 'Stationary binding', 3, 1);
+    await page.evaluate(() => {
+      const prototype = WebGL2RenderingContext.prototype;
+      const getLocation = prototype.getUniformLocation;
+      const setMatrix = prototype.uniformMatrix4fv;
+      const names = new WeakMap();
+      window.portraitView = [];
+      prototype.getUniformLocation = function (program, name) {
+        const location = getLocation.call(this, program, name);
+        if (location) names.set(location, name);
+        return location;
+      };
+      prototype.uniformMatrix4fv = function (location, transpose, values, ...rest) {
+        if (names.get(location) === 'viewMatrix') window.portraitView = Array.from(values);
+        return setMatrix.call(this, location, transpose, values, ...rest);
+      };
+      window.restorePortraitView = () => {
+        prototype.getUniformLocation = getLocation;
+        prototype.uniformMatrix4fv = setMatrix;
+      };
+    });
+    await page.evaluate((hash) => { location.hash = hash; }, `#/a/${album.id}/3d`);
+    await expect(page.locator('.ab-count')).toHaveText('Page 2 of 5', { timeout: 15000 });
+    await expect.poll(() => settled(page), { timeout: 15000 }).toBe(true);
+    await expect.poll(() => page.evaluate(() => window.portraitView.length)).toBe(16);
+    const initial = await page.evaluate(() => window.portraitView);
+    for (const expected of ['Page 3 of 5', 'Page 4 of 5']) {
+      await page.locator('.ab [data-act=next]').click();
+      await expect(page.locator('.ab-count')).toHaveText(expected);
+      await expect.poll(() => settled(page), { timeout: 15000 }).toBe(true);
+      const current = await page.evaluate(() => window.portraitView);
+      expect(Math.max(...current.map((value, index) => Math.abs(value - initial[index])))).toBeLessThan(.001);
+    }
+  } finally {
+    await observedPage?.evaluate(() => window.restorePortraitView?.()).catch(() => {});
+    await fixture.close();
+  }
+});
+
+test('a canceled upright swipe keeps its page and a following swipe still works', async () => {
+  test.setTimeout(60_000);
+  const fixture = await desktopFixture();
+  try {
+    const { page, desktop } = await fixture.launch();
+    const origin = new URL(page.url()).origin;
+    await page.setViewportSize({ width: 390, height: 844 });
+    const album = await seedBook(page, origin, 'Canceled swipe', 3, 1);
+    await page.goto(`${origin}/#/a/${album.id}/3d`);
+    const count = page.locator('.ab-count');
+    await expect(count).toHaveText('Page 2 of 5', { timeout: 15000 });
+    await expect.poll(() => settled(page), { timeout: 15000 }).toBe(true);
+    const session = await desktop.context().newCDPSession(page);
+    await session.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 1 });
+    await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 300, y: 420 }] });
+    await session.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 180, y: 420 }] });
+    await session.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 65, y: 420 }] });
+    await session.send('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] });
+    await expect(count).toHaveText('Page 2 of 5');
+    await expect.poll(() => settled(page), { timeout: 15000 }).toBe(true);
+    await touch(session, [[300, 420], [180, 420], [65, 420]]);
+    await expect(count).toHaveText('Page 3 of 5');
+    await session.detach();
+  } finally { await fixture.close(); }
+});
+
+test('a short reversed title-page drag does not close the book', async () => {
+  test.setTimeout(60_000);
+  const fixture = await desktopFixture();
+  try {
+    const { page, desktop } = await fixture.launch();
+    const origin = new URL(page.url()).origin;
+    await page.setViewportSize({ width: 390, height: 844 });
+    const album = await seedBook(page, origin, 'Reverse on title', 1, 1);
+    await page.goto(`${origin}/#/a/${album.id}/3d`);
+    const count = page.locator('.ab-count');
+    await expect(count).toHaveText('Page 2 of 3', { timeout: 15000 });
+    await page.locator('.ab [data-act=prev]').click();
+    await expect(count).toHaveText('Page 1 of 3');
+    await expect.poll(() => settled(page), { timeout: 15000 }).toBe(true);
+    const session = await desktop.context().newCDPSession(page);
+    await session.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 1 });
+    await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 280, y: 420 }] });
+    for (const x of [180, 160, 280, 300]) {
+      await session.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y: 420 }] });
+    }
+    await page.waitForTimeout(180);
+    await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await expect(count).toHaveText('Page 1 of 3');
+    await expect.poll(() => settled(page), { timeout: 15000 }).toBe(true);
+    await touch(session, [[300, 420], [180, 420], [65, 420]]);
+    await expect(count).toHaveText('Page 2 of 3');
+    await session.detach();
+  } finally { await fixture.close(); }
+});
+
+test('the upright title retains an opaque light backing for dark-theme contrast', async () => {
+  test.setTimeout(60_000);
+  const fixture = await desktopFixture();
+  let observedPage;
+  try {
+    const { page } = await fixture.launch();
+    observedPage = page;
+    const origin = new URL(page.url()).origin;
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.emulateMedia({ colorScheme: 'dark' });
+    const album = await seedBook(page, origin, 'Opaque title', 1, 1);
+    await page.evaluate(() => {
+      const prototype = CanvasRenderingContext2D.prototype;
+      const fillText = prototype.fillText;
+      prototype.fillText = function (text, ...rest) {
+        const result = fillText.call(this, text, ...rest);
+        if (text === 'Opaque title' && this.canvas.width === 839 && this.canvas.height === 770) window.portraitTitleCanvas = this.canvas;
+        return result;
+      };
+      window.restoreTitlePaint = () => { prototype.fillText = fillText; };
+    });
+    await page.evaluate((hash) => { location.hash = hash; }, `#/a/${album.id}/3d`);
+    await expect(page.locator('.ab-count')).toHaveText('Page 2 of 3', { timeout: 15000 });
+    await page.locator('.ab [data-act=prev]').click();
+    await expect(page.locator('.ab-count')).toHaveText('Page 1 of 3');
+    await expect.poll(() => page.evaluate(() => !!window.portraitTitleCanvas)).toBe(true);
+    const pixel = await page.evaluate(() => {
+      const canvas = window.portraitTitleCanvas;
+      return [...canvas.getContext('2d').getImageData(Math.floor(canvas.width / 2), Math.floor(canvas.height / 4), 1, 1).data];
+    });
+    expect(pixel[3]).toBe(255);
+    expect(Math.min(...pixel.slice(0, 3))).toBeGreaterThan(180);
+  } finally {
+    await observedPage?.evaluate(() => window.restoreTitlePaint?.()).catch(() => {});
+    await fixture.close();
+  }
+});
+
+test('every upright content page bends under the finger before advancing', async () => {
+  test.setTimeout(90_000);
+  const fixture = await desktopFixture();
+  try {
+    const { page, desktop } = await fixture.launch();
+    const origin = new URL(page.url()).origin;
+    await page.setViewportSize({ width: 390, height: 844 });
+    const album = await seedBook(page, origin, 'Paper under a finger', 3, 1);
+    await page.goto(`${origin}/#/a/${album.id}/3d`);
+    const count = page.locator('.ab-count');
+    const canvas = page.locator('.ab canvas');
+    await expect(count).toHaveText('Page 2 of 5', { timeout: 15000 });
+    const session = await desktop.context().newCDPSession(page);
+    await session.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 1 });
+    for (const [current, next] of [[2, 3], [3, 4]]) {
+      await expect.poll(() => settled(page), { timeout: 15000 }).toBe(true);
+      const before = await canvas.screenshot();
+      await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 300, y: 420 }] });
+      await session.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 180, y: 420 }] });
+      await session.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 120, y: 420 }] });
+      await expect.poll(async () => before.equals(await canvas.screenshot())).toBe(false);
+      await expect(count).toHaveText(`Page ${current} of 5`);
+      await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+      await expect(count).toHaveText(`Page ${next} of 5`);
+    }
+    await expect.poll(() => settled(page), { timeout: 15000 }).toBe(true);
+    const resting = await canvas.screenshot();
+    await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 300, y: 420 }] });
+    await session.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 285, y: 420 }] });
+    await page.waitForTimeout(200);
+    await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await expect(count).toHaveText('Page 4 of 5');
+    await expect.poll(() => settled(page), { timeout: 15000 }).toBe(true);
+    expect(resting.equals(await canvas.screenshot())).toBe(true);
+    await touch(session, [[300, 420], [180, 420], [65, 420]]);
+    await expect(count).toHaveText('Page 5 of 5');
+    await touch(session, [[300, 420], [180, 420], [65, 420]]);
+    await expect(count).toHaveText('Page 5 of 5');
+    await session.detach();
+  } finally { await fixture.close(); }
+});
+
+test('upright photo taps follow the displayed page through forward, reverse and rotation', async () => {
+  test.setTimeout(90_000);
+  const fixture = await desktopFixture();
+  try {
+    const { page } = await fixture.launch();
+    const origin = new URL(page.url()).origin;
+    await page.setViewportSize({ width: 390, height: 844 });
+    const album = await seedBook(page, origin, 'Displayed photo', 3, 1);
+    await page.goto(`${origin}/#/a/${album.id}/3d`);
+    const count = page.locator('.ab-count');
+    await expect(count).toHaveText('Page 2 of 5', { timeout: 15000 });
+    for (const [photo, action] of [[0, null], [1, 'next'], [2, 'next'], [1, 'prev']]) {
+      if (action) await page.locator(`.ab [data-act=${action}]`).click();
+      await expect(count).toHaveText(`Page ${photo + 2} of 5`);
+      await expect.poll(() => settled(page), { timeout: 15000 }).toBe(true);
+      await page.mouse.click(220, 400);
+      await expect(page.locator('.lb')).toBeVisible();
+      await expect(page).toHaveURL(new RegExp(`/p/${album.photos[photo].id}$`));
+      await page.locator('.lb [data-act=close]').evaluate((element) => element.click());
+      await expect(page.locator('.lb')).toHaveCount(0);
+    }
+    await page.setViewportSize({ width: 844, height: 390 });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(count).toHaveText('Page 3 of 5');
+    await expect.poll(() => settled(page), { timeout: 15000 }).toBe(true);
+    await page.mouse.click(220, 400);
+    await expect(page).toHaveURL(new RegExp(`/p/${album.photos[1].id}$`));
   } finally { await fixture.close(); }
 });
 
