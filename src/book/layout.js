@@ -74,17 +74,17 @@ function place(node, x, y, w, h, out) {
 }
 
 // The fullest page for photos s..e−1, centred; shared pages keep every short side ≥ 30 mm.
-function bestPage(aspects, s, e, memo, cache) {
+function bestPage(aspects, s, e, memo, cache, boxHeight = BOX_H) {
   const key = s * 1024 + e;
   if (cache.has(key)) return cache.get(key);
   let best = null;
   for (const t of trees(aspects, s, e, memo)) {
-    const h = Math.min(BOX_H, (BOX_W - t.b) / t.a);
+    const h = Math.min(boxHeight, (BOX_W - t.b) / t.a);
     const w = t.a * h + t.b;
     if (!(w > 0 && h > 0)) continue;
-    const rects = place(t, (BOX_W - w) / 2, (BOX_H - h) / 2, w, h, []);
+    const rects = place(t, (BOX_W - w) / 2, (boxHeight - h) / 2, w, h, []);
     if (e - s > 1 && rects.some((r) => Math.min(r.w, r.h) < POCKET.minSide)) continue;
-    const fill = rects.reduce((sum, r) => sum + r.w * r.h, 0) / (BOX_W * BOX_H);
+    const fill = rects.reduce((sum, r) => sum + r.w * r.h, 0) / (BOX_W * boxHeight);
     if (!best || fill > best.fill) best = { fill, rects };
   }
   cache.set(key, best);
@@ -142,6 +142,13 @@ export function layoutPages(aspects, perPage) {
     }
   }
   return out;
+}
+
+export function layoutPortraitPage(page, height) {
+  if (!page?.rects?.length) return page;
+  const aspects = page.rects.map((rect) => rect.w / rect.h);
+  const fitted = bestPage(aspects, 0, aspects.length, new Map(), new Map(), height - 2 * DIM.top - 2 * POCKET.pad);
+  return { ...fitted, rects: fitted.rects.map((rect) => ({ ...rect, i: page.rects[rect.i].i })) };
 }
 
 // Photo index at (x, y) mm on a face that shows `page`, or −1.

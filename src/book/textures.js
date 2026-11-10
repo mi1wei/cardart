@@ -25,21 +25,22 @@ function photoBox(r, note) {
 }
 
 // Film, the full-page pocket with grey slots for the photos, and the ring holes.
-function drawPage(ctx, face, page, itemInfo) {
+function drawPage(ctx, face, page, itemInfo, height) {
   const x0 = pocketX(face);
   const y0 = DIM.top;
+  const pocketHeight = height - 2 * DIM.top;
   ctx.fillStyle = FILM;
-  ctx.fillRect(0, 0, DIM.W, DIM.H);
+  ctx.fillRect(0, 0, DIM.W, height);
 
   // Welded seam around the pocket.
-  const seam = [x0 - 1.6, y0 - 1.6, POCKET.w + 3.2, POCKET.h + 3.2];
+  const seam = [x0 - 1.6, y0 - 1.6, POCKET.w + 3.2, pocketHeight + 3.2];
   ctx.fillStyle = SEAM;
   ctx.fillRect(...seam);
   ctx.lineWidth = 0.22;
   ctx.strokeStyle = SHADE;
   ctx.strokeRect(...seam);
   ctx.fillStyle = FILM;
-  ctx.fillRect(x0, y0, POCKET.w, POCKET.h);
+  ctx.fillRect(x0, y0, POCKET.w, pocketHeight);
 
   for (const r of page?.rects ?? []) {
     const note = noteOf(itemInfo(r.i));
@@ -73,36 +74,36 @@ function drawPage(ctx, face, page, itemInfo) {
   ctx.fillRect(x0, y0 + 2.08, POCKET.w, 0.3);
   ctx.lineWidth = 0.22;
   ctx.strokeStyle = SHADE;
-  ctx.strokeRect(x0, y0, POCKET.w, POCKET.h);
+  ctx.strokeRect(x0, y0, POCKET.w, pocketHeight);
 
   const hx = face % 2 === 1 ? DIM.W - DIM.hole : DIM.hole;
   ctx.lineWidth = 0.5;
   ctx.strokeStyle = EDGE;
   for (const z of DIM.rings) {
     ctx.beginPath();
-    ctx.arc(hx, DIM.H / 2 + z, DIM.holeR + 0.35, 0, 2 * Math.PI);
+    ctx.arc(hx, height / 2 + z * height / DIM.H, DIM.holeR + 0.35, 0, 2 * Math.PI);
     ctx.stroke();
   }
   ctx.globalCompositeOperation = 'destination-out';
   for (const z of DIM.rings) {
     ctx.beginPath();
-    ctx.arc(hx, DIM.H / 2 + z, DIM.holeR, 0, 2 * Math.PI);
+    ctx.arc(hx, height / 2 + z * height / DIM.H, DIM.holeR, 0, 2 * Math.PI);
     ctx.fill();
   }
   ctx.globalCompositeOperation = 'source-over';
   ctx.lineWidth = 0.6;
-  ctx.strokeRect(0.3, 0.3, DIM.W - 0.6, DIM.H - 0.6);
+  ctx.strokeRect(0.3, 0.3, DIM.W - 0.6, height - 0.6);
 }
 
 // One album face. Photos are drawn into their slots as they arrive; the Image is then dropped.
 // Backs are mirrored here, as sheet.js expects of every back map.
-export function createPageTexture(face, page, photoUrl, onRedraw, itemInfo = () => null) {
+export function createPageTexture(face, page, photoUrl, onRedraw, itemInfo = () => null, height = DIM.H) {
   const canvas = document.createElement('canvas');
   canvas.width = Math.round(DIM.W * PX);
-  canvas.height = Math.round(DIM.H * PX);
+  canvas.height = Math.round(height * PX);
   const ctx = canvas.getContext('2d');
-  ctx.setTransform(canvas.width / DIM.W, 0, 0, canvas.height / DIM.H, 0, 0);
-  drawPage(ctx, face, page, itemInfo);
+  ctx.setTransform(canvas.width / DIM.W, 0, 0, canvas.height / height, 0, 0);
+  drawPage(ctx, face, page, itemInfo, height);
   const texture = new CanvasTexture(canvas);
   texture.colorSpace = SRGBColorSpace;
   if (face % 2 === 1) {

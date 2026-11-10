@@ -73,7 +73,7 @@ test('the portrait fullscreen hint is readable, touch-sized and hidden in landsc
   } finally { await fixture.close(); }
 });
 
-test('the iPhone fullscreen hint explains Home Screen viewing and hides in standalone mode', async () => {
+test('the iPhone browser fullscreen hint explains Home Screen viewing', async () => {
   test.setTimeout(60_000);
   const fixture = await desktopFixture();
   try {
@@ -91,15 +91,160 @@ test('the iPhone fullscreen hint explains Home Screen viewing and hides in stand
     await hint.click();
     await expect(page.locator('.toast')).toContainText('Home Screen');
     expect(await page.evaluate(() => !!document.fullscreenElement)).toBe(false);
-    await page.evaluate(() => { location.hash = '#/'; });
-    await expect(page.locator('.ab')).toHaveCount(0);
+  } finally { await fixture.close(); }
+});
+
+test('the phone Home Screen hides the header fullscreen icon and keeps the portrait hint', async () => {
+  test.setTimeout(60_000);
+  const fixture = await desktopFixture();
+  try {
+    const { page } = await fixture.launch();
+    const origin = new URL(page.url()).origin;
+    await page.setViewportSize({ width: 390, height: 844 });
+    const album = await seedBook(page, origin, 'Home Screen reading', 3, 1);
     await page.evaluate((hash) => {
+      Object.defineProperty(navigator, 'userAgent', { configurable: true, value: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile/15E148 Safari/604.1' });
       Object.defineProperty(navigator, 'standalone', { configurable: true, value: true });
+      Object.defineProperty(document, 'fullscreenEnabled', { configurable: true, value: false });
       location.hash = hash;
     }, `#/a/${album.id}/3d`);
-    await expect(page.locator('.ab')).toBeVisible();
-    await expect(hint).toBeHidden();
+    await expect(page.locator('.ab-count')).toHaveText('Page 2 of 5', { timeout: 15000 });
+    await expect(page.getByRole('button', { name: 'Full screen', exact: true })).toBeHidden();
+    await expect(page.getByRole('button', { name: 'View fullscreen', exact: true })).toBeVisible();
   } finally { await fixture.close(); }
+});
+
+test('an upright album occupies about 80 percent of the viewport height without narrowing', async () => {
+  test.setTimeout(60_000);
+  const fixture = await desktopFixture();
+  try {
+    const { page } = await fixture.launch();
+    const origin = new URL(page.url()).origin;
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.emulateMedia({ colorScheme: 'dark' });
+    const album = await seedBook(page, origin, 'Portrait height', 3, 1);
+    await page.goto(`${origin}/#/a/${album.id}/3d`);
+    const count = page.locator('.ab-count');
+    await expect(count).toHaveText('Page 2 of 5', { timeout: 15000 });
+    for (const viewport of [{ width: 390, height: 844 }, { width: 360, height: 640 }]) {
+      await page.setViewportSize(viewport);
+      await expect.poll(() => settled(page), { timeout: 15000 }).toBe(true);
+      const screenshot = test.info().outputPath(`portrait-height-80-${viewport.width}.png`);
+      await page.screenshot({ path: screenshot });
+      await test.info().attach(`portrait-height-80-${viewport.width}`, { path: screenshot, contentType: 'image/png' });
+      const canvas = page.locator('.ab canvas');
+      const { data, info } = await sharp(await canvas.screenshot({
+        style: '.ab-bar, .ab-foot { visibility: hidden !important; }',
+      })).raw().toBuffer({ resolveWithObject: true });
+      const column = Math.floor(info.width / 2);
+      const bookRows = [];
+      for (let row = 0; row < info.height; row++) {
+        const offset = (row * info.width + column) * info.channels;
+        if (Math.abs(data[offset] - 18) + Math.abs(data[offset + 1] - 20) + Math.abs(data[offset + 2] - 23) > 60) bookRows.push(row);
+      }
+      expect(bookRows.length).toBeGreaterThan(0);
+      const top = bookRows[0];
+      const bottom = bookRows.at(-1);
+      const height = (bottom - top + 1) / info.height;
+      expect(height).toBeGreaterThan(.77);
+      expect(height).toBeLessThan(.83);
+      expect(Math.abs((top + bottom) / 2 - info.height / 2)).toBeLessThan(info.height * .03);
+      const bookColumns = [];
+      for (let x = 0; x < info.width; x++) {
+        const offset = (Math.floor(info.height / 2) * info.width + x) * info.channels;
+        if (Math.abs(data[offset] - 18) + Math.abs(data[offset + 1] - 20) + Math.abs(data[offset + 2] - 23) > 60) bookColumns.push(x);
+      }
+      expect(bookColumns.at(-1) - bookColumns[0]).toBeGreaterThan(info.width * .85);
+      await expect(page.getByRole('button', { name: 'View fullscreen', exact: true })).toBeVisible();
+      await page.locator('.ab-bar [data-act=cover]').click({ trial: true });
+      await page.locator('.ab-turn [data-act=next]').click({ trial: true });
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    }
+    await page.setViewportSize({ width: 844, height: 390 });
+    await expect(count).toHaveText('1 / 3');
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(count).toHaveText('Page 2 of 5');
+  } finally { await fixture.close(); }
+});
+
+test('portrait cover transitions retain photograph texture proportions', async () => {
+  test.setTimeout(60_000);
+  const fixture = await desktopFixture();
+  let observedPage;
+  try {
+    const { page } = await fixture.launch();
+    observedPage = page;
+    const origin = new URL(page.url()).origin;
+    await page.setViewportSize({ width: 390, height: 844 });
+    const album = await seedBook(page, origin, 'Proportional cover', 3, 1);
+    await page.evaluate(() => {
+      const prototype = WebGL2RenderingContext.prototype;
+      const activeTexture = prototype.activeTexture;
+      const bindTexture = prototype.bindTexture;
+      const texImage = prototype.texImage2D;
+      const texSubImage = prototype.texSubImage2D;
+      const drawElements = prototype.drawElements;
+      const drawImage = CanvasRenderingContext2D.prototype.drawImage;
+      const photos = new WeakSet();
+      const bindings = new Map();
+      const images = new WeakMap();
+      let active = 0;
+      window.portraitTextureRatios = [];
+      CanvasRenderingContext2D.prototype.drawImage = function (...args) {
+        const result = drawImage.apply(this, args);
+        photos.add(this.canvas);
+        return result;
+      };
+      prototype.activeTexture = function (unit) {
+        active = unit - this.TEXTURE0;
+        return activeTexture.call(this, unit);
+      };
+      prototype.bindTexture = function (target, texture) {
+        if (target === this.TEXTURE_2D) bindings.set(active, texture);
+        return bindTexture.call(this, target, texture);
+      };
+      const record = (args) => {
+        const image = args.at(-1);
+        const texture = bindings.get(active);
+        if (texture && image?.width === 839 && photos.has(image)) images.set(texture, { width: image.width, height: image.height });
+      };
+      prototype.texImage2D = function (...args) { record(args); return texImage.apply(this, args); };
+      prototype.texSubImage2D = function (...args) { record(args); return texSubImage.apply(this, args); };
+      prototype.drawElements = function (...args) {
+        const program = this.getParameter(this.CURRENT_PROGRAM);
+        const map = program && this.getUniformLocation(program, 'map');
+        const model = program && this.getUniformLocation(program, 'modelMatrix');
+        if (map && model) {
+          const image = images.get(bindings.get(this.getUniform(program, map)));
+          const matrix = this.getUniform(program, model);
+          if (image && matrix) {
+            const scale = Math.hypot(matrix[8], matrix[9], matrix[10]);
+            window.portraitTextureRatios.push(image.height / image.width / (192.4 / 209.8 * scale));
+          }
+        }
+        return drawElements.apply(this, args);
+      };
+      window.restorePortraitTextures = () => {
+        prototype.activeTexture = activeTexture;
+        prototype.bindTexture = bindTexture;
+        prototype.texImage2D = texImage;
+        prototype.texSubImage2D = texSubImage;
+        prototype.drawElements = drawElements;
+        CanvasRenderingContext2D.prototype.drawImage = drawImage;
+      };
+    });
+    await page.evaluate((hash) => { location.hash = hash; }, `#/a/${album.id}/3d`);
+    await expect(page.locator('.ab-count')).toHaveText('Page 2 of 5', { timeout: 15000 });
+    await expect.poll(() => settled(page), { timeout: 15000 }).toBe(true);
+    await page.evaluate(() => { window.portraitTextureRatios.length = 0; });
+    await page.locator('.ab-bar [data-act=cover]').click();
+    await expect.poll(() => page.evaluate(() => window.portraitTextureRatios.length)).toBeGreaterThan(0);
+    const error = await page.evaluate(() => Math.max(...window.portraitTextureRatios.map((ratio) => Math.abs(ratio - 1))));
+    expect(error).toBeLessThan(.005);
+  } finally {
+    await observedPage?.evaluate(() => window.restorePortraitTextures?.()).catch(() => {});
+    await fixture.close();
+  }
 });
 
 test('an upright phone shows one page at a time and swipes through its pages', async () => {
@@ -279,7 +424,7 @@ test('the upright title retains an opaque light backing for dark-theme contrast'
       const fillText = prototype.fillText;
       prototype.fillText = function (text, ...rest) {
         const result = fillText.call(this, text, ...rest);
-        if (text === 'Opaque title' && this.canvas.width === 839 && this.canvas.height === 770) window.portraitTitleCanvas = this.canvas;
+        if (text === 'Opaque title' && this.canvas.width === 839) window.portraitTitleCanvas = this.canvas;
         return result;
       };
       window.restoreTitlePaint = () => { prototype.fillText = fillText; };
@@ -422,6 +567,41 @@ async function touch(session, points) {
   await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
 }
 
+test('an upright phone fades its controls within about three seconds and keeps touch reading usable', async () => {
+  test.setTimeout(60_000);
+  const fixture = await desktopFixture();
+  try {
+    const { page, desktop } = await fixture.launch();
+    const origin = new URL(page.url()).origin;
+    await page.setViewportSize({ width: 390, height: 844 });
+    const album = await seedBook(page, origin, 'Upright idle controls', 3, 1);
+    await page.goto(`${origin}/#/a/${album.id}/3d`);
+    const book = page.locator('.ab');
+    const count = page.locator('.ab-count');
+    const controlOpacity = () => page.locator('.ab-bar, .ab-foot').evaluateAll((elements) =>
+      Math.max(...elements.map((element) => Number(getComputedStyle(element).opacity))));
+    await expect(count).toHaveText('Page 2 of 5', { timeout: 15000 });
+    const session = await desktop.context().newCDPSession(page);
+    await session.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 1 });
+    await page.mouse.move(1, 1);
+    await expect.poll(controlOpacity, { timeout: 3500, intervals: [100] }).toBeLessThan(.1);
+    await expect(book).toHaveAttribute('data-idle', '');
+    await expect.poll(() => settled(page), { timeout: 15000 }).toBe(true);
+    await touch(session, [[350, 420], [280, 420], [180, 420], [80, 420], [40, 420]]);
+    await expect(count).toHaveText('Page 3 of 5');
+    await expect(book).toHaveAttribute('data-idle', '');
+    await expect.poll(() => settled(page), { timeout: 15000 }).toBe(true);
+    await touch(session, [[195, 75]]);
+    await expect(page.locator('.ab[data-idle]')).toHaveCount(0);
+    await expect(count).toHaveText('Page 3 of 5');
+    await expect.poll(controlOpacity).toBeGreaterThan(.99);
+    await expect.poll(controlOpacity, { timeout: 3500, intervals: [100] }).toBeLessThan(.1);
+    await touch(session, [[195, 420]]);
+    await expect(page.locator('.lb')).toBeVisible();
+    await expect(page).toHaveURL(new RegExp(`/p/${album.photos[1].id}$`));
+  } finally { await fixture.close(); }
+});
+
 test('a phone held sideways shows only the album: a swipe turns the page, a tap on empty space brings the controls back', async () => {
   test.setTimeout(60_000);
   const fixture = await desktopFixture();
@@ -434,6 +614,7 @@ test('a phone held sideways shows only the album: a swipe turns the page, a tap 
     const book = page.locator('.ab');
     const count = page.locator('.ab-count');
     await expect(count).toHaveText('1 / 3', { timeout: 15000 });
+    await page.mouse.move(5, 5);
     await expect(book).toHaveAttribute('data-idle', '', { timeout: 5000 });
     await expect.poll(() => page.locator('.ab-foot').evaluate((el) => Number(getComputedStyle(el).opacity))).toBeLessThan(0.1);
     const session = await desktop.context().newCDPSession(page);
@@ -448,6 +629,9 @@ test('a phone held sideways shows only the album: a swipe turns the page, a tap 
     await expect(count).toHaveText('2 / 3');
     await expect(book).toHaveAttribute('data-idle', '', { timeout: 5000 });
     await page.setViewportSize({ width: 390, height: 844 });
+    await expect(page.locator('.ab[data-idle]')).toHaveCount(0);
+    await expect(book).toHaveAttribute('data-idle', '', { timeout: 3500 });
+    await page.setViewportSize({ width: 1280, height: 860 });
     await expect(page.locator('.ab[data-idle]')).toHaveCount(0);
     await page.waitForTimeout(3500);
     await expect(page.locator('.ab[data-idle]')).toHaveCount(0);

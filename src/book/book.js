@@ -1,6 +1,6 @@
 import { Plane, Raycaster, Vector2, Vector3 } from 'three';
 import { createBinder } from './binder.js';
-import { DIM, photoAt } from './layout.js';
+import { DIM, layoutPortraitPage, photoAt } from './layout.js';
 import { createStage } from './scene.js';
 import { createSheet, restHoleAngle } from './sheet.js';
 import { createPageTexture } from './textures.js';
@@ -43,6 +43,7 @@ export function createBook(container, { title, titlePage = null, pages, photoUrl
     return sheet;
   });
   const portraitTextures = new Map();
+  let portraitHeight = H;
   let portraitTurn = null;
 
   // Leaf 0 is the cover; leaf j ≥ 1 is drawn sheet j − 1 and shows album leaf o + j − 1.
@@ -68,39 +69,53 @@ export function createBook(container, { title, titlePage = null, pages, photoUrl
   const pageNo = () => (k === 0 ? 0 : 2 * spread() - (side < 0 ? 1 : 0));
   const report = () => onChange({ spread: spread(), spreads: G + 1, closed: k === 0, page: pageNo(), pages: 2 * G + 1, single });
 
-  function portraitTexture(page) {
-    if (!portraitTextures.has(page)) {
-      const texture = createPageTexture(0, pages[page - 2] ?? null, photoUrl, requestRender, itemInfo);
+  function portraitTexture(page, face = 0) {
+    const key = face % 2 ? -page : page;
+    if (!portraitTextures.has(key)) {
+      const layout = layoutPortraitPage(pages[page - 2], portraitHeight);
+      const texture = createPageTexture(face, layout ?? null, photoUrl, requestRender, itemInfo, portraitHeight);
       texture.anisotropy = anisotropy;
       if (page === 1) {
         const context = texture.image.getContext('2d');
         context.save();
         context.translate(22, 16);
-        drawTitlePage(context, titlePage ?? { title, dates: '', count: '' }, W - 44, H - 32);
+        drawTitlePage(context, titlePage ?? { title, dates: '', count: '' }, W - 44, portraitHeight - 32);
         context.globalCompositeOperation = 'destination-over';
         context.fillStyle = '#eef1f3';
-        context.fillRect(0, 0, W - 44, H - 32);
+        context.fillRect(0, 0, W - 44, portraitHeight - 32);
         context.restore();
         texture.needsUpdate = true;
       }
-      portraitTextures.set(page, texture);
+      portraitTextures.set(key, texture);
     }
-    return portraitTextures.get(page);
+    return portraitTextures.get(key);
   }
 
   function refreshPortraitTextures() {
+    const availableWidth = Math.max(1, container.clientWidth - 24);
+    const availableHeight = Math.max(1, container.clientHeight - insets.top - insets.bottom - 44);
+    // Match camera framing, which includes the board and spine as well as the sheet.
+    const height = single ? Math.round(Math.max(H, 2 * pageHalf() * availableHeight * .8 / availableWidth) * 2) / 2 : H;
+    if (portraitHeight !== height) {
+      for (const texture of portraitTextures.values()) texture.dispose();
+      portraitTextures.clear();
+      portraitHeight = height;
+    }
     const want = new Set();
     if (single && k > 0) {
       for (const page of [pageNo() - 1, pageNo(), pageNo() + 1, portraitTurn?.from, portraitTurn?.to]) {
         if (page >= 1 && page <= 2 * G + 1) want.add(page);
       }
     }
+    if (single && (k === 0 || leaves[0].th < PI * .999)) {
+      for (const face of textures.keys()) want.add(face % 2 ? -(face + 2) : face + 2);
+    }
     for (const [page, texture] of portraitTextures) {
       if (want.has(page)) continue;
       texture.dispose();
       portraitTextures.delete(page);
     }
-    for (const page of want) portraitTexture(page);
+    for (const page of want) portraitTexture(Math.abs(page), page < 0 ? 1 : 0);
   }
 
   // Real pages for the spreads around the current one; every other face shows the blank film.
@@ -275,11 +290,24 @@ export function createBook(container, { title, titlePage = null, pages, photoUrl
   }
 
   function place() {
+    refreshPortraitTextures();
+    const scale = single ? portraitHeight / H : 1;
+    binder.group.scale.z = scale;
+    for (const name of ['cover-title', 'title-page']) {
+      const label = binder.group.getObjectByName(name);
+      if (label) label.scale.z = 1 / scale;
+    }
     const c = leaves[0].th / PI;
     const { C } = binder.pose(c);
     const portrait = single && k > 0 && c > .999;
     sheets.forEach((sheet, i) => {
+      sheet.group.scale.z = scale;
       sheet.group.visible = !portrait;
+      if (!portrait) {
+        const face = 2 * (o + i);
+        sheet.front.material.map = single && textures.has(face) ? portraitTexture(face + 2) : textures.get(face) ?? blank[0];
+        sheet.back.material.map = single && textures.has(face + 1) ? portraitTexture(face + 3, 1) : textures.get(face + 1) ?? blank[1];
+      }
       const { th, b } = leaves[i + 1];
       const psiR = restHoleAngle(C[1], binder.R, (S - i - 0.5) * T);
       const psiL = PI - restHoleAngle(C[1], binder.R, (i + 0.5) * T);
@@ -287,6 +315,7 @@ export function createBook(container, { title, titlePage = null, pages, photoUrl
     });
     portraitSheets[0].group.visible = portrait;
     portraitSheets[1].group.visible = portrait && !!portraitTurn;
+    for (const sheet of portraitSheets) sheet.group.scale.z = scale;
     if (portrait) {
       const base = portraitSheets[0];
       const height = (S - .5) * T;
@@ -304,7 +333,7 @@ export function createBook(container, { title, titlePage = null, pages, photoUrl
     ringX = C[0];
     const opened = smoothstep(c);
     const zoom = 1 + 0.15 * Math.sin(PI * c);
-    if (single) stage.frame(binder.closedCenter * (1 - opened) + pageHalf() * opened, zoom, pageHalf());
+    if (single) stage.frame(binder.closedCenter * (1 - opened) + pageHalf() * opened, zoom, pageHalf(), portraitHeight + DIM.HB - H);
     else stage.frame(binder.closedCenter * (1 - opened), zoom);
   }
 
@@ -435,7 +464,8 @@ export function createBook(container, { title, titlePage = null, pages, photoUrl
       const { i, back } = first.object.userData;
       const face = single ? pageNo() - 2 : 2 * (o + i) + (back ? 1 : 0);
       const u = back ? 1 - first.uv.x : first.uv.x;
-      const index = photoAt(pages[face], single ? 0 : face, u * W, (1 - first.uv.y) * H);
+      const layout = single ? layoutPortraitPage(pages[face], portraitHeight) : pages[face];
+      const index = photoAt(layout, single ? 0 : face, u * W, (1 - first.uv.y) * (single ? portraitHeight : H));
       if (index >= 0) return onPhotoClick(index);
     }
     if (onBlankTap(e)) return;

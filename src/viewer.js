@@ -71,23 +71,28 @@ export function openViewer({ album, startIndex = 0, onOpenPhoto, onClose, onPerP
   let stepping = false;
   let playState = 'off';
   let idleTimer = 0;
+  let immersive = false;
+  const upright = matchMedia('(max-width: 600px) and (orientation: portrait)');
   const phoneLandscape = matchMedia('(orientation: landscape) and (max-height: 519.98px)');
   const player = createFlipPlayer({ step, onState });
 
-  // Full screen is the whole page, so the lightbox shows over the book too (spec §9). iPhone has no
-  // Fullscreen API: the button explains the Home Screen, and opened from there it is not needed.
+  // Full screen is the whole page, so the lightbox shows over the book too (spec §9).
   const canFull = !!document.fullscreenEnabled;
   const standalone = navigator.standalone || matchMedia('(display-mode: standalone)').matches;
-  full.hidden = !canFull && (standalone || !/iPhone|iPod/.test(navigator.userAgent));
+  const isFullscreen = () => immersive || !!document.fullscreenElement;
+  full.hidden = !canFull && !standalone && !/iPhone|iPod/.test(navigator.userAgent);
 
   function toggleFullscreen() {
-    if (!canFull) toast(fullscreenTip(), 8000);
+    if (!canFull && standalone) {
+      immersive = !immersive;
+      onFullscreen();
+    } else if (!canFull) toast(fullscreenTip(), 8000);
     else if (document.fullscreenElement) document.exitFullscreen();
     else document.documentElement.requestFullscreen().catch(() => toast(t('no-fullscreen')));
   }
 
   function onFullscreen() {
-    const on = !!document.fullscreenElement;
+    const on = isFullscreen();
     full.innerHTML = icon(on ? 'fullscreenExit' : 'fullscreen');
     full.setAttribute('aria-label', t(on ? 'fullscreen-exit' : 'fullscreen'));
     full.setAttribute('aria-pressed', String(on));
@@ -113,7 +118,7 @@ export function openViewer({ album, startIndex = 0, onOpenPhoto, onClose, onPerP
   function paint() {
     const state = player.state();
     const on = state !== 'off';
-    fullscreenHint.hidden = full.hidden || standalone || !!document.fullscreenElement || view.closed || on;
+    fullscreenHint.hidden = full.hidden || isFullscreen() || view.closed || on;
     $('.ab-bar [data-act=cover]').hidden = view.closed;
     $('.ab-turn').hidden = view.closed || on;
     $('.ab-player').hidden = !on;
@@ -200,8 +205,8 @@ export function openViewer({ album, startIndex = 0, onOpenPhoto, onClose, onPerP
     else player.toggle();
   }
 
-  // Full screen and a phone held sideways show only the album; auto-flip fades the controls too.
-  const albumOnly = () => !!document.fullscreenElement || phoneLandscape.matches;
+  // Full screen and phones show only the album; auto-flip fades the controls too.
+  const albumOnly = () => isFullscreen() || upright.matches || phoneLandscape.matches;
 
   // The controls fade after a moment; input brings them back.
   function wake() {
@@ -299,6 +304,7 @@ export function openViewer({ album, startIndex = 0, onOpenPhoto, onClose, onPerP
     wake();
     if (e.key === 'Escape') {
       if (player.state() !== 'off') player.stop();
+      else if (immersive) toggleFullscreen();
       else onClose();
     } else if (e.key === ' ') togglePlay(); // cancelling keydown also stops a focused button's click
     else if (KEYS[e.key] && book) book[KEYS[e.key]]();
@@ -359,17 +365,19 @@ export function openViewer({ album, startIndex = 0, onOpenPhoto, onClose, onPerP
   root.focus();
 
   // Held upright, a phone shows one page at a time (same query as the CSS).
-  const upright = matchMedia('(max-width: 600px) and (orientation: portrait)');
-  const onTurn = () => book?.setSingle(upright.matches);
+  const onTurn = () => {
+    book?.setSingle(upright.matches);
+    wake();
+  };
   upright.addEventListener('change', onTurn);
 
-  // Read live so the framing follows rotation; in phone landscape and full screen the bars float over the book.
+  // Read live so framing follows rotation; on phones and in full screen the bars float over the book.
   const insets = {
     get top() {
-      return document.fullscreenElement ? 0 : $('.ab-bar').offsetHeight;
+      return albumOnly() ? 0 : $('.ab-bar').offsetHeight;
     },
     get bottom() {
-      return phoneLandscape.matches || document.fullscreenElement ? 0 : $('.ab-foot').offsetHeight;
+      return albumOnly() ? 0 : $('.ab-foot').offsetHeight;
     },
   };
   build(startIndex);

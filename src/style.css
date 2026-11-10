@@ -2836,6 +2836,11 @@ body:has(.ab, .lb) {
   .ab-fullscreen { display: inline-flex; }
 }
 
+/* A phone is already full screen (same queries as viewer.js), so the header icon goes. */
+@media (max-width: 600px) and (orientation: portrait), (orientation: landscape) and (max-height: 519.98px) {
+  .ab-bar > [data-act=fullscreen] { display: none; }
+}
+
 /* Turning, auto-flip and the cover share one capsule at the bottom (v2 spec §8). */
 .ab-turn,
 .ab-player {

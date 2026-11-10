@@ -2,6 +2,7 @@ const { test, expect } = require('@playwright/test');
 const { join } = require('node:path');
 const sharp = require('sharp');
 const { desktopFixture } = require('./fixtures.cjs');
+const { seedBook } = require('./ui-helpers.cjs');
 const { photoBytes } = require('../tests/fixtures/photo-metadata.cjs');
 const { posterBytes } = require('../tests/fixtures/video.cjs');
 
@@ -23,6 +24,74 @@ async function darkPixels(page, box) {
   for (let i = 0; i < data.length; i += info.channels) if (0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2] < 120) n++;
   return n;
 }
+
+test('phone controls overlay a centered full-canvas view while desktop framing stays inset', async () => {
+  test.setTimeout(60_000);
+  const fixture = await desktopFixture();
+  let observedPage;
+  try {
+    const { page } = await fixture.launch();
+    observedPage = page;
+    const origin = new URL(page.url()).origin;
+    await page.setViewportSize({ width: 390, height: 844 });
+    const album = await seedBook(page, origin, 'Full-canvas overlays', 3, 1);
+    await page.evaluate(() => {
+      const prototype = WebGL2RenderingContext.prototype;
+      const getLocation = prototype.getUniformLocation;
+      const setMatrix = prototype.uniformMatrix4fv;
+      const names = new WeakMap();
+      window.fullCanvasProjection = [];
+      prototype.getUniformLocation = function (program, name) {
+        const location = getLocation.call(this, program, name);
+        if (location) names.set(location, name);
+        return location;
+      };
+      prototype.uniformMatrix4fv = function (location, transpose, values, ...rest) {
+        if (names.get(location) === 'projectionMatrix') window.fullCanvasProjection = Array.from(values);
+        return setMatrix.call(this, location, transpose, values, ...rest);
+      };
+      window.restoreFullCanvasProjection = () => {
+        prototype.getUniformLocation = getLocation;
+        prototype.uniformMatrix4fv = setMatrix;
+      };
+    });
+    await page.evaluate((hash) => { location.hash = hash; }, `#/a/${album.id}/3d`);
+    await expect(page.locator('.ab-count')).toBeVisible({ timeout: 15000 });
+    for (const { phone, ...viewport } of [
+      { width: 390, height: 844, phone: true },
+      { width: 844, height: 390, phone: true },
+      { width: 1280, height: 860, phone: false },
+      { width: 390, height: 844, phone: true },
+    ]) {
+      await page.setViewportSize(viewport);
+      await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+      await expect.poll(() => page.evaluate(() => window.fullCanvasProjection.length)).toBe(16);
+      const bar = await page.locator('.ab-bar').boundingBox();
+      const foot = await page.locator('.ab-foot').boundingBox();
+      const center = phone ? 0 : (bar.height - foot.height) / viewport.height;
+      await expect.poll(async () => {
+        const projection = await page.evaluate(() => window.fullCanvasProjection);
+        return Math.abs(projection[8]) + Math.abs(projection[9] - center);
+      }, { message: `camera framing at ${viewport.width}x${viewport.height}` }).toBeLessThan(.00001);
+      const bounds = await page.locator('.ab canvas').boundingBox();
+      expect(bounds).toMatchObject({ x: 0, y: 0, width: viewport.width, height: viewport.height });
+      for (const control of ['.ab-bar', '.ab-foot']) {
+        await expect(page.locator(control)).toHaveCSS('position', 'absolute');
+      }
+      const fullscreen = page.locator('.ab-bar [data-act=fullscreen]');
+      if (phone) await expect(fullscreen).toBeHidden();
+      else await expect(fullscreen).toBeVisible();
+      if (phone && viewport.width > viewport.height) {
+        const screenshot = test.info().outputPath('landscape-overlay.png');
+        await page.screenshot({ path: screenshot });
+        await test.info().attach('landscape-overlay', { path: screenshot, contentType: 'image/png' });
+      }
+    }
+  } finally {
+    await observedPage?.evaluate(() => window.restoreFullCanvasProjection?.()).catch(() => {});
+    await fixture.close();
+  }
+});
 
 test('software WebGL keeps scene buffers bounded while retaining shadows and reflections', async () => {
   const fixture = await desktopFixture();
@@ -282,6 +351,51 @@ test('a caption never collapses a panoramic photo shorter than the caption line'
     expect(w).toBeGreaterThan(100);
     expect(h).toBeCloseTo(layout.rects[0].h);
     expect(result.captions.find((item) => item.text === 'Panorama').y).toBeGreaterThan(y + h);
+  } finally { await fixture.close(); }
+});
+
+test('tall portrait textures preserve photograph proportions and a readable note', async () => {
+  const fixture = await desktopFixture();
+  try {
+    const { page } = await fixture.launch();
+    const { layoutPortraitPage } = await import('../src/book/layout.js');
+    const layout = layoutPortraitPage({ rects: [{ i: 0, x: 0, y: 0, w: 60, h: 120 }] }, 280);
+    const image = `data:image/jpeg;base64,${(await sharp({ create: { width: 120, height: 240, channels: 3, background: '#2b6187' } }).jpeg().toBuffer()).toString('base64')}`;
+    await serveModule(page, 'src/book/textures.js', '/__folio-tall-texture.js');
+    const result = await page.evaluate(async ({ layout, image }) => {
+      const { createPageTexture } = await import('/__folio-tall-texture.js');
+      const draws = [];
+      const notes = [];
+      const drawImage = CanvasRenderingContext2D.prototype.drawImage;
+      const fillText = CanvasRenderingContext2D.prototype.fillText;
+      CanvasRenderingContext2D.prototype.drawImage = function (image, ...args) {
+        draws.push(args);
+        return drawImage.call(this, image, ...args);
+      };
+      CanvasRenderingContext2D.prototype.fillText = function (text, ...args) {
+        notes.push(text);
+        return fillText.call(this, text, ...args);
+      };
+      let ready;
+      const loaded = new Promise((resolve) => { ready = resolve; });
+      let texture;
+      try {
+        texture = createPageTexture(0, layout, () => image, ready, () => ({ note: 'Still proportional' }), 280);
+        await loaded;
+        return { draws, notes, width: texture.image.width, height: texture.image.height };
+      } finally {
+        texture?.dispose();
+        CanvasRenderingContext2D.prototype.drawImage = drawImage;
+        CanvasRenderingContext2D.prototype.fillText = fillText;
+      }
+    }, { layout, image });
+    expect(result.draws).toHaveLength(1);
+    const [x, y, width, height] = result.draws[0];
+    expect(width / height).toBeCloseTo(.5, 5);
+    expect(x).toBeGreaterThan(22);
+    expect(y + height).toBeLessThan(280);
+    expect(result.height).toBeGreaterThan(result.width);
+    expect(result.notes).toEqual(['Still proportional']);
   } finally { await fixture.close(); }
 });
 
