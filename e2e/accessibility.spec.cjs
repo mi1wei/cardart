@@ -183,6 +183,7 @@ test('desktop targets include the density slider, long-book slider and trash che
     await expect(page.locator('.tile')).toHaveCount(44);
     await targets(page.locator('.back-link, .density input, .sort-label select'), 24, 'desktop album targets');
     await page.goto(`${origin}/#/a/${album.id}/3d`);
+    await expect(page.locator('.ab-count')).toHaveText('1 / 23', { timeout: 15000 });
     await expect(page.locator('.ab-slider')).toBeVisible();
     await targets(page.locator('.ab-slider'), 24, 'desktop long-book slider');
     await page.goto(`${origin}/#/a/${album.id}`);

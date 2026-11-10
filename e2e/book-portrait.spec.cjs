@@ -36,7 +36,7 @@ test('the portrait fullscreen hint is readable, touch-sized and hidden in landsc
   test.setTimeout(60_000);
   const fixture = await desktopFixture();
   try {
-    const { page } = await fixture.launch();
+    const { page, desktop } = await fixture.launch();
     const origin = new URL(page.url()).origin;
     await page.setViewportSize({ width: 390, height: 844 });
     const album = await seedBook(page, origin, 'Fullscreen hint', 3, 1);
@@ -47,10 +47,20 @@ test('the portrait fullscreen hint is readable, touch-sized and hidden in landsc
     const footer = await page.locator('.ab-turn').boundingBox();
     const button = await hint.boundingBox();
     expect(button.y + button.height).toBeLessThan(footer.y);
+    if (process.platform === 'darwin') {
+      await desktop.evaluate(({ BrowserWindow }) => {
+        global.folioPortraitFullscreenEntered = false;
+        BrowserWindow.getAllWindows()[0].once('enter-full-screen', () => { global.folioPortraitFullscreenEntered = true; });
+      });
+    }
     await hint.click();
+    if (process.platform === 'darwin') {
+      await expect.poll(() => desktop.evaluate(() => global.folioPortraitFullscreenEntered), { timeout: 10_000 }).toBe(true);
+    }
     await expect.poll(() => page.evaluate(() => !!document.fullscreenElement)).toBe(true);
     await expect(hint).toBeHidden();
-    await page.evaluate(() => document.exitFullscreen());
+    await page.evaluate(() => { document.exitFullscreen(); });
+    await expect.poll(() => page.evaluate(() => !!document.fullscreenElement)).toBe(false);
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(hint).toBeVisible();
     await page.setViewportSize({ width: 844, height: 390 });
