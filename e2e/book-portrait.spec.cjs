@@ -3,9 +3,19 @@ const sharp = require('sharp');
 const { desktopFixture } = require('./fixtures.cjs');
 const { seedBook } = require('./ui-helpers.cjs');
 
+// Locator screenshots can stall while a touch is held; the canvas bounds are fixed.
+async function bookFrame(page) {
+  const clip = await page.locator('.ab canvas').boundingBox();
+  if (!clip) throw new Error('3D album canvas is not visible');
+  return page.screenshot({
+    clip,
+    style: '.ab-bar, .ab-foot { visibility: hidden !important; }',
+  });
+}
+
 // Pixels in the middle column of the canvas that differ from the dark page colour (18, 20, 23).
 async function bookHeight(page) {
-  const png = await page.locator('.ab canvas').screenshot();
+  const png = await bookFrame(page);
   const { data, info } = await sharp(png).raw().toBuffer({ resolveWithObject: true });
   const x = Math.floor(info.width / 2);
   let n = 0;
@@ -18,9 +28,9 @@ async function bookHeight(page) {
 
 // Two canvas frames 250 ms apart are the same: the camera has stopped gliding between pages.
 async function settled(page) {
-  const a = await page.locator('.ab canvas').screenshot();
+  const a = await bookFrame(page);
   await page.waitForTimeout(250);
-  return a.equals(await page.locator('.ab canvas').screenshot());
+  return a.equals(await bookFrame(page));
 }
 
 // Starts only once the camera rests, so the drag begins on the page in view.
@@ -132,10 +142,7 @@ test('an upright album occupies about 80 percent of the viewport height without 
       const screenshot = test.info().outputPath(`portrait-height-80-${viewport.width}.png`);
       await page.screenshot({ path: screenshot });
       await test.info().attach(`portrait-height-80-${viewport.width}`, { path: screenshot, contentType: 'image/png' });
-      const canvas = page.locator('.ab canvas');
-      const { data, info } = await sharp(await canvas.screenshot({
-        style: '.ab-bar, .ab-foot { visibility: hidden !important; }',
-      })).raw().toBuffer({ resolveWithObject: true });
+      const { data, info } = await sharp(await bookFrame(page)).raw().toBuffer({ resolveWithObject: true });
       const column = Math.floor(info.width / 2);
       const bookRows = [];
       for (let row = 0; row < info.height; row++) {
@@ -145,9 +152,10 @@ test('an upright album occupies about 80 percent of the viewport height without 
       expect(bookRows.length).toBeGreaterThan(0);
       const top = bookRows[0];
       const bottom = bookRows.at(-1);
-      const height = (bottom - top + 1) / info.height;
-      expect(height).toBeGreaterThan(.77);
-      expect(height).toBeLessThan(.83);
+      const height = bottom - top + 1;
+      // Round only the raster edges, including software WebGL without antialiasing.
+      expect(height).toBeGreaterThanOrEqual(Math.floor(info.height * .77));
+      expect(height).toBeLessThanOrEqual(Math.ceil(info.height * .83));
       expect(Math.abs((top + bottom) / 2 - info.height / 2)).toBeLessThan(info.height * .03);
       const bookColumns = [];
       for (let x = 0; x < info.width; x++) {
@@ -456,30 +464,29 @@ test('every upright content page bends under the finger before advancing', async
     const album = await seedBook(page, origin, 'Paper under a finger', 3, 1);
     await page.goto(`${origin}/#/a/${album.id}/3d`);
     const count = page.locator('.ab-count');
-    const canvas = page.locator('.ab canvas');
     await expect(count).toHaveText('Page 2 of 5', { timeout: 15000 });
     const session = await desktop.context().newCDPSession(page);
     await session.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 1 });
     for (const [current, next] of [[2, 3], [3, 4]]) {
       await expect.poll(() => settled(page), { timeout: 15000 }).toBe(true);
-      const before = await canvas.screenshot();
+      const before = await bookFrame(page);
       await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 300, y: 420 }] });
       await session.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 180, y: 420 }] });
       await session.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 120, y: 420 }] });
-      await expect.poll(async () => before.equals(await canvas.screenshot())).toBe(false);
+      await expect.poll(async () => before.equals(await bookFrame(page))).toBe(false);
       await expect(count).toHaveText(`Page ${current} of 5`);
       await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
       await expect(count).toHaveText(`Page ${next} of 5`);
     }
     await expect.poll(() => settled(page), { timeout: 15000 }).toBe(true);
-    const resting = await canvas.screenshot();
+    const resting = await bookFrame(page);
     await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 300, y: 420 }] });
     await session.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 285, y: 420 }] });
     await page.waitForTimeout(200);
     await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
     await expect(count).toHaveText('Page 4 of 5');
     await expect.poll(() => settled(page), { timeout: 15000 }).toBe(true);
-    expect(resting.equals(await canvas.screenshot())).toBe(true);
+    expect(resting.equals(await bookFrame(page))).toBe(true);
     await touch(session, [[300, 420], [180, 420], [65, 420]]);
     await expect(count).toHaveText('Page 5 of 5');
     await touch(session, [[300, 420], [180, 420], [65, 420]]);
