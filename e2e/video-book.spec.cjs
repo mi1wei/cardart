@@ -75,7 +75,8 @@ test('book textures distinguish video with a painted marker/duration and never r
       await ready;
       const canvas = texture.image;
       const context = canvas.getContext('2d');
-      const pixel = (mmX, mmY) => [...context.getImageData(Math.round(mmX * canvas.width / 209.8), Math.round(mmY * canvas.height / 192.4), 1, 1).data];
+      const pixelsPerMm = canvas.width / 209.8;
+      const pixel = (mmX, mmY) => [...context.getImageData(Math.round(mmX * pixelsPerMm), Math.round(mmY * pixelsPerMm), 1, 1).data];
       const photoPixel = pixel(57, 31.4);
       const videoPixel = pixel(137, 31.4);
       texture.dispose();

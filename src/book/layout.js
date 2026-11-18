@@ -1,7 +1,10 @@
 // Sizes in mm (1 scene unit = 1 mm), measured from the original album.
+const HEIGHT_SCALE = 1.35;
+const PAGE_HEIGHT = 192.4 * HEIGHT_SCALE;
+
 export const DIM = {
   W: 209.8, // sheet width: 22 + 2 × 89.4 + 3.4 + 5.6
-  H: 192.4, // sheet height: 6.4 + 3 × 57.6 + 2 × 3.4 + 6.4
+  H: PAGE_HEIGHT,
   cardW: 85.6,
   cardH: 54,
   cardR: 3.18,
@@ -13,10 +16,10 @@ export const DIM = {
   top: 6.4,
   hole: 9.2, // hole centre to the inner edge
   holeR: 3.1,
-  rings: [-81, -27, 27, 81], // ring positions along the spine (z)
+  rings: [-81, -27, 27, 81].map((position) => position * HEIGHT_SCALE), // ring positions along the spine (z)
   T: 1.05, // sheet thickness
   CT: 1.6, // board thickness
-  HB: 206.4, // board height: H + 14
+  HB: PAGE_HEIGHT + 14,
   h: 5, // hinge arc length
   drop: 2.2, // spine drop when open
   wire: 1.6, // ring wire radius
@@ -25,7 +28,7 @@ export const DIM = {
 // One full-page clear pocket per face (spec §10); photos sit inside with padding and gaps.
 export const POCKET = { w: DIM.W - DIM.spine - DIM.outer, h: DIM.H - 2 * DIM.top, pad: 5, gap: 4, minSide: 30 };
 const BOX_W = POCKET.w - 2 * POCKET.pad; // 172.2
-const BOX_H = POCKET.h - 2 * POCKET.pad; // 169.6
+const BOX_H = POCKET.h - 2 * POCKET.pad; // 236.94
 
 // perPage → average photos per page and the most one page may hold.
 export const PER_PAGE = { 1: { avg: 1, max: 1 }, 2: { avg: 2, max: 3 }, 3: { avg: 3, max: 4 } };

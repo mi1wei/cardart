@@ -2,15 +2,22 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { layoutPages, layoutPortraitPage, photoAt } from './book/layout.js';
 
-test('a taller portrait page uses extra height without changing photo proportions or landscape layout', () => {
+test('portrait reflow preserves the enlarged spread layout and photo proportions', () => {
   const landscape = layoutPages([.5], 1)[0];
   const portrait = layoutPortraitPage(landscape, 280);
-  assert.ok(Math.abs(landscape.rects[0].w - 84.8) < .001);
-  assert.ok(Math.abs(landscape.rects[0].h - 169.6) < .001);
+  assert.ok(Math.abs(landscape.rects[0].w - 118.47) < .001);
+  assert.ok(Math.abs(landscape.rects[0].h - 236.94) < .001);
   assert.ok(Math.abs(portrait.rects[0].w - 128.6) < .001);
   assert.ok(Math.abs(portrait.rects[0].h - 257.2) < .001);
   assert.equal(portrait.rects[0].w / portrait.rects[0].h, .5);
   assert.deepEqual(layoutPages([.5], 1)[0], landscape);
+});
+
+test('a photograph uses the added spread height and remains clickable below the old page edge', () => {
+  const page = layoutPages([.5], 1)[0];
+  assert.equal(page.rects[0].w / page.rects[0].h, .5);
+  assert.equal(photoAt(page, 0, 113.1, 240), 0);
+  assert.equal(photoAt(page, 0, 26, 240), -1);
 });
 
 test('portrait reflow retains the photos, their aspect ratios and their original page', () => {

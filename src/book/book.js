@@ -93,9 +93,9 @@ export function createBook(container, { title, titlePage = null, pages, photoUrl
 
   function refreshPortraitTextures() {
     const availableWidth = Math.max(1, container.clientWidth - 24);
-    const availableHeight = Math.max(1, container.clientHeight - insets.top - insets.bottom - 44);
+    const availableHeight = Math.max(1, container.clientHeight - insets.top - insets.bottom);
     // Match camera framing, which includes the board and spine as well as the sheet.
-    const height = single ? Math.round(Math.max(H, 2 * pageHalf() * availableHeight * .8 / availableWidth) * 2) / 2 : H;
+    const height = single ? Math.max(H, Math.round(2 * pageHalf() * availableHeight * .8 / availableWidth * 2) / 2) : H;
     if (portraitHeight !== height) {
       for (const texture of portraitTextures.values()) texture.dispose();
       portraitTextures.clear();
@@ -468,7 +468,7 @@ export function createBook(container, { title, titlePage = null, pages, photoUrl
       const index = photoAt(layout, single ? 0 : face, u * W, (1 - first.uv.y) * (single ? portraitHeight : H));
       if (index >= 0) return onPhotoClick(index);
     }
-    if (onBlankTap(e)) return;
+    if (onBlankTap(e, !!first)) return;
     if (single) return p.x < pageHalf() ? prevPage() : nextPage();
     setSpread(spread() + (p.x < ringX ? -1 : 1));
   }

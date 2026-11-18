@@ -104,11 +104,11 @@ test('the iPhone browser fullscreen hint explains Home Screen viewing', async ()
   } finally { await fixture.close(); }
 });
 
-test('the phone Home Screen hides the header fullscreen icon and keeps the portrait hint', async () => {
+test('the phone Home Screen keeps a touch exit from its control-free immersive view', async () => {
   test.setTimeout(60_000);
   const fixture = await desktopFixture();
   try {
-    const { page } = await fixture.launch();
+    const { page, desktop } = await fixture.launch();
     const origin = new URL(page.url()).origin;
     await page.setViewportSize({ width: 390, height: 844 });
     const album = await seedBook(page, origin, 'Home Screen reading', 3, 1);
@@ -120,7 +120,20 @@ test('the phone Home Screen hides the header fullscreen icon and keeps the portr
     }, `#/a/${album.id}/3d`);
     await expect(page.locator('.ab-count')).toHaveText('Page 2 of 5', { timeout: 15000 });
     await expect(page.getByRole('button', { name: 'Full screen', exact: true })).toBeHidden();
-    await expect(page.getByRole('button', { name: 'View fullscreen', exact: true })).toBeVisible();
+    const hint = page.getByRole('button', { name: 'View fullscreen', exact: true });
+    await expect(hint).toBeVisible();
+    await hint.click();
+    await expect(page.locator('.ab-bar')).toBeHidden();
+    await expect(page.locator('.ab-foot')).toBeHidden();
+    await page.mouse.move(200, 100);
+    await expect(page.locator('.ab-bar')).toBeHidden();
+    const session = await desktop.context().newCDPSession(page);
+    await session.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 1 });
+    await touch(session, [[195, 12]]);
+    await expect(page.locator('.ab-bar')).toBeVisible();
+    await expect(page.locator('.ab-foot')).toBeVisible();
+    await expect(hint).toBeVisible();
+    await expect(page.locator('.ab-count')).toHaveText('Page 2 of 5');
   } finally { await fixture.close(); }
 });
 
@@ -185,7 +198,8 @@ test('portrait cover transitions retain photograph texture proportions', async (
     const origin = new URL(page.url()).origin;
     await page.setViewportSize({ width: 390, height: 844 });
     const album = await seedBook(page, origin, 'Proportional cover', 3, 1);
-    await page.evaluate(() => {
+    const { DIM } = await import('../src/book/layout.js');
+    await page.evaluate(({ W: pageWidth, H: pageHeight }) => {
       const prototype = WebGL2RenderingContext.prototype;
       const activeTexture = prototype.activeTexture;
       const bindTexture = prototype.bindTexture;
@@ -227,7 +241,7 @@ test('portrait cover transitions retain photograph texture proportions', async (
           const matrix = this.getUniform(program, model);
           if (image && matrix) {
             const scale = Math.hypot(matrix[8], matrix[9], matrix[10]);
-            window.portraitTextureRatios.push(image.height / image.width / (192.4 / 209.8 * scale));
+            window.portraitTextureRatios.push(image.height / image.width / (pageHeight / pageWidth * scale));
           }
         }
         return drawElements.apply(this, args);
@@ -240,7 +254,7 @@ test('portrait cover transitions retain photograph texture proportions', async (
         prototype.drawElements = drawElements;
         CanvasRenderingContext2D.prototype.drawImage = drawImage;
       };
-    });
+    }, DIM);
     await page.evaluate((hash) => { location.hash = hash; }, `#/a/${album.id}/3d`);
     await expect(page.locator('.ab-count')).toHaveText('Page 2 of 5', { timeout: 15000 });
     await expect.poll(() => settled(page), { timeout: 15000 }).toBe(true);
@@ -640,7 +654,7 @@ test('a phone held sideways shows only the album: a swipe turns the page, a tap 
     await expect(book).toHaveAttribute('data-idle', '', { timeout: 3500 });
     await page.setViewportSize({ width: 1280, height: 860 });
     await expect(page.locator('.ab[data-idle]')).toHaveCount(0);
-    await page.waitForTimeout(3500);
-    await expect(page.locator('.ab[data-idle]')).toHaveCount(0);
+    await expect(book).toHaveAttribute('data-idle', '', { timeout: 5000 });
+    await expect(page.locator('.ab-bar')).toHaveCSS('opacity', '0.14');
   } finally { await fixture.close(); }
 });

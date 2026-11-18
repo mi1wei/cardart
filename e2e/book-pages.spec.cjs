@@ -25,7 +25,85 @@ async function darkPixels(page, box) {
   return n;
 }
 
-test('phone controls overlay a centered full-canvas view while desktop framing stays inset', async () => {
+test('the icon-only layout picker labels options on hover and saves desktop and phone choices', async () => {
+  test.setTimeout(60_000);
+  const fixture = await desktopFixture();
+  try {
+    const { page, desktop } = await fixture.launch();
+    await desktop.evaluate(({ app }) => { app.focus({ steal: true }); global.folioTestDesktop.window.focus(); });
+    await expect.poll(() => desktop.evaluate(() => global.folioTestDesktop.window.isFocused())).toBe(true);
+    const origin = new URL(page.url()).origin;
+    await page.setViewportSize({ width: 1280, height: 860 });
+    const album = await seedBook(page, origin, 'Reader layout menu', 8, 2);
+    await page.goto(`${origin}/#/a/${album.id}/3d`);
+    const trigger = page.locator('.ab-layout-toggle');
+    const menu = page.locator('.ab-layout-menu');
+    await expect(trigger).toBeVisible();
+    await expect(trigger).toHaveText('');
+    expect((await trigger.boundingBox()).width).toBeLessThanOrEqual(50);
+    await trigger.click();
+    await expect(menu.getByRole('menuitemradio')).toHaveCount(3);
+    for (const option of await menu.getByRole('menuitemradio').all()) {
+      await expect(option).toHaveText('');
+      await expect(option).toHaveAccessibleName(/\S/);
+    }
+    const single = menu.locator('[data-per="1"]');
+    await single.hover();
+    await expect.poll(() => single.evaluate((element) => getComputedStyle(element, '::after').opacity)).toBe('1');
+    expect(await single.evaluate((element) => getComputedStyle(element, '::after').content)).toBe(`"${await single.getAttribute('aria-label')}"`);
+    await single.click();
+    await expect(menu).toBeHidden();
+    await expect.poll(async () => (await (await page.request.get(`${origin}/api/albums/${album.id}`)).json()).perPage).toBe(1);
+    await expect(trigger).toBeFocused();
+    await trigger.press('ArrowDown');
+    await expect(single).toBeFocused();
+    await page.keyboard.press('ArrowDown');
+    await expect(menu.locator('[data-per="2"]')).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(menu).toBeHidden();
+    await expect.poll(async () => (await (await page.request.get(`${origin}/api/albums/${album.id}`)).json()).perPage).toBe(2);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await trigger.click();
+    const bounds = await menu.boundingBox();
+    expect(bounds.x).toBeGreaterThanOrEqual(0);
+    expect(bounds.x + bounds.width).toBeLessThanOrEqual(390);
+    await menu.locator('[data-per="3"]').click();
+    await expect(menu).toBeHidden();
+    await expect.poll(async () => (await (await page.request.get(`${origin}/api/albums/${album.id}`)).json()).perPage).toBe(3);
+  } finally { await fixture.close(); }
+});
+
+test('single-page framing preserves minimum-sized photographs when page height is fractional', async () => {
+  const fixture = await desktopFixture();
+  try {
+    const { page } = await fixture.launch();
+    await serveModule(page, 'src/book/book.js', '/__folio-minimum-portrait.js');
+    const { layoutPages } = await import('../src/book/layout.js');
+    const pages = layoutPages([.1267, .1267, .1267, .1267], 2);
+    expect(pages.some((page) => page.rects.length > 1)).toBe(true);
+    const image = `data:image/jpeg;base64,${(await posterBytes()).toString('base64')}`;
+    const state = await page.evaluate(async ({ pages, image }) => {
+      const { createBook } = await import('/__folio-minimum-portrait.js');
+      const container = document.createElement('div');
+      container.style.cssText = 'width:1280px;height:860px';
+      document.body.append(container);
+      let book;
+      let state;
+      try {
+        book = createBook(container, {
+          title: 'Minimum portrait', pages, photoUrl: () => image,
+          insets: { top: 24, bottom: 24 }, single: true,
+          onChange(next) { state = next; }, onPhotoClick() {},
+        });
+        return state;
+      } finally { book?.dispose(); container.remove(); }
+    }, { pages, image });
+    expect(state.single).toBe(true);
+    expect(state.closed).toBe(false);
+  } finally { await fixture.close(); }
+});
+
+test('all readers overlay their controls on a centered full-canvas view', async () => {
   test.setTimeout(60_000);
   const fixture = await desktopFixture();
   let observedPage;
@@ -66,9 +144,7 @@ test('phone controls overlay a centered full-canvas view while desktop framing s
       await page.setViewportSize(viewport);
       await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
       await expect.poll(() => page.evaluate(() => window.fullCanvasProjection.length)).toBe(16);
-      const bar = await page.locator('.ab-bar').boundingBox();
-      const foot = await page.locator('.ab-foot').boundingBox();
-      const center = phone ? 0 : (bar.height - foot.height) / viewport.height;
+      const center = 0;
       await expect.poll(async () => {
         const projection = await page.evaluate(() => window.fullCanvasProjection);
         return Math.abs(projection[8]) + Math.abs(projection[9] - center);
@@ -81,11 +157,14 @@ test('phone controls overlay a centered full-canvas view while desktop framing s
       const fullscreen = page.locator('.ab-bar [data-act=fullscreen]');
       if (phone) await expect(fullscreen).toBeHidden();
       else await expect(fullscreen).toBeVisible();
-      if (phone && viewport.width > viewport.height) {
-        const screenshot = test.info().outputPath('landscape-overlay.png');
-        await page.screenshot({ path: screenshot });
-        await test.info().attach('landscape-overlay', { path: screenshot, contentType: 'image/png' });
-      }
+      await page.mouse.move(20, viewport.height / 2);
+      const screenshot = test.info().outputPath(`reader-${viewport.width}x${viewport.height}.png`);
+      const image = await page.screenshot({ path: screenshot, scale: 'css' });
+      const region = await sharp(image).extract({ left: Math.floor(viewport.width * .1), top: Math.floor(viewport.height * .15), width: Math.floor(viewport.width * .8), height: Math.floor(viewport.height * .7) }).toBuffer();
+      const statistics = await sharp(region).stats();
+      expect(Math.max(...statistics.channels.map((channel) => channel.stdev)), '3D book has nonblank rendered pixels').toBeGreaterThan(15);
+      await test.info().attach(`reader-${viewport.width}x${viewport.height}`, { path: screenshot, contentType: 'image/png' });
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     }
   } finally {
     await observedPage?.evaluate(() => window.restoreFullCanvasProjection?.()).catch(() => {});
@@ -282,7 +361,8 @@ test('a photo with a note gets a one-line caption under it; blank notes change n
       CanvasRenderingContext2D.prototype.fillText = fillText;
       const canvas = texture.image;
       const context = canvas.getContext('2d');
-      const pixel = (mmX, mmY) => [...context.getImageData(Math.round(mmX * canvas.width / 209.8), Math.round(mmY * canvas.height / 192.4), 1, 1).data];
+      const pixelsPerMm = canvas.width / 209.8;
+      const pixel = (mmX, mmY) => [...context.getImageData(Math.round(mmX * pixelsPerMm), Math.round(mmY * pixelsPerMm), 1, 1).data];
       // Pocket origin on a front face: x 22 + 5, y 6.4 + 5 mm.
       const out = {
         labels,

@@ -72,13 +72,14 @@ test('background JPG and HEIC imports support dedup, pointer reorder, 3D, fullsc
     }
     await expect(page.locator('.ab')).not.toHaveAttribute('data-error', '');
     console.log('Owned collection phase: 3D ready');
+    await page.locator('.ab-layout-toggle').click();
     await page.locator('.ab-layout [data-per="1"]').click();
     // Rendering can outlive an idle keepalive; retry a reset once on this read only.
     await expect.poll(async () => (await (await page.request.get(`${origin}/api/albums/${album.id}`, { maxRetries: 1 })).json()).perPage).toBe(1);
     const initial = await page.locator('.ab-count').textContent();
     await page.locator('.ab [data-act=next]').click();
     await expect(page.locator('.ab-count')).not.toHaveText(initial);
-    await expect(page.locator('.ab-bar [data-act=cover]')).toHaveText(/合上相册|Close book/);
+    await expect(page.locator('.ab-bar [data-act=cover]')).toHaveAccessibleName(/合上相册|Close book/);
     await expect(page.locator('.ab-foot [data-act=cover]')).toBeHidden();
     console.log('Owned collection phase: entering fullscreen');
     await desktop.evaluate(() => {
@@ -90,7 +91,7 @@ test('background JPG and HEIC imports support dedup, pointer reorder, 3D, fullsc
     await expect.poll(() => page.evaluate(() => !!document.fullscreenElement)).toBe(true);
     await expect.poll(() => desktop.evaluate(() => global.folioTestFullscreen.entered)).toBe(true);
     console.log('Owned collection phase: leaving fullscreen');
-    await page.locator('.ab [data-act=fullscreen]').click();
+    await page.keyboard.press('Escape');
     await expect.poll(() => desktop.evaluate(() => global.folioTestFullscreen.left)).toBe(true);
     await expect.poll(() => page.evaluate(() => !!document.fullscreenElement)).toBe(false);
     console.log('Owned collection phase: fullscreen complete');
@@ -175,7 +176,7 @@ test('the 3D book pairs a labelled close button with the open button', async () 
     await page.locator('.album-page .acts.normal [data-act="3d"]').click();
     const closeBook = page.locator('.ab-bar [data-act=cover]');
     const openBook = page.locator('.ab-foot [data-act=cover]');
-    await expect(closeBook).toHaveText(/合上相册|Close book/, { timeout: 20_000 });
+    await expect(closeBook).toHaveAccessibleName(/合上相册|Close book/, { timeout: 20_000 });
     await closeBook.click();
     await expect(closeBook).toBeHidden();
     await expect(openBook).toHaveText(/打开相册|Open book/);

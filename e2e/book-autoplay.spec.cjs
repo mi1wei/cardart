@@ -53,7 +53,7 @@ test('auto-flip turns spreads at the chosen speed, closes the book at the end an
     const { page } = await fixture.launch();
     await openBook(page);
     const count = page.locator('.ab-count');
-    await expect(page.locator('.ab-bar [data-act=close]')).toHaveText(/Back|返回/);
+    await expect(page.locator('.ab-bar [data-act=close]')).toHaveAccessibleName(/Back|返回/);
     await page.locator('.ab-turn [data-act=play]').click();
     await expect(page.locator('.ab')).toHaveAttribute('data-autoplay', 'playing');
     await expect(page.locator('.ab-turn')).toBeHidden();
@@ -206,31 +206,71 @@ test('when auto-flip ends, focus returns to the play button; a lost GL context s
   } finally { await fixture.close(); }
 });
 
-test('full screen shows only the album, and moving the mouse brings the controls back', async () => {
+test('ordinary reading fades idle controls and keeps hovered or focused controls available', async () => {
+  test.setTimeout(60_000);
+  const fixture = await desktopFixture();
+  try {
+    const { page, desktop } = await fixture.launch();
+    await desktop.evaluate(({ app }) => { app.focus({ steal: true }); global.folioTestDesktop.window.focus(); });
+    await expect.poll(() => desktop.evaluate(() => global.folioTestDesktop.window.isFocused())).toBe(true);
+    await page.setViewportSize({ width: 1280, height: 860 });
+    await openBook(page);
+    await page.mouse.move(640, 100);
+    await expect(page.locator('.ab')).toHaveAttribute('data-idle', '', { timeout: 5000 });
+    await expect(page.locator('.ab-bar')).toHaveCSS('opacity', '0.14');
+    await expect(page.locator('.ab-foot')).toHaveCSS('opacity', '0.14');
+    await page.mouse.move(620, 100);
+    await expect(page.locator('.ab[data-idle]')).toHaveCount(0);
+    await expect(page.locator('.ab-bar')).toHaveCSS('opacity', '1');
+    const layout = page.locator('.ab-layout-toggle');
+    await layout.hover();
+    await page.waitForTimeout(3300);
+    await expect(page.locator('.ab[data-idle]')).toHaveCount(0);
+    await layout.focus();
+    await page.mouse.move(640, 100);
+    await page.waitForTimeout(3300);
+    await expect(page.locator('.ab[data-idle]')).toHaveCount(0);
+    await layout.press('ArrowDown');
+    await expect(page.locator('.ab-layout-menu')).toBeVisible();
+  } finally { await fixture.close(); }
+});
+
+test('full screen hides all reader controls until Escape restores ordinary reading', async () => {
   test.setTimeout(60_000);
   const fixture = await desktopFixture();
   try {
     const { page, desktop } = await fixture.launch();
     await openBook(page);
     const book = page.locator('.ab');
+    const layoutName = await page.locator('.ab-layout-toggle').getAttribute('aria-label');
     // The window's own full-screen animation runs after the page is already full screen.
     const windowFull = () => desktop.evaluate(() => global.folioTestDesktop.window.isFullScreen());
-    const barOpacity = () => page.locator('.ab-bar').evaluate((el) => Number(getComputedStyle(el).opacity));
+    await desktop.evaluate(() => {
+      global.folioReaderEntered = new Promise((resolve) => global.folioTestDesktop.window.once('enter-full-screen', () => resolve(true)));
+    });
     await page.locator('.ab [data-act=fullscreen]').click();
     await expect.poll(() => page.evaluate(() => !!document.fullscreenElement)).toBe(true);
+    await desktop.evaluate(() => global.folioReaderEntered);
     await expect.poll(windowFull).toBe(true);
+    await expect(page.locator('.ab-bar')).toBeHidden();
+    await expect(page.locator('.ab-foot')).toBeHidden();
+    await expect(page.locator('.ab-progress')).toBeHidden();
     await page.mouse.move(5, 5);
-    await expect(book).toHaveAttribute('data-idle', '', { timeout: 5000 });
-    await expect.poll(barOpacity).toBeLessThan(0.1);
     await page.mouse.move(300, 300);
-    await expect(page.locator('.ab[data-idle]')).toHaveCount(0);
-    await expect(book).toHaveAttribute('data-idle', '', { timeout: 5000 });
-    await page.mouse.move(320, 320);
-    await page.locator('.ab [data-act=fullscreen]').click();
+    await expect(page.locator('.ab-bar')).toBeHidden();
+    const screenshot = test.info().outputPath('reader-fullscreen.png');
+    await page.screenshot({ path: screenshot, scale: 'css' });
+    await test.info().attach('reader-fullscreen', { path: screenshot, contentType: 'image/png' });
+    await page.keyboard.press('ArrowRight');
+    await expect(page.locator('.ab-count')).toHaveText('2 / 3');
+    await page.keyboard.press('ArrowLeft');
+    await expect(page.locator('.ab-count')).toHaveText('1 / 3');
+    await page.keyboard.press('Escape');
     await expect.poll(() => page.evaluate(() => !!document.fullscreenElement)).toBe(false);
     await expect.poll(windowFull).toBe(false);
-    // Out of full screen the controls stay.
-    await page.waitForTimeout(3500);
-    await expect(page.locator('.ab[data-idle]')).toHaveCount(0);
+    await expect(book).toBeVisible();
+    await expect(page.locator('.ab-bar')).toBeVisible();
+    await expect(page.locator('.ab-foot')).toBeVisible();
+    await expect(page.locator('.ab-layout-toggle')).toHaveAttribute('aria-label', layoutName);
   } finally { await fixture.close(); }
 });

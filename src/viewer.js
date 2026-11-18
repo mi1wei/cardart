@@ -10,7 +10,7 @@ import { allowWrite } from './license.js';
 const KEYS = { ArrowLeft: 'prev', PageUp: 'prev', ArrowRight: 'next', PageDown: 'next' };
 const DENSITY = [1, 2, 3];
 const DRAWN = 20; // the slider shows once the album has more leaves than the book draws
-const IDLE = 2500; // ms without input before auto-flip fades the controls
+const IDLE = 3000;
 
 export function openViewer({ album, startIndex = 0, onOpenPhoto, onClose, onPerPage }) {
   const opener = document.activeElement;
@@ -24,21 +24,20 @@ export function openViewer({ album, startIndex = 0, onOpenPhoto, onClose, onPerP
     <div class="ab-stage"></div>
     <div class="ab-progress" hidden><i></i></div>
     <header class="ab-bar">
-      <button class="ab-back" type="button" data-act="close" aria-label="${t('back')}">${icon('close')}<span>${t('back')}</span></button>
+      <button class="ab-back" type="button" data-act="close" aria-label="${t('back')}" data-tooltip="${t('back')}">${icon('prev')}</button>
       <h2 class="ab-title"></h2>
-      <span class="ab-layout" role="group" aria-label="${t('per-page')}"><span class="ab-layout-k" aria-hidden="true">${t('per-page')}</span>${DENSITY.map((v) => `<button type="button" data-write data-per="${v}" aria-pressed="false">${icon(`layout${v}`)}<span>${t(`per-${v}`)}</span></button>`).join('')}</span>
-      <label class="ab-select"><span>${t('per-page')}</span><select data-write>${DENSITY.map((v) => `<option value="${v}">${t(`per-${v}`)}</option>`).join('')}</select></label>
-      <button class="ab-icon" type="button" data-act="fullscreen" aria-label="${t('fullscreen')}" aria-pressed="false">${icon('fullscreen')}</button>
-      <button class="ab-secondary" type="button" data-act="cover" aria-label="${t('close-book')}">${icon('bookClosed')}<span>${t('close-book')}</span></button>
+      <span class="ab-layout"><button class="ab-icon ab-layout-toggle" type="button" data-write data-act="layout" aria-label="${t('per-page')}" aria-haspopup="menu" aria-expanded="false" aria-controls="ab-layout-menu"></button><span class="ab-layout-menu" id="ab-layout-menu" role="menu" aria-label="${t('per-page')}" hidden>${DENSITY.map((value) => `<button type="button" role="menuitemradio" data-write data-per="${value}" aria-label="${t(`per-${value}`)}" data-tooltip="${t(`per-${value}`)}" aria-checked="false" tabindex="-1">${icon(`layout${value}`)}<span class="ab-layout-check" aria-hidden="true">${icon('check')}</span></button>`).join('')}</span></span>
+      <button class="ab-icon" type="button" data-act="fullscreen" aria-label="${t('fullscreen')}" data-tooltip="${t('fullscreen')}" aria-pressed="false">${icon('fullscreen')}</button>
+      <button class="ab-icon" type="button" data-act="cover" aria-label="${t('close-book')}" data-tooltip="${t('close-book')}">${icon('bookClosed')}</button>
     </header>
     <footer class="ab-foot">
       <button class="ab-fullscreen" type="button" data-act="view-fullscreen">${icon('rotatePhone')}<span>${t('fullscreen-view')}</span></button>
       <div class="ab-nav ab-turn">
-        <button class="ab-icon ab-round" type="button" data-act="prev" aria-label="${t('prev-page')}">${icon('prev')}</button>
+        <button class="ab-icon ab-round" type="button" data-act="prev" aria-label="${t('prev-page')}" data-tooltip="${t('prev-page')}">${icon('prev')}</button>
         <span class="ab-count" aria-live="polite"></span>
-        <button class="ab-icon ab-round" type="button" data-act="next" aria-label="${t('next-page')}">${icon('next')}</button>
+        <button class="ab-icon ab-round" type="button" data-act="next" aria-label="${t('next-page')}" data-tooltip="${t('next-page')}">${icon('next')}</button>
         <span class="ab-sep" aria-hidden="true"></span>
-        <button class="ab-play" type="button" data-act="play" aria-label="${t('autoplay')}">${icon('play')}<span>${t('autoplay')}</span></button>
+        <button class="ab-play" type="button" data-act="play" aria-label="${t('autoplay')}" data-tooltip="${t('autoplay')}">${icon('play')}</button>
       </div>
       <div class="ab-nav ab-player" hidden>
         <button class="ab-icon ab-round" type="button" data-act="pause"></button>
@@ -59,7 +58,10 @@ export function openViewer({ album, startIndex = 0, onOpenPhoto, onClose, onPerP
   const $ = (selector) => root.querySelector(selector);
   const stage = $('.ab-stage');
   const slider = $('.ab-slider');
-  const per = $('.ab-select select');
+  const per = $('.ab-layout-toggle');
+  const layoutMenu = $('.ab-layout-menu');
+  const bar = $('.ab-bar');
+  const foot = $('.ab-foot');
   const full = $('[data-act=fullscreen]');
   const fullscreenHint = $('.ab-fullscreen');
   let book = null;
@@ -93,12 +95,19 @@ export function openViewer({ album, startIndex = 0, onOpenPhoto, onClose, onPerP
 
   function onFullscreen() {
     const on = isFullscreen();
+    const controlsFocused = bar.contains(document.activeElement) || foot.contains(document.activeElement);
+    root.toggleAttribute('data-fullscreen', on);
+    bar.inert = on;
+    foot.inert = on;
     full.innerHTML = icon(on ? 'fullscreenExit' : 'fullscreen');
     full.setAttribute('aria-label', t(on ? 'fullscreen-exit' : 'fullscreen'));
+    full.dataset.tooltip = t(on ? 'fullscreen-exit' : 'fullscreen');
     full.setAttribute('aria-pressed', String(on));
-    if (on && document.activeElement === fullscreenHint) full.focus();
+    if (on) {
+      closeLayout();
+      if (controlsFocused) root.focus({ preventScroll: true });
+    }
     paint();
-    // Full screen shows only the album: the bars float over it and fade like during auto-flip.
     wake();
     book?.redraw();
   }
@@ -210,9 +219,17 @@ export function openViewer({ album, startIndex = 0, onOpenPhoto, onClose, onPerP
 
   // The controls fade after a moment; input brings them back.
   function wake() {
+    root.toggleAttribute('data-album-only', albumOnly());
     root.removeAttribute('data-idle');
     clearTimeout(idleTimer);
-    if (player.state() === 'playing' || albumOnly()) idleTimer = setTimeout(() => root.setAttribute('data-idle', ''), IDLE);
+    if (isFullscreen()) return;
+    idleTimer = setTimeout(() => {
+      if (!layoutMenu.hidden || (player.state() !== 'playing' && !albumOnly() && root.querySelector('.ab-bar:hover, .ab-foot:hover, .ab-bar:focus-within, .ab-foot:focus-within'))) {
+        wake();
+        return;
+      }
+      root.setAttribute('data-idle', '');
+    }, IDLE);
   }
 
   // A finger moving is a swipe, and a layout change moves no mouse but still sends a move at the cursor.
@@ -224,8 +241,9 @@ export function openViewer({ album, startIndex = 0, onOpenPhoto, onClose, onPerP
   }
 
   function onPointerDown(e) {
+    if (!e.target.closest('.ab-layout')) closeLayout();
     player.restart(); // a page held or dragged gets a full step before auto-flip turns it
-    if (e.pointerType === 'mouse' || !root.hasAttribute('data-idle')) wake();
+    if (e.pointerType === 'mouse' || !root.hasAttribute('data-idle') || (!albumOnly() && player.state() !== 'playing')) wake();
     // Faded during auto-flip, the first tap only brings the controls back. With only the album
     // showing, a swipe turns the page and a tap on empty space brings them back (onBlankTap).
     else if (!albumOnly()) {
@@ -265,7 +283,11 @@ export function openViewer({ album, startIndex = 0, onOpenPhoto, onClose, onPerP
         startSide: titlePage || pages.findIndex((page) => page.rects.some((r) => r.i === i)) % 2 === 1 ? -1 : 1,
         single: upright.matches,
         onChange,
-        onBlankTap: (e) => {
+        onBlankTap: (e, onPage) => {
+          if (immersive && !onPage && e.pointerType !== 'mouse') {
+            toggleFullscreen();
+            return true;
+          }
           if (e.pointerType === 'mouse' || !root.hasAttribute('data-idle')) return false;
           wake();
           return true;
@@ -281,11 +303,27 @@ export function openViewer({ album, startIndex = 0, onOpenPhoto, onClose, onPerP
     }
   }
 
-  // One layout, two controls (polish spec §3.5): segmented buttons on wide screens, the menu on phones.
   function syncPerPage() {
     const value = String(album.perPage ?? 2);
-    per.value = value;
-    for (const button of root.querySelectorAll('[data-per]')) button.setAttribute('aria-pressed', String(button.dataset.per === value));
+    per.innerHTML = `${icon(`layout${value}`)}<span class="ab-layout-caret" aria-hidden="true">${icon('chevronDown')}</span>`;
+    const label = `${t('per-page')}: ${t(`per-${value}`)}`;
+    per.setAttribute('aria-label', label);
+    per.dataset.tooltip = label;
+    for (const button of layoutMenu.querySelectorAll('[data-per]')) button.setAttribute('aria-checked', String(button.dataset.per === value));
+  }
+
+  function closeLayout(restoreFocus = false) {
+    layoutMenu.hidden = true;
+    per.setAttribute('aria-expanded', 'false');
+    if (restoreFocus) per.focus();
+  }
+
+  function toggleLayout() {
+    if (!layoutMenu.hidden) { closeLayout(true); return; }
+    layoutMenu.hidden = false;
+    per.setAttribute('aria-expanded', 'true');
+    layoutMenu.querySelector('[aria-checked=true]').focus();
+    wake();
   }
 
   function setPerPage(value) {
@@ -299,12 +337,33 @@ export function openViewer({ album, startIndex = 0, onOpenPhoto, onClose, onPerP
   }
 
   function onKey(e) {
+    if (!layoutMenu.hidden) {
+      const options = [...layoutMenu.querySelectorAll('[data-per]')];
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        closeLayout(true);
+      } else if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) {
+        e.preventDefault();
+        const current = options.indexOf(document.activeElement);
+        const next = e.key === 'Home' ? 0 : e.key === 'End' ? options.length - 1 : (current + (e.key === 'ArrowDown' ? 1 : -1) + options.length) % options.length;
+        options[next].focus();
+      } else if (e.key === 'Tab') closeLayout(true);
+      return;
+    }
+    if (e.target === per) {
+      if (['ArrowDown', 'ArrowUp', ' '].includes(e.key)) {
+        e.preventDefault();
+        toggleLayout();
+        return;
+      }
+      if (e.key === 'Enter') return;
+    }
     // The menu and the slider keep their keys; so do the lightbox and confirmations above the book.
     if (e.target.closest?.('select, input') || document.querySelector('.lb, dialog[open]')) return;
     wake();
     if (e.key === 'Escape') {
-      if (player.state() !== 'off') player.stop();
-      else if (immersive) toggleFullscreen();
+      if (isFullscreen()) toggleFullscreen();
+      else if (player.state() !== 'off') player.stop();
       else onClose();
     } else if (e.key === ' ') togglePlay(); // cancelling keydown also stops a focused button's click
     else if (KEYS[e.key] && book) book[KEYS[e.key]]();
@@ -316,8 +375,12 @@ export function openViewer({ album, startIndex = 0, onOpenPhoto, onClose, onPerP
     const target = e.target.closest('[data-act], [data-speed], [data-per]');
     if (!target) return;
     const act = target.dataset.act;
-    if (target.dataset.per) setPerPage(Number(target.dataset.per));
+    if (target.dataset.per) {
+      setPerPage(Number(target.dataset.per));
+      closeLayout(true);
+    }
     else if (target.dataset.speed) player.setSpeed(target.dataset.speed);
+    else if (act === 'layout') toggleLayout();
     else if (act === 'close') onClose();
     else if (act === 'fullscreen' || act === 'view-fullscreen') toggleFullscreen();
     else if (act === 'play') startPlaying();
@@ -333,10 +396,6 @@ export function openViewer({ album, startIndex = 0, onOpenPhoto, onClose, onPerP
   slider.addEventListener('change', () => {
     sliding = false;
     book?.jump(Number(slider.value));
-  });
-  per.addEventListener('change', () => {
-    setPerPage(Number(per.value));
-    per.blur(); // ← → turn pages again
   });
 
   function close() {
@@ -374,10 +433,10 @@ export function openViewer({ album, startIndex = 0, onOpenPhoto, onClose, onPerP
   // Read live so framing follows rotation; on phones and in full screen the bars float over the book.
   const insets = {
     get top() {
-      return albumOnly() ? 0 : $('.ab-bar').offsetHeight;
+      return albumOnly() ? 0 : 24;
     },
     get bottom() {
-      return albumOnly() ? 0 : $('.ab-foot').offsetHeight;
+      return albumOnly() ? 0 : 24;
     },
   };
   build(startIndex);

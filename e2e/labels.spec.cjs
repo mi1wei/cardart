@@ -59,12 +59,15 @@ test('the 3D book offers single, relaxed and compact layouts as one control', as
     await page.goto(`${origin}/#/a/${album.id}/3d`);
     await expect(page.locator('.ab canvas')).toBeVisible();
     const layout = page.locator('.ab-layout');
-    await expect(layout).toHaveAttribute('aria-label', 'Layout');
-    await expect(layout.locator('button')).toHaveText(['Single', 'Relaxed', 'Compact']);
-    await expect(layout.locator('[data-per="2"]')).toHaveAttribute('aria-pressed', 'true');
-    await expect(page.locator('.ab-select')).toBeHidden();
+    const trigger = layout.locator('.ab-layout-toggle');
+    await expect(trigger).toHaveAccessibleName('Layout: Relaxed');
+    await expect(trigger).toHaveText('');
+    await trigger.click();
+    await expect(layout.getByRole('menuitemradio')).toHaveText(['', '', '']);
+    for (const [index, label] of ['Single', 'Relaxed', 'Compact'].entries()) await expect(layout.getByRole('menuitemradio').nth(index)).toHaveAccessibleName(label);
+    await expect(layout.locator('[data-per="2"]')).toHaveAttribute('aria-checked', 'true');
     await layout.locator('[data-per="3"]').click();
-    await expect(layout.locator('[data-per="3"]')).toHaveAttribute('aria-pressed', 'true');
+    await expect(layout.locator('[data-per="3"]')).toHaveAttribute('aria-checked', 'true');
     await expect.poll(perPage).toBe(3);
     // The layout button keeps focus, yet the arrow keys still turn pages.
     const before = await page.locator('.ab-count').textContent();
@@ -74,12 +77,11 @@ test('the 3D book offers single, relaxed and compact layouts as one control', as
     await page.setViewportSize({ width: 720, height: 600 });
     await expect(page.locator('.ab-bar [data-act=cover]')).toBeVisible();
     expect(await page.evaluate(() => [...document.querySelectorAll('.ab-bar > *')].every((el) => el.getBoundingClientRect().right <= innerWidth + 0.5))).toBe(true);
-    // Phones keep a menu that reads "Layout · …".
     await page.setViewportSize({ width: 390, height: 800 });
-    await expect(layout).toBeHidden();
-    await expect(page.locator('.ab-select > span')).toHaveText('Layout');
-    await expect(page.locator('.ab-select select')).toHaveValue('3');
-    await page.locator('.ab-select select').selectOption('1');
+    await expect(trigger).toBeVisible();
+    await expect(trigger).toHaveAccessibleName('Layout: Compact');
+    await trigger.click();
+    await layout.locator('[data-per="1"]').click();
     await expect.poll(perPage).toBe(1);
   } finally { await fixture.close(); }
 });
