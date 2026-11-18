@@ -67,11 +67,12 @@ test('a profile-scoped quit command exits the running desktop through its normal
   try {
     const { desktop, page } = await fixture.launch();
     const origin = new URL(page.url()).origin;
-    const closed = desktop.waitForEvent('close', { timeout: 5000 });
-    await run(require('electron'), [join(__dirname, 'desktop-entry.cjs'), `--user-data-dir=${fixture.profile}`, '--quit'], {
-      env: { ...process.env, ALBUM_LIBRARY: fixture.library, FOLIO_E2E_KEY_FILE: fixture.keyFile }, timeout: 15000,
-    });
-    await closed;
+    await Promise.all([
+      desktop.waitForEvent('close'),
+      run(require('electron'), [join(__dirname, 'desktop-entry.cjs'), `--user-data-dir=${fixture.profile}`, '--quit'], {
+        env: { ...process.env, ALBUM_LIBRARY: fixture.library, FOLIO_E2E_KEY_FILE: fixture.keyFile }, timeout: 15000,
+      }),
+    ]);
     await expect(readFile(join(fixture.profile, 'runtime.json'))).rejects.toMatchObject({ code: 'ENOENT' });
     await expect(fetch(origin)).rejects.toThrow();
     const { openLibrary } = await import('../server/library.js');
